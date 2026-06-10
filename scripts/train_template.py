@@ -1,0 +1,1417 @@
+#!/usr/bin/env python3
+"""
+AttackLM — QLoRA Fine-Tuning Template
+
+Train any AttackLM tactical agent or orchestrator on its respective JSONL dataset
+using 4-bit QLoRA with SFTTrainer.
+
+Usage:
+  # Dry run (default) — validate dataset and print stats
+  python train_template.py --dataset data/datasets/persistence_dataset.jsonl --output models/persistence-agent
+
+  # Actual training
+  python train_template.py --dataset data/datasets/persistence_dataset.jsonl --output models/persistence-agent --train
+
+  # Custom base model and hyperparams
+  python train_template.py --dataset data/datasets/orchestrator_dataset.jsonl --output models/orchestrator-agent --base-model Qwen/Qwen2.5-7B-Instruct --epochs 3 --batch-size 2
+
+  # OOM-safe: frequent checkpoints + gradient accumulation
+  python train_template.py --dataset data/datasets/persistence_dataset.jsonl --output models/persistence-agent --train --save-steps 200 --gradient-accumulation-steps 4
+
+  # Dry run with custom params
+  python train_template.py --dataset data/datasets/persistence_dataset.jsonl --output models/persistence-agent --base-model Qwen/Qwen2.5-7B-Instruct --dry-run
+
+Dependencies:
+  pip install transformers datasets trl peft bitsandbytes accelerate
+"""
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# OOM fix #1: PyTorch CUDA allocator configuration
+# ---------------------------------------------------------------------------
+# `expandable_segments:True` is the single biggest fix for long-running OOMs.
+# It tells the allocator to use virtual memory mapping, so freed blocks can be
+# coalesced instead of fragmenting into a checkerboard of small holes. This
+# matters after 20,000+ forward/backward passes where the standard allocator
+# has fragmented VRAM into many small free blocks that can't satisfy a single
+# large allocation (even though total free VRAM looks sufficient in nvidia-smi).
+#
+# `max_split_size_mb:128` caps how aggressively the allocator splits blocks,
+# keeping large allocations from being broken into many small pieces.
+#
+# MUST be set BEFORE any CUDA tensor is allocated, so we do it at import time.
+os.environ.setdefault(
+    "PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True,max_split_size_mb:128"
+)
+
+# ---------------------------------------------------------------------------
+# CLI Arguments
+# ---------------------------------------------------------------------------
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="AttackLM QLoRA Fine-Tuning Template",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+Examples:
+  # Validate dataset without training
+  python train_template.py --dataset data/datasets/persistence_dataset.jsonl --output models/persistence-agent
+
+  # Actually train
+  python train_template.py --dataset data/datasets/persistence_dataset.jsonl --output models/persistence-agent --train
+
+  # Orchestrator model with custom LoRA rank
+  python train_template.py --dataset data/datasets/orchestrator_dataset.jsonl --output models/orchestrator-agent --lora-r 32
+
+  # Resume from last checkpoint in output dir
+  python train_template.py --dataset data/datasets/persistence_dataset.jsonl --output models/persistence-agent --train --resume-from-checkpoint
+""",
+    )
+
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        required=True,
+        help="Path to JSONL training file (required)",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        required=True,
+        help="Output directory for saved adapter (required)",
+    )
+    parser.add_argument(
+        "--base-model",
+        type=str,
+        default="Qwen/Qwen2.5-7B-Instruct",
+        help="Base HuggingFace model ID (default: Qwen/Qwen2.5-7B-Instruct)",
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=50,
+        help="Max training epochs — early stopping will halt when eval loss stops improving (default: 50)",
+    )
+    parser.add_argument(
+        "--eval-split",
+        type=float,
+        default=0.1,
+        help="Fraction of data held out for evaluation (default: 0.1 = 10%%)",
+    )
+    parser.add_argument(
+        "--early-stopping-patience",
+        type=int,
+        default=3,
+        help="Stop after N eval rounds without improvement, rollback to best checkpoint (default: 3)",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=2,
+        help="Per-device training batch size (default: 2)",
+    )
+    parser.add_argument(
+        "--max-length",
+        type=int,
+        default=2048,
+        help="Maximum sequence length (default: 2048)",
+    )
+    parser.add_argument(
+        "--lora-r",
+        type=int,
+        default=16,
+        help="LoRA rank (default: 16)",
+    )
+    parser.add_argument(
+        "--lora-alpha",
+        type=int,
+        default=32,
+        help="LoRA alpha (default: 32)",
+    )
+    parser.add_argument(
+        "--lora-dropout",
+        type=float,
+        default=0.05,
+        help="LoRA dropout (default: 0.05). Set 0.0 for curriculum stage 2 fine-tuning.",
+    )
+    parser.add_argument(
+        "--resume-from-checkpoint",
+        action="store_true",
+        help="Resume training from the last checkpoint-N/ in the output dir",
+    )
+    parser.add_argument(
+        "--save-steps",
+        type=int,
+        default=200,
+        help="Save checkpoint every N steps (default: 200). Lower = more frequent saves.",
+    )
+    parser.add_argument(
+        "--gradient-accumulation-steps",
+        type=int,
+        default=1,
+        help="Gradient accumulation steps — simulate larger batch without extra VRAM. "
+        "effective_batch = batch_size × grad_accum. (default: 1)",
+    )
+    parser.add_argument(
+        "--optim",
+        type=str,
+        default="paged_adamw_8bit",
+        help="Optimizer (default: paged_adamw_8bit). Other options: adamw_torch, adamw_8bit, sgd.",
+    )
+    parser.add_argument(
+        "--packing",
+        dest="packing",
+        action="store_true",
+        default=False,
+        help="Enable example packing + padding-free training (default: OFF). "
+        "Concatenates short examples into max_length-sized sequences for ~30-40% throughput gain. "
+        "REQUIRES flash_attention_2 to prevent cross-sample contamination. "
+        "If flash-attn is not installed, training will fail with a clear error and "
+        "suggestion to use --no-packing instead. Default is OFF because flash-attn "
+        "is hard to install in many envs (large compile, OOM-prone).",
+    )
+    parser.add_argument(
+        "--no-packing",
+        dest="packing",
+        action="store_false",
+        help="Disable example packing (default). Each example is padded to max_length "
+        "individually. Slower but doesn't require flash-attn. Always works.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Load data and print stats without training (default unless --train)",
+    )
+    parser.add_argument(
+        "--train",
+        action="store_true",
+        default=False,
+        help="Actually run training (disabled by default for safety)",
+    )
+    parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=-1,
+        help="Stop training after N optimizer steps (overrides --epochs). "
+        "Used by HPO trials to cap run-length at a fixed budget. "
+        "Default: -1 (use --epochs)",
+    )
+    parser.add_argument(
+        "--hpo-metrics-csv",
+        type=str,
+        default=None,
+        help="Path to write per-step HPO metrics as CSV. Includes extra fields "
+        "(tokens/sec, pairs/sec, pair size stats) that HF's default JSON log "
+        "doesn't capture. Default: None (off)",
+    )
+
+    return parser.parse_args()
+
+
+# ---------------------------------------------------------------------------
+# Checks & Validation
+# ---------------------------------------------------------------------------
+
+
+def check_python_version() -> None:
+    """Ensure Python 3.9+ is available."""
+    if sys.version_info < (3, 9):
+        print(f"ERROR: Python 3.9+ required, got {sys.version}")
+        sys.exit(1)
+
+
+def check_gpu() -> str:
+    """Check for CUDA/BF16 availability and return compute dtype string."""
+    try:
+        import torch
+
+        if not torch.cuda.is_available():
+            print(
+                "WARNING: No CUDA GPU detected. Training will be extremely slow on CPU."
+            )
+            print(
+                "         Consider using Google Colab (T4/A100) or RunPod if you lack a local GPU."
+            )
+            return "fp32"
+
+        gpu_name = torch.cuda.get_device_name(0)
+        gpu_mem = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        print(f"GPU: {gpu_name} ({gpu_mem:.1f} GB VRAM)")
+
+        if gpu_mem < 10:
+            print(f"WARNING: GPU has only {gpu_mem:.1f} GB VRAM.")
+            print("         If you hit OOM, try: --batch-size 1 --max-length 1024")
+
+        # Use FP16 for compatibility (BF16 + AMP scaler can conflict with
+        # some model weight formats, especially when the model stores BF16 weights)
+        print("Mixed precision: FP16 (forced for AMP compatibility)")
+        return "fp16"
+
+    except ImportError:
+        print("WARNING: PyTorch not installed. Install with: pip install torch")
+        return "fp16"
+
+
+def validate_dataset(dataset_path: str) -> None:
+    """Validate dataset file exists and has correct format."""
+    path = Path(dataset_path)
+
+    if not path.exists():
+        print(f"ERROR: Dataset file not found: {dataset_path}")
+        print(
+            "       See README.md §Quickstart for how to generate datasets (run scripts/extract_*.py)."
+        )
+        sys.exit(1)
+
+    if not path.suffix == ".jsonl":
+        print(f"WARNING: Expected .jsonl extension, got '{path.suffix}'")
+
+    # Read first few lines and validate format
+    errors = 0
+    line_count = 0
+    with open(path, "r", encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            line_count += 1
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                if "messages" not in obj:
+                    errors += 1
+                    if errors <= 3:
+                        print(
+                            f"WARNING: Line {i + 1} missing 'messages' key — skipping"
+                        )
+                else:
+                    msgs = obj["messages"]
+                    if not isinstance(msgs, list) or len(msgs) < 2:
+                        errors += 1
+                        if errors <= 3:
+                            print(
+                                f"WARNING: Line {i + 1} has invalid 'messages' format"
+                            )
+                    else:
+                        for m in msgs:
+                            if "role" not in m or "content" not in m:
+                                errors += 1
+                                if errors <= 3:
+                                    print(
+                                        f"WARNING: Line {i + 1} has message without 'role' or 'content'"
+                                    )
+                                break
+            except json.JSONDecodeError as e:
+                errors += 1
+                if errors <= 3:
+                    print(f"WARNING: Line {i + 1} JSON parse error: {e}")
+
+    if errors > 3:
+        print(f"WARNING: {errors} total format issues in dataset (showing first 3)")
+
+    if line_count == 0:
+        print(f"ERROR: Dataset file is empty: {dataset_path}")
+        sys.exit(1)
+
+    print(f"Dataset: {line_count} examples, {errors} format issues")
+
+
+# ---------------------------------------------------------------------------
+# Dataset Stats
+# ---------------------------------------------------------------------------
+
+
+def print_dataset_stats(dataset, tokenizer, hpo_stats_path: str = None) -> None:
+    """Print dataset statistics including token length estimates.
+
+    When `hpo_stats_path` is provided, also write a JSON sidecar with
+    exact (not estimated) token length stats for the full dataset. The
+    HPO loop uses this to compute `pair_mean_tokens`, `pair_min_tokens`,
+    `pair_max_tokens` for the per-step CSV. The HPO logger's per-step
+    pair_mean is approximate (num_tokens / pairs_in_window); the
+    sidecar gives the precise, unchanging reference.
+    """
+    num_examples = len(dataset)
+    print(f"\n{'=' * 60}")
+    print(f" DATASET STATISTICS")
+    print(f"{'=' * 60}")
+    print(f"  Examples:       {num_examples}")
+
+    # Estimate token lengths (word-level)
+    word_lengths = []
+    sample_size = min(num_examples, 100)
+    for i in range(sample_size):
+        example = dataset[i]
+        try:
+            text = tokenizer.apply_chat_template(example["messages"], tokenize=False)
+            word_lengths.append(len(text.split()))
+        except Exception:
+            word_lengths.append(0)
+
+    if word_lengths:
+        avg_words = sum(word_lengths) / len(word_lengths)
+        avg_tokens_est = int(avg_words * 1.3)  # rough word-to-token ratio
+        print(f"  Avg word count: {avg_words:.0f} (sampled {sample_size})")
+        print(f"  Avg token est:   ~{avg_tokens_est} (1.3x word ratio)")
+        print(f"  Max word count:  {max(word_lengths)}")
+        print(f"  Min word count:  {min(word_lengths)}")
+
+    # Exact token stats (sampled for speed). For HPO we use this
+    # to record pair_min/max/mean once at the start of a run.
+    if hpo_stats_path:
+        from statistics import mean, median
+
+        # Sample up to 500 examples for exact tokenization (cheaper than
+        # full corpus for large datasets, statistically enough for min/max
+        # which are dominated by the long tail).
+        exact_sample_size = min(num_examples, 500)
+        token_lengths = []
+        for i in range(exact_sample_size):
+            example = dataset[i]
+            try:
+                text = tokenizer.apply_chat_template(
+                    example["messages"], tokenize=False
+                )
+                n = len(tokenizer.encode(text, add_special_tokens=False))
+                token_lengths.append(n)
+            except Exception:
+                pass
+        if token_lengths:
+            stats = {
+                "n_examples_total": num_examples,
+                "n_examples_sampled": len(token_lengths),
+                "min_tokens": min(token_lengths),
+                "max_tokens": max(token_lengths),
+                "mean_tokens": round(mean(token_lengths), 1),
+                "median_tokens": median(token_lengths),
+                "p95_tokens": sorted(token_lengths)[int(0.95 * len(token_lengths))],
+                "p99_tokens": sorted(token_lengths)[int(0.99 * len(token_lengths))],
+            }
+            os.makedirs(os.path.dirname(hpo_stats_path) or ".", exist_ok=True)
+            with open(hpo_stats_path, "w", encoding="utf-8") as f:
+                json.dump(stats, f, indent=2)
+            print(f"  Exact token stats (sampled {len(token_lengths)}):")
+            print(
+                f"    min={stats['min_tokens']}  median={stats['median_tokens']}  "
+                f"mean={stats['mean_tokens']}  p95={stats['p95_tokens']}  "
+                f"p99={stats['p99_tokens']}  max={stats['max_tokens']}"
+            )
+            print(f"  → wrote HPO stats to {hpo_stats_path}")
+
+    print(f"{'=' * 60}\n")
+
+
+# ---------------------------------------------------------------------------
+# Training Configuration
+# ---------------------------------------------------------------------------
+
+
+def get_qlora_config(
+    lora_r: int, lora_alpha: int, lora_dropout: float = 0.05
+) -> "LoraConfig":
+    """Build LoRA config targeting all linear modules."""
+    from peft import LoraConfig, TaskType
+
+    return LoraConfig(
+        r=lora_r,
+        lora_alpha=lora_alpha,
+        lora_dropout=lora_dropout,
+        bias="none",
+        task_type=TaskType.CAUSAL_LM,
+        # OOM fix #9: Use Rank-Stabilized LoRA
+        # RSLoRA (https://huggingface.co/papers/2312.03732) sets the adapter
+        # scaling factor to `lora_alpha / sqrt(r)` instead of `lora_alpha / r`.
+        # This lets us halve the rank (r=16 → r=8) while keeping equivalent
+        # effective training signal — fewer trainable params means less
+        # optimizer state in 8-bit Adam, less gradient memory, less activation
+        # memory in the LoRA forward pass. With our current r=16 setup,
+        # enabling RSLoRA would let us drop to r=8 for ~50% LoRA param
+        # reduction with no loss in quality. To keep behavior identical for
+        # any in-flight training, we leave r unchanged but enable the flag
+        # so the next training run can use the lower rank.
+        use_rslora=True,
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
+    )
+
+
+def get_quantization_config() -> "BitsAndBytesConfig":
+    """Build 4-bit NF4 quantization config — FP32 compute to avoid AMP conflicts."""
+    from transformers import BitsAndBytesConfig
+    import torch as _torch
+
+    # Set TF32 for faster matmul on Ampere (RTX 30xx/40xx)
+    if _torch.cuda.is_available():
+        _torch.backends.cuda.matmul.allow_tf32 = True
+        _torch.backends.cudnn.allow_tf32 = True
+
+    return BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=_torch.float32,  # no AMP/ BF16 conflicts
+        bnb_4bit_use_double_quant=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+
+def detect_assistant_loss_support(tokenizer, dataset_sample: dict) -> dict:
+    """Auto-detect whether to enable assistant_only_loss / completion_only_loss.
+
+    Background:
+        SFTConfig has two params that restrict loss computation to just the
+        model's output (skipping the user/system prompt):
+
+        - `assistant_only_loss=True`: requires a *conversational* dataset
+          (with a `messages` array of role/content dicts) AND a chat template
+          that contains `{% generation %}` blocks. These blocks tell the
+          tokenizer "this part of the template is the assistant's output,
+          generate a mask for it." Models with built-in support: Qwen3,
+          SmolLM3, and a few others. Qwen2.5 does NOT have them.
+
+        - `completion_only_loss=True`: requires a *prompt-completion* dataset
+          (separate `prompt` and `completion` fields). No template support
+          needed — the dataset format itself defines the boundary.
+
+        If neither is applicable, we fall back to full-sequence loss (the
+        default) which still works fine — just slightly less efficient
+        because the model wastes capacity learning to predict the user's
+        input (which it will never generate at inference time).
+
+    Returns:
+        dict with keys:
+            - `assistant_only_loss`: bool — set to True if supported
+            - `completion_only_loss`: bool — set to True if prompt-completion dataset
+            - `reason`: str — human-readable explanation of what was detected
+    """
+    # Default: full-sequence loss
+    result = {
+        "assistant_only_loss": False,
+        "completion_only_loss": False,
+        "reason": "no special dataset format detected, using full-sequence loss",
+    }
+
+    # Check dataset format
+    if "messages" in dataset_sample and isinstance(dataset_sample["messages"], list):
+        # Conversational format — needs chat template with {% generation %}
+        template = getattr(tokenizer, "chat_template", None) or ""
+        has_generation_block = (
+            "{% generation %}" in template or "{%- generation %}" in template
+        )
+        if has_generation_block:
+            result["assistant_only_loss"] = True
+            result["reason"] = (
+                "conversational dataset + chat template has {% generation %} blocks — "
+                "enabling assistant_only_loss (skips user/system tokens in loss)"
+            )
+        else:
+            # Detect the model family to give a helpful hint
+            model_name = getattr(tokenizer, "name_or_path", "unknown")
+            result["reason"] = (
+                f"conversational dataset but chat template for '{model_name}' lacks "
+                f"{{% generation %}} blocks — cannot use assistant_only_loss. "
+                f"Model is training on full sequence (slightly less efficient but still works). "
+                f"Switch to Qwen3 or SmolLM3 to enable, or patch the chat template manually."
+            )
+    elif "prompt" in dataset_sample and "completion" in dataset_sample:
+        # Prompt-completion format — no template needed
+        result["completion_only_loss"] = True
+        result["reason"] = (
+            "prompt-completion dataset — enabling completion_only_loss "
+            "(loss only on the completion field, prompt is masked to -100)"
+        )
+    else:
+        # Pure language modeling (single text field) — full loss is the only option
+        result["reason"] = (
+            "language modeling dataset (single text field) — using full-sequence loss"
+        )
+
+    return result
+
+
+def main() -> None:
+    args = parse_args()
+    check_python_version()
+
+    is_dry_run = args.dry_run or not args.train
+
+    print("\n" + "=" * 60)
+    print(" AttackLM QLoRA Fine-Tuning Template")
+    print("=" * 60)
+    mode_label = "DRY RUN (no training)" if is_dry_run else "LIVE TRAINING"
+    print(f" Mode: {mode_label}")
+    print(f" Base model:  {args.base_model}")
+    print(f" Dataset:     {args.dataset}")
+    print(f" Output:      {args.output}")
+    print(f" Epochs:      {args.epochs}")
+    print(f" Batch size:   {args.batch_size}")
+    print(f" Max length:   {args.max_length}")
+    print(
+        f" LoRA r={args.lora_r}, alpha={args.lora_alpha}, dropout={args.lora_dropout}"
+    )
+    print(f" Optimizer:  {args.optim}")
+    print("=" * 60 + "\n")
+
+    # --- Validate dataset path ---
+    validate_dataset(args.dataset)
+
+    # --- Check GPU ---
+    compute_type = check_gpu()
+
+    # --- Load dependencies (deferred so --dry-run can run without GPU) ---
+    print("\nLoading libraries...")
+    try:
+        from datasets import load_dataset
+        from transformers import AutoTokenizer
+    except ImportError as e:
+        print(f"ERROR: Missing dependency: {e}")
+        print(
+            "Install with: pip install transformers datasets trl peft bitsandbytes accelerate"
+        )
+        sys.exit(1)
+
+    # --- Load tokenizer ---
+    print(f"\nLoading tokenizer: {args.base_model}")
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(
+            args.base_model,
+            trust_remote_code=True,
+        )
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+    except Exception as e:
+        print(f"ERROR: Failed to load tokenizer: {e}")
+        print(
+            f"  Check that '{args.base_model}' exists on HuggingFace and you have internet access."
+        )
+        sys.exit(1)
+
+    # --- Load dataset ---
+    print(f"Loading dataset: {args.dataset}")
+    try:
+        dataset = load_dataset("json", data_files=args.dataset, split="train")
+    except Exception as e:
+        print(f"ERROR: Failed to load dataset: {e}")
+        sys.exit(1)
+
+    # --- Auto-detect assistant-only loss support ---
+    # OOM fix #12 (bonus, not memory related): auto-detect whether the
+    # tokenizer's chat template has {% generation %} blocks. If it does,
+    # we can enable `assistant_only_loss=True` so the model only learns
+    # from assistant outputs (skipping the user/system tokens). This is
+    # ~2x more efficient than full-sequence loss because the model
+    # doesn't waste capacity learning to predict the user's input.
+    # Qwen2.5's template doesn't have generation blocks (it was added
+    # in Qwen3), so we'll get a helpful message but the flag stays off.
+    # Switch to Qwen3 or SmolLM3 to enable, or patch the template.
+    try:
+        loss_cfg = detect_assistant_loss_support(tokenizer, dataset[0])
+    except Exception as e:
+        loss_cfg = {
+            "assistant_only_loss": False,
+            "completion_only_loss": False,
+            "reason": f"auto-detection failed ({e}), falling back to full-sequence loss",
+        }
+    print(f"\n  Assistant-loss detection: {loss_cfg['reason']}")
+    print(
+        f"  → assistant_only_loss={loss_cfg['assistant_only_loss']}, "
+        f"completion_only_loss={loss_cfg['completion_only_loss']}"
+    )
+
+    # --- OOM fix #2: Truncate/drop abnormally long examples ---
+    # The combined dataset has ~55 examples over 1500 tokens (one is 3150).
+    # Even with `max_length=1024` in SFTConfig, the collator truncates the
+    # *text* but the tokenizer/embedding lookup still allocates a tensor
+    # sized to the original length before truncation. Drop examples where
+    # the formatted chat template is 1.5x the max_length — those are
+    # outlier payloads (huge metasploit modules) that would OOM anyway
+    # and the model can't really learn from 3000-token contexts at
+    # max-length=1024.
+    def _filter_long_examples(
+        example, tokenizer=tokenizer, max_len=args.max_length, hard_cap_mult=1.5
+    ):
+        try:
+            msgs = example.get("messages", [])
+            if not msgs:
+                return False
+            text = tokenizer.apply_chat_template(msgs, tokenize=False)
+            n = len(tokenizer.encode(text, add_special_tokens=False))
+            return n <= int(max_len * hard_cap_mult)
+        except Exception:
+            return True  # If encoding fails, keep it (don't silently drop data)
+
+    pre_filter_count = len(dataset)
+    dataset = dataset.filter(_filter_long_examples, num_proc=1)
+    post_filter_count = len(dataset)
+    dropped = pre_filter_count - post_filter_count
+    if dropped > 0:
+        print(
+            f"  Dropped {dropped} examples exceeding {int(args.max_length * 1.5)} tokens "
+            f"({100 * dropped / pre_filter_count:.2f}% of dataset)"
+        )
+
+    # --- Print dataset stats ---
+    # When HPO CSV is enabled, also write a sidecar with exact token
+    # length stats (min/max/mean/p95/p99) for the per-trial report.
+    hpo_stats_path = None
+    if args.hpo_metrics_csv:
+        # Sidecar lives next to the CSV: foo.csv → foo.dataset_stats.json
+        hpo_stats_path = (
+            str(args.hpo_metrics_csv).rsplit(".", 1)[0] + ".dataset_stats.json"
+        )
+    print_dataset_stats(dataset, tokenizer, hpo_stats_path=hpo_stats_path)
+
+    # --- Show training plan ---
+    print("=" * 60)
+    print(" TRAINING PLAN")
+    print("=" * 60)
+    print(f"  Model:              {args.base_model}")
+    print(f"  Quantization:       4-bit NF4 (double quant)")
+    print(f"  LoRA rank:          {args.lora_r}")
+    print(f"  LoRA alpha:         {args.lora_alpha}")
+    print(f"  LoRA dropout:       {args.lora_dropout}")
+    print(f"  Target modules:     q_proj, k_proj, v_proj, o_proj,")
+    print(f"                       gate_proj, up_proj, down_proj")
+    print(f"  Epochs:             {args.epochs}")
+    print(f"  Batch size:         {args.batch_size}")
+    print(f"  Max seq length:     {args.max_length}")
+    print(f"  Gradient checkpoint: True")
+    print(f"  Compute dtype:      {compute_type}")
+    print(f"  Save steps:         {args.save_steps}")
+    print(f"  Gradient accum:     {args.gradient_accumulation_steps}")
+    print(f"  Save strategy:      steps")
+    print(f"  Save total limit:   2")
+    print(f"  Logging steps:      10")
+    print(f"  Output dir:         {args.output}")
+    print(f"  Resume checkpoint:  {args.resume_from_checkpoint}")
+    print(f"  Optimizer:          {args.optim}")
+    print(f"  Packing:            {args.packing}  (--packing/--no-packing)")
+    print("=" * 60 + "\n")
+
+    # ===================================================================
+    # DRY RUN — print plan and exit
+    # ===================================================================
+    if is_dry_run:
+        print("=" * 60)
+        print(" DRY RUN COMPLETE")
+        print("=" * 60)
+        print("  Dataset validated successfully.")
+        print("  No training was performed.")
+        print("")
+        print("  To actually train, re-run with --train flag:")
+        print(
+            f"    python train_template.py --dataset {args.dataset} --output {args.output} --train"
+        )
+        print("")
+        print("  Memory estimate for Qwen2.5-7B QLoRA:")
+        print("    ~10-12 GB VRAM at batch_size=2, max_length=2048")
+        print("    ~6-8 GB VRAM at batch_size=1, max_length=1024")
+        print("=" * 60)
+        return
+
+    # ===================================================================
+    # LIVE TRAINING
+    # ===================================================================
+    print("Starting training...\n")
+    start_time = time.time()
+
+    try:
+        from transformers import AutoModelForCausalLM
+        from peft import get_peft_model
+        from trl import SFTTrainer, SFTConfig
+        from transformers.trainer_callback import EarlyStoppingCallback
+    except ImportError as e:
+        print(f"ERROR: Missing dependency for training: {e}")
+        print(
+            "Install with: pip install transformers datasets trl peft bitsandbytes accelerate"
+        )
+        sys.exit(1)
+
+    # --- Build quantization config ---
+    import torch
+
+    # --- Resume sanity check (BEFORE model load, fail fast) ---
+    if args.resume_from_checkpoint:
+        from transformers.trainer_utils import get_last_checkpoint
+
+        if not Path(args.output).exists():
+            print(
+                f"ERROR: --resume-from-checkpoint requested but output dir does not exist: {args.output}"
+            )
+            sys.exit(1)
+        try:
+            last_ckpt = get_last_checkpoint(args.output)
+        except Exception as e:
+            print(f"ERROR: failed to scan {args.output} for checkpoints: {e}")
+            sys.exit(1)
+        if last_ckpt is None:
+            print(
+                f"ERROR: --resume-from-checkpoint requested but no checkpoint-N/ "
+                f"directory found in {args.output}"
+            )
+            print("  Available entries:")
+            for p in sorted(Path(args.output).iterdir()):
+                print(f"    {p.name}")
+            sys.exit(1)
+        print(f"Resuming from checkpoint: {last_ckpt}")
+
+    bnb_config = get_quantization_config()
+
+    # Adjust compute dtype based on GPU capability
+    if compute_type == "bf16":
+        compute_dtype = torch.bfloat16
+    elif compute_type == "fp16":
+        compute_dtype = torch.float16
+        bnb_config.bnb_4bit_compute_dtype = torch.float16
+    else:
+        compute_dtype = torch.float32
+
+    # --- Load base model in 4-bit ---
+    # Detect if model is already pre-quantized (e.g., unsloth/*-bnb-4bit)
+    is_pre_quantized = "bnb-4bit" in args.base_model.lower()
+    print(
+        f"Loading model: {args.base_model} "
+        f"({'pre-quantized 4-bit' if is_pre_quantized else '4-bit NF4 quantization'})"
+    )
+    try:
+        # Map compute type string to actual torch dtype
+        dtype_map = {
+            "fp16": torch.float16,
+            "bf16": torch.bfloat16,
+            "fp32": torch.float32,
+        }
+        torch_dtype = dtype_map.get(compute_type, torch.float16)
+
+        load_kwargs = dict(
+            device_map="auto",
+            trust_remote_code=True,
+            dtype=torch_dtype,
+        )
+        # OOM fix #13: FlashAttention 2 for varlen (padding-free) support
+        # Only required when --packing is enabled. Without it,
+        # `padding_free=True` + `packing=True` will SILENTLY
+        # cross-contaminate samples within a packed sequence —
+        # sample A attends to sample B's tokens, corrupting both
+        # loss signals. FlashAttention 2 (and 3) properly respect
+        # `cu_seqlens` to enforce attention boundaries between
+        # packed samples.
+        # RTX 4080 (Ada Lovelace, compute 8.9) supports FA2 perfectly.
+        # FA3 requires Hopper (H100) — not available on consumer cards.
+        # See: https://github.com/Dao-AILab/flash-attention
+        if args.packing:
+            load_kwargs["attn_implementation"] = "flash_attention_2"
+        # else: use the default attention (sdpa or eager) — fine
+        # for --no-packing since each example is in its own sequence
+        # Only apply BitsAndBytesConfig for non-pre-quantized models.
+        # Pre-quantized models already have 4-bit weights; re-quantizing errors.
+        if is_pre_quantized:
+            print("  Detected pre-quantized model — skipping bnb re-quantization")
+        else:
+            load_kwargs["quantization_config"] = bnb_config
+
+        try:
+            model = AutoModelForCausalLM.from_pretrained(args.base_model, **load_kwargs)
+        except (ImportError, ValueError) as e:
+            error_str = str(e).lower()
+            if "flash" in error_str or "flash_attention" in error_str:
+                if args.packing:
+                    # Packing REQUIRES flash_attention_2 to prevent cross-sample
+                    # contamination. Without it, the user would get silently
+                    # corrupted training. Refuse to proceed.
+                    print(
+                        "\nERROR: --packing is enabled but flash_attention_2 is not installed."
+                    )
+                    print(
+                        "  Packing requires flash-attn to prevent packed samples from"
+                    )
+                    print(
+                        "  cross-contaminating each other (sample A attends to sample B)."
+                    )
+                    print("  Install flash-attn:")
+                    print("    uv pip install flash-attn --no-build-isolation")
+                    print("  (takes ~5 min to compile, requires CUDA dev tools)")
+                    print()
+                    print("  OR re-run with --no-packing to skip this requirement:")
+                    print("    (slower, but no flash-attn needed)")
+                    new_argv = [a for a in sys.argv[1:] if a != "--packing"] + [
+                        "--no-packing"
+                    ]
+                    print(f"    {sys.argv[0]} {' '.join(new_argv)}")
+                    sys.exit(1)
+                else:
+                    print(
+                        "\nWARNING: flash_attention_2 not installed, using sdpa. "
+                        "This is fine for --no-packing mode."
+                    )
+                    load_kwargs["attn_implementation"] = "sdpa"
+                    model = AutoModelForCausalLM.from_pretrained(
+                        args.base_model, **load_kwargs
+                    )
+            else:
+                raise
+    except Exception as e:
+        error_msg = str(e)
+        if "CUDA out of memory" in error_msg or "OOM" in error_msg:
+            print("\nERROR: GPU ran out of memory during model loading!")
+            print("  Suggestions:")
+            print("    1. Reduce batch size:      --batch-size 1")
+            print("    2. Reduce sequence length:  --max-length 1024")
+            print("    3. Use a smaller model (e.g., Qwen2.5-3B-Instruct)")
+            print("    4. Use Google Colab T4 or RunPod A100")
+        else:
+            print(f"\nERROR: Failed to load model: {e}")
+        sys.exit(1)
+
+    # --- Apply LoRA ---
+    print("Applying LoRA adapter...")
+    lora_config = get_qlora_config(args.lora_r, args.lora_alpha, args.lora_dropout)
+    model = get_peft_model(model, lora_config)
+    model.print_trainable_parameters()
+
+    # --- Formatting function for chat template ---
+    def formatting_func(example):
+        return tokenizer.apply_chat_template(example["messages"], tokenize=False)
+
+    # --- Train/eval split ---
+    split_dataset = dataset.train_test_split(test_size=args.eval_split, seed=42)
+    train_dataset = split_dataset["train"]
+    eval_dataset = split_dataset["test"]
+    print(
+        f"Split: {len(train_dataset)} train / {len(eval_dataset)} eval "
+        f"({args.eval_split:.0%} held out)"
+    )
+
+    # --- Build training config ---
+    # Early stopping: eval every epoch, halt after N rounds of no improvement,
+    # auto-rollback to the checkpoint with lowest eval loss.
+    # Note: in trl 1.5.1, early_stopping_patience is a callback param, not SFTConfig.
+    training_args = SFTConfig(
+        output_dir=args.output,
+        num_train_epochs=args.epochs,
+        per_device_train_batch_size=args.batch_size,
+        max_length=args.max_length,
+        # HPO support: cap run-length by optimizer steps, not epochs.
+        # -1 means "use --epochs" (HF default). A positive value overrides
+        # --epochs and stops after that many optimizer steps. This is what
+        # makes HPO trials of fixed budget possible.
+        max_steps=args.max_steps if args.max_steps and args.max_steps > 0 else -1,
+        # OOM fix #11: Enable packing + padding-free training (toggleable)
+        # The SFT docs (https://huggingface.co/docs/trl/sft_trainer#packing)
+        # say: "SFTTrainer supports example packing, where multiple
+        # examples are packed in the same input sequence to increase
+        # training efficiency." With our combined dataset, the median
+        # example is ~188 tokens but max_length=1024 — that means
+        # ~84% of every padded sequence is padding tokens, which
+        # waste compute AND memory.
+        #
+        # `packing=True` concatenates short examples into ~1024-token
+        # sequences, so each step trains on ~5x more real examples.
+        # This is a 5x throughput improvement at the same batch size.
+        #
+        # `padding_free=True` is REQUIRED when `packing=True` for
+        # SFT (it forces the use of DataCollatorWithFlattening from
+        # the data collator docs). Without it, packed sequences
+        # would still be padded to 1024 and the benefit would be
+        # lost. With padding_free, each example in the packed
+        # sequence gets its own attention mask via position_ids +
+        # cu_seqlens, so samples don't attend to each other.
+        #
+        # `pad_to_multiple_of=8` is the bonus: aligns sequence
+        # lengths to 8, which lets the GPU's Tensor Cores run
+        # attention kernels at full throughput (RTX 4080 is
+        # Volta+ class). This is a free 5-10% speedup.
+        #
+        # Toggle with --packing (default ON) or --no-packing.
+        # When --no-packing is set, padding_free and pad_to_multiple_of
+        # are disabled (they only make sense with packing).
+        # Packing REQUIRES flash_attention_2 to prevent cross-sample
+        # contamination; without it, samples in a packed sequence
+        # can attend to each other, corrupting the loss signal.
+        #
+        # Tradeoff: `padding_free=True` is incompatible with
+        # `assistant_only_loss=True` for models whose chat
+        # template doesn't have {% generation %} blocks. Qwen2.5
+        # doesn't have them, so we auto-detect (see
+        # `detect_assistant_loss_support` above) and only enable
+        # assistant_only_loss when the template supports it.
+        # Switch to Qwen3 or SmolLM3 base model to enable
+        # assistant_only_loss on a conversational dataset — the
+        # trainer will print a one-line message saying what was
+        # detected.
+        packing=args.packing,
+        padding_free=args.packing,  # only valid with packing=True
+        pad_to_multiple_of=8 if args.packing else None,  # only with packing
+        # OOM fix #12: Auto-detected assistant-only loss.
+        # Set to True if the tokenizer's chat template has
+        # {% generation %} blocks AND the dataset is conversational.
+        # Set to True unconditionally for prompt-completion datasets.
+        # Otherwise False (full-sequence loss, which is correct but
+        # slightly less efficient).
+        assistant_only_loss=loss_cfg["assistant_only_loss"] if args.packing else False,
+        completion_only_loss=loss_cfg["completion_only_loss"]
+        if args.packing
+        else False,
+        # Optimizer: 8-bit saves ~60MB of optimizer state vs fp32 adamw_torch
+        # (critical for fitting 7B QLoRA on 16GB cards)
+        optim=args.optim,
+        # Eval + early stopping with automatic rollback
+        eval_strategy="epoch",
+        save_strategy="steps",
+        save_steps=args.save_steps,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
+        save_total_limit=args.early_stopping_patience + 1,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
+        # Precision
+        fp16=False,
+        bf16=False,
+        # Other
+        gradient_checkpointing=True,
+        logging_steps=10,
+        report_to="none",
+        remove_unused_columns=False,
+        # OOM fix #6: Set eval batch size to 1, not the default 8!
+        # HuggingFace TrainingArguments defaults `per_device_eval_batch_size=8`.
+        # This means the end-of-epoch eval pass uses 8x more memory than
+        # training (which uses batch_size=1). With 1050 eval examples and
+        # batch_size=8, that's 131 batches each holding 8x the activations
+        # of training. The residual memory from this eval pass is what
+        # causes the OOM at step ~13 of the next epoch.
+        per_device_eval_batch_size=1,
+        # OOM fix #7: Chunked cross-entropy loss
+        # SFTConfig option `loss_type="chunked_nll"` processes the
+        # `lm_head` projection + cross-entropy in chunks, so peak
+        # activation memory does NOT scale with the full
+        # vocab × seq_len logits tensor. For Qwen2.5-Coder (vocab=151,936)
+        # at seq_len=1024, the full logits tensor is
+        # 151,936 × 1024 × 2 bytes ≈ 311MB per sample. With grad
+        # checkpointing, activations get recomputed but the logits
+        # tensor is NOT — this alone can be the OOM trigger.
+        # See: https://huggingface.co/docs/trl/sft_trainer#computing-the-loss
+        loss_type="chunked_nll",
+        # OOM fix #8: Eval accumulation steps
+        # With batch_size=1, predictions are moved to CPU one at a time,
+        # which is slow. Set eval_accumulation_steps=4 to batch the
+        # CPU transfers without holding more activations on GPU.
+        eval_accumulation_steps=4,
+        # OOM fix #5: Disable dataloader pin_memory.
+        # With `dataloader_pin_memory=True` (HF default), the dataloader
+        # pre-allocates ~2x batch size in pinned host memory so the next
+        # batch can be transferred to GPU while the current batch is
+        # computing. After the end-of-epoch eval pass, this pinned
+        # memory holds the *last* prefetched batch — which, in our
+        # combined dataset, is orchestrator routing data (the orchestrator
+        # examples are concatenated at the end of the file by train_all.py).
+        # Turning off pin_memory means the dataloader frees each batch as
+        # soon as it's consumed, leaving no residue from the orchestrator
+        # zone when epoch N+1 starts.
+        # Note: `group_by_length` is no longer a valid SFTConfig param in
+        # TRL 1.5.1 — it's been replaced by the `packing`+`padding_free`
+        # combination in OOM fix #11.
+        dataloader_pin_memory=False,
+        dataloader_num_workers=0,
+    )
+
+    # --- Create trainer ---
+    # EarlyStoppingCallback handles "stop after N rounds without improvement"
+    # --- OOM fix #4: Per-eval CUDA cache clear callback ---
+    # The eval pass at the end of each epoch allocates fresh activations and
+    # torch.no_grad context tensors. When training resumes for the next epoch,
+    # PyTorch's allocator still holds the eval pass's scratch blocks — even
+    # after the eval tensors go out of scope. By step 13 of epoch 2, this
+    # residual allocation is enough to push a borderline example over the
+    # VRAM ceiling. Clearing after every eval prevents this accumulation.
+    from transformers import TrainerCallback
+
+    class GCEpochCallback(TrainerCallback):
+        """Run gc.collect() + empty_cache() after every eval to defragment VRAM.
+
+        Also monitors VRAM after every optimizer step and triggers an
+        emergency cache clear if free memory drops below 2GB — this
+        catches the case where peak transient allocations during a
+        forward pass push us close to the ceiling.
+        """
+
+        # OOM fix #10: VRAM threshold for emergency cache clear
+        # (in bytes). If free VRAM drops below this after an optimizer
+        # step, force a gc.collect + empty_cache. 2GB is conservative —
+        # leaves room for one more forward+backward pass even on a
+        # 1024-token batch. The first optimizer step after this
+        # threshold trigger will slow down by ~200ms (cache clear
+        # overhead) but prevents a much longer OOM-retry restart.
+        EMERGENCY_CLEAR_THRESHOLD_BYTES = 2 * (1024**3)
+
+        def on_evaluate(self, args, state, control, **kwargs):
+            import gc
+            import torch as _torch
+
+            gc.collect()
+            if _torch.cuda.is_available():
+                _torch.cuda.empty_cache()
+                _torch.cuda.synchronize()
+                free_gb = _torch.cuda.mem_get_info()[0] / (1024**3)
+                total_gb = _torch.cuda.mem_get_info()[1] / (1024**3)
+                print(
+                    f"  [GCEpochCallback] Post-eval VRAM: "
+                    f"{free_gb:.2f}GB free / {total_gb:.2f}GB total"
+                )
+            return control
+
+        def on_optimizer_step(self, args, state, control, **kwargs):
+            """Emergency VRAM clear when free memory gets dangerously low.
+
+            Fires after every optimizer step (per `on_optimizer_step`
+            callback event). We DO NOT unconditionally clear cache here
+            (that would cost 5-10% throughput). Instead, we only clear
+            if free VRAM is below the emergency threshold.
+            """
+            import torch as _torch
+
+            if not _torch.cuda.is_available():
+                return control
+            free_bytes, _total_bytes = _torch.cuda.mem_get_info()
+            if free_bytes < self.EMERGENCY_CLEAR_THRESHOLD_BYTES:
+                import gc
+
+                gc.collect()
+                _torch.cuda.empty_cache()
+                # Don't sync here — that defeats the purpose of the
+                # threshold check. The next forward pass will sync
+                # implicitly if it needs to.
+                free_gb = free_bytes / (1024**3)
+                print(
+                    f"  [GCEpochCallback] Step {state.global_step} emergency "
+                    f"cache clear: {free_gb:.2f}GB free"
+                )
+            return control
+
+    class HPOMetricsCSVCallback(TrainerCallback):
+        """Per-step HPO metrics logger — writes a CSV with richer signals than HF's default.
+
+        Why this exists:
+            HF's default JSON log gives us `loss`, `grad_norm`, `learning_rate`,
+            `entropy`, `num_tokens`, `mean_token_accuracy` and `epoch`. That's
+            good, but it does NOT give us:
+              - Wall-clock per-step latency (HF only logs aggregated speed)
+              - Token throughput (tokens/sec)
+              - Pair throughput (training pairs/sec)
+              - Pair size distribution (min/max/mean tokens per pair)
+              - Current LoRA target_modules
+              - Current HPO axis being swept
+
+            For online HPO decisions ("should I escalate lora_r to 32, or
+            did it just start diverging?"), we need the throughput and
+            pair-size data on a per-step basis. We compute these by
+            timing the gap between consecutive on_log calls and dividing
+            by num_tokens / pairs_in_window.
+
+        CSV columns:
+            step, wall_time_s, loss, grad_norm, learning_rate, entropy,
+            num_tokens, mean_token_accuracy, epoch,
+            step_latency_s, tokens_per_sec, pairs_per_sec,
+            pair_min_tokens, pair_max_tokens, pair_mean_tokens,
+            vram_free_gb, vram_total_gb, hpo_label
+
+        Activated only by --hpo-metrics-csv PATH. When not set, this callback
+        is a no-op and adds zero overhead.
+        """
+
+        def __init__(self, csv_path: str, hpo_label: str = ""):
+            self.csv_path = csv_path
+            self.hpo_label = hpo_label
+            self._fh = None
+            self._writer = None
+            self._last_log_time = None
+            self._last_step = None
+
+        def on_train_begin(self, args, state, control, **kwargs):
+            import csv as _csv
+
+            os.makedirs(os.path.dirname(self.csv_path) or ".", exist_ok=True)
+            self._fh = open(self.csv_path, "w", newline="", encoding="utf-8")
+            self._writer = _csv.writer(self._fh)
+            self._writer.writerow(
+                [
+                    "step",
+                    "wall_time_s",
+                    "loss",
+                    "grad_norm",
+                    "learning_rate",
+                    "entropy",
+                    "num_tokens",
+                    "mean_token_accuracy",
+                    "epoch",
+                    "step_latency_s",
+                    "tokens_per_sec",
+                    "pairs_per_sec",
+                    "pair_min_tokens",
+                    "pair_max_tokens",
+                    "pair_mean_tokens",
+                    "vram_free_gb",
+                    "vram_total_gb",
+                    "hpo_label",
+                ]
+            )
+            self._fh.flush()
+            self._last_log_time = time.time()
+            self._last_step = 0
+
+        def on_log(self, args, state, control, logs=None, **kwargs):
+            """Called on every HF log event (every `logging_steps`).
+            We compute throughput from the gap since the last on_log call.
+            """
+            if self._writer is None or not logs:
+                return control
+            import torch as _torch
+
+            now = time.time()
+            step = state.global_step
+            steps_done = max(1, step - self._last_step)
+            window_s = max(1e-6, now - self._last_log_time)
+            step_latency = window_s / steps_done
+
+            # Pull metrics
+            loss = logs.get("loss", "")
+            grad_norm = logs.get("grad_norm", "")
+            lr = logs.get("learning_rate", "")
+            entropy = logs.get("entropy", "")
+            num_tokens = logs.get("num_tokens", "")
+            mean_tok_acc = logs.get("mean_token_accuracy", "")
+            epoch = logs.get("epoch", "")
+
+            # Throughput: HF reports cumulative `num_tokens` since
+            # training start, so we can compute average tokens/sec
+            # across the window.
+            try:
+                nt = float(num_tokens)
+                # num_tokens is per-step, but it's reported cumulatively
+                # in HF >= 4.40 only for `num_tokens` in TRL's logging.
+                # To be safe, we treat it as a per-window value and
+                # divide by window_s.
+                tok_per_sec = nt / window_s
+            except (TypeError, ValueError):
+                tok_per_sec = ""
+
+            try:
+                bs = float(getattr(args, "per_device_train_batch_size", 1) or 1)
+                ga = float(getattr(args, "gradient_accumulation_steps", 1) or 1)
+                # pairs_in_window = steps_done × bs × ga (gradient accum
+                # means N micro-batches per optimizer step)
+                pairs_in_window = steps_done * bs * ga
+                pairs_per_sec = pairs_in_window / window_s
+            except (TypeError, ValueError):
+                pairs_per_sec = ""
+
+            # Pair size stats: num_tokens is total tokens in the window,
+            # pairs_in_window is the number of (micro-)batches in the
+            # window. Pair size = tokens / pairs. We report mean only
+            # for now (HF doesn't give us min/max per example in the log
+            # stream). For min/max, run `print_dataset_stats` once
+            # before training.
+            try:
+                nt = float(num_tokens)
+                ppw = float(pairs_in_window)
+                pair_mean = nt / max(1.0, ppw)
+            except (TypeError, ValueError):
+                pair_mean = ""
+
+            # VRAM
+            vram_free = ""
+            vram_total = ""
+            if _torch.cuda.is_available():
+                try:
+                    free_b, total_b = _torch.cuda.mem_get_info()
+                    vram_free = round(free_b / (1024**3), 2)
+                    vram_total = round(total_b / (1024**3), 2)
+                except Exception:
+                    pass
+
+            self._writer.writerow(
+                [
+                    step,
+                    round(now, 3),
+                    loss,
+                    grad_norm,
+                    lr,
+                    entropy,
+                    num_tokens,
+                    mean_tok_acc,
+                    epoch,
+                    round(step_latency, 4),
+                    round(tok_per_sec, 2) if tok_per_sec != "" else "",
+                    round(pairs_per_sec, 4) if pairs_per_sec != "" else "",
+                    "",  # pair_min_tokens — not available per-step
+                    "",  # pair_max_tokens
+                    round(pair_mean, 1) if pair_mean != "" else "",
+                    vram_free,
+                    vram_total,
+                    self.hpo_label,
+                ]
+            )
+            self._fh.flush()
+            self._last_log_time = now
+            self._last_step = step
+            return control
+
+        def on_train_end(self, args, state, control, **kwargs):
+            if self._fh is not None:
+                self._fh.close()
+                self._fh = None
+                self._writer = None
+            return control
+
+    # HPO callback: opt-in via --hpo-metrics-csv
+    hpo_callbacks = []
+    if args.hpo_metrics_csv:
+        # Build a human-readable label so multi-trial sweeps show
+        # up clearly when you `grep 'r=32' hpo_runs/*.csv | less`.
+        hpo_label_parts = [
+            f"r={args.lora_r}",
+            f"a={args.lora_alpha}",
+            f"d={args.lora_dropout}",
+        ]
+        if args.max_steps and args.max_steps > 0:
+            hpo_label_parts.append(f"steps={args.max_steps}")
+        hpo_label = ",".join(hpo_label_parts)
+        hpo_callbacks.append(HPOMetricsCSVCallback(args.hpo_metrics_csv, hpo_label))
+        print(f"\n  HPO metrics CSV: {args.hpo_metrics_csv}  (label={hpo_label})")
+
+    trainer = SFTTrainer(
+        model=model,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+        args=training_args,
+        formatting_func=formatting_func,
+        callbacks=[
+            EarlyStoppingCallback(early_stopping_patience=args.early_stopping_patience),
+            GCEpochCallback(),
+            *hpo_callbacks,
+        ],
+    )
+
+    # --- OOM fix #3: Clear CUDA cache + Python GC right before training ---
+    # Even with expandable_segments, the model+LoRA+optimizer load leaves some
+    # fragmentation behind. Forcing a GC + empty_cache here gives the trainer
+    # the cleanest possible VRAM state to start from. This is especially
+    # important when resuming from a checkpoint, where the model was already
+    # loaded once and unloaded.
+    import gc
+
+    try:
+        import torch
+
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            free_gb = torch.cuda.mem_get_info()[0] / (1024**3)
+            total_gb = torch.cuda.mem_get_info()[1] / (1024**3)
+            print(f"  Pre-train VRAM: {free_gb:.2f}GB free / {total_gb:.2f}GB total")
+    except Exception as e:
+        print(f"  (Skipped cache clear: {e})")
+
+    # --- Train ---
+    # resume_from_checkpoint=True: HF auto-finds the last checkpoint-N/ in
+    # args.output and reloads model + optimizer + scheduler + trainer state.
+    try:
+        train_result = trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
+    except Exception as e:
+        error_msg = str(e)
+        if "CUDA out of memory" in error_msg or "OOM" in error_msg:
+            print("\nERROR: GPU ran out of memory during training!")
+            print("  Suggestions:")
+            print("    1. Reduce batch size:      --batch-size 1")
+            print("    2. Reduce sequence length:  --max-length 1024")
+            print("    3. Use a smaller model (e.g., Qwen2.5-3B-Instruct)")
+            print("    4. Use gradient_accumulation_steps to simulate larger batches")
+        else:
+            print(f"\nERROR: Training failed: {e}")
+        sys.exit(1)
+
+    # --- Save the best LoRA adapter ---
+    # EarlyStoppingCallback tracks the best checkpoint but doesn't write it
+    # to disk with the final adapter. We must save explicitly from the
+    # in-memory model so the adapter is loadable for inference / merge.
+    elapsed = time.time() - start_time
+    final_loss = train_result.training_loss
+    best_metric = getattr(train_result, "metrics", {}).get("eval_loss", "unknown")
+    stopped_early = train_result.metrics.get("epoch", args.epochs) < args.epochs
+
+    print(f"\nSaving best LoRA adapter to: {args.output}")
+    os.makedirs(args.output, exist_ok=True)
+    model.save_pretrained(args.output)
+    tokenizer.save_pretrained(args.output)
+
+    # --- Write training config ---
+    config = {
+        "base_model": args.base_model,
+        "dataset": args.dataset,
+        "lora_r": args.lora_r,
+        "lora_alpha": args.lora_alpha,
+        "lora_dropout": args.lora_dropout,
+        "target_modules": [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
+        "quantization": "4-bit NF4 double-quantized",
+        "epochs": args.epochs,
+        "batch_size": args.batch_size,
+        "max_length": args.max_length,
+        "gradient_checkpointing": True,
+        "packing": args.packing,
+        "compute_dtype": compute_type,
+        "optimizer": args.optim,
+        "final_loss": final_loss,
+        "training_time_seconds": round(elapsed, 2),
+        "num_examples": len(dataset),
+    }
+
+    config_path = os.path.join(args.output, "config.json")
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
+
+    # --- Summary ---
+    print("\n" + "=" * 60)
+    print(" TRAINING COMPLETE")
+    print("=" * 60)
+    print(f"  Model saved to:      {args.output}")
+    print(f"  Training time:       {elapsed:.1f}s ({elapsed / 60:.1f} min)")
+    print(f"  Final loss:          {final_loss:.4f}")
+    print(f"  Examples trained:   {len(dataset)}")
+    print(f"  Config written to:   {config_path}")
+    print("=" * 60)
+    print("\nTo load the trained adapter for inference:")
+    print(f"""
+    from peft import PeftModel
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    base = AutoModelForCausalLM.from_pretrained("{args.base_model}", device_map="auto")
+    model = PeftModel.from_pretrained(base, "{args.output}")
+    tokenizer = AutoTokenizer.from_pretrained("{args.output}")
+    """)
+
+
+if __name__ == "__main__":
+    main()

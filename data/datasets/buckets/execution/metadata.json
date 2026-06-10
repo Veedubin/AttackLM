@@ -1,0 +1,10 @@
+{
+  "name": "execution",
+  "display_name": "Execution",
+  "category": "tactic",
+  "mitre_tactic": "TA0002",
+  "description": "Code execution techniques (T1059, T1106, T1204, T1047)",
+  "source_file": "execution_dataset.jsonl",
+  "created": "2026-06-09T14:40:54.195414",
+  "count": 579
+}

@@ -1,0 +1,26 @@
+{
+  "name": "metasploit",
+  "display_name": "Metasploit Modules",
+  "category": "tools",
+  "mitre_tactic": "various",
+  "description": "Rapid7 Metasploit \u2014 15 module categories consolidated",
+  "source_files": [
+    "metasploit_collection_dataset.jsonl",
+    "metasploit_credential_access_dataset.jsonl",
+    "metasploit_defense_evasion_dataset.jsonl",
+    "metasploit_discovery_dataset.jsonl",
+    "metasploit_execution_dataset.jsonl",
+    "metasploit_lateral_movement_dataset.jsonl",
+    "metasploit_metasploit_auxiliary_dataset.jsonl",
+    "metasploit_metasploit_encoder_dataset.jsonl",
+    "metasploit_metasploit_evasion_dataset.jsonl",
+    "metasploit_metasploit_exploit_dataset.jsonl",
+    "metasploit_metasploit_nop_dataset.jsonl",
+    "metasploit_metasploit_payload_dataset.jsonl",
+    "metasploit_metasploit_post_dataset.jsonl",
+    "metasploit_persistence_dataset.jsonl",
+    "metasploit_privilege_escalation_dataset.jsonl"
+  ],
+  "created": "2026-06-09T14:40:54.220557",
+  "count": 8349
+}

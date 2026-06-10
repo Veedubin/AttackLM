@@ -1,0 +1,10 @@
+{
+  "name": "exfiltration",
+  "display_name": "Exfiltration",
+  "category": "tactic",
+  "mitre_tactic": "TA0010",
+  "description": "Data exfiltration over C2 (T1041, T1567, T1052, T1011)",
+  "source_file": "exfiltration_dataset.jsonl",
+  "created": "2026-06-09T14:40:54.195663",
+  "count": 120
+}

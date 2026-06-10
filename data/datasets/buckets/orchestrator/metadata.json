@@ -1,0 +1,10 @@
+{
+  "name": "orchestrator",
+  "display_name": "Orchestrator Routing",
+  "category": "meta",
+  "mitre_tactic": "n/a",
+  "description": "Agent routing decisions \u2014 380 examples across 6 agents",
+  "source_file": "orchestrator_dataset.jsonl",
+  "created": "2026-06-09T14:40:54.202603",
+  "count": 380
+}

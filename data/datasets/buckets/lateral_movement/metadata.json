@@ -1,0 +1,10 @@
+{
+  "name": "lateral_movement",
+  "display_name": "Lateral Movement",
+  "category": "tactic",
+  "mitre_tactic": "TA0008",
+  "description": "Remote service exploitation (T1021, T1570, T1080, T1559)",
+  "source_file": "lateral_movement_dataset.jsonl",
+  "created": "2026-06-09T14:40:54.196022",
+  "count": 252
+}
