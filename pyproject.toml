@@ -10,7 +10,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "attacklm"
-version = "0.1.3"
+version = "0.1.5"
 description = "QLoRA-fine-tuned Qwen2.5-Coder for offensive security and AI red-teaming"
 readme = "README.md"
 license = "MIT"
@@ -73,6 +73,36 @@ train-base = [
     "accelerate==1.13.0",
     "datasets==5.0.0",
     "transformers==5.10.2",
+    # ─────────────────────────────────────────────────────────────────────
+    # `kernels` package version pin
+    # ─────────────────────────────────────────────────────────────────────
+    # transformers==5.10.2 declares `kernels<0.13,>=0.12.0` in its
+    # [integrations] extras. The heretic-llm CLI pulls `kernels` in
+    # transitively, and a fresh `pip install` will otherwise resolve to
+    # `kernels==0.15.x` (latest as of mid-2026), which breaks:
+    #
+    #   File ".../transformers/integrations/hub_kernels.py", line 89
+    #     "cuda": LayerRepository(
+    #         repo_id="kernels-community/deformable-detr",
+    #         layer_name="MultiScaleDeformableAttention",
+    #     )
+    #   ValueError: Either a revision or a version must be specified.
+    #
+    # This is an upstream API break in `kernels>=0.13` that the older
+    # `transformers` 5.10.2 doesn't know about (LayerRepository in
+    # kernels 0.13+ requires a `revision` or `version` kwarg, but the
+    # transformers integration code passes neither).
+    #
+    # WHEN TO REMOVE THIS PIN:
+    #   - When transformers 5.11+ is released and the upper bound on
+    #     `kernels` is bumped to a compatible range, OR
+    #   - When we upgrade our `transformers` pin past whatever release
+    #     fixed the LayerRepository integration.
+    #
+    # Symptom if you remove this pin prematurely: any code that triggers
+    # a `from transformers import ...` will crash with the
+    # `LayerRepository` ValueError above. Easy to recognize.
+    "kernels>=0.12,<0.13",
     "huggingface-hub==1.18.0",
     "tokenizers==0.22.2",
     "safetensors==0.7.0",

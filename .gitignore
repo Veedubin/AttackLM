@@ -72,6 +72,10 @@ hpo_runs/*.dataset_stats.json
 
 # ----- Trained models (large, regenerable) -----
 models/
+# Heretic / abliteration output (also large, regenerable, may appear at any path)
+n/
+uncensored/
+decensored/
 *.gguf
 *.safetensors
 *.bin
