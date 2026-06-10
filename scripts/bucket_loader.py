@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """Bucket loader for AttackLM.
 
-Buckets are organized as:
+Buckets are organized as 4 parents (v0.2.1+):
     data/datasets/buckets/
         manifest.json
-        <bucket_name>/              # top-level buckets (tactics, orchestrator)
-            data.jsonl
-            metadata.json
-        ai-models/                  # AI/ML red team category
-            prompt-injection/
-            jailbreaking/
-        tools/                      # External tool data
+        base/                          # 10 MITRE tactic buckets
+            collection/
+            command_and_control/
+            ...
+        tools/                         # External tool data (3 sub-buckets)
             metasploit/
             infection_monkey/
             rta/
+        ai/                            # AI/ML red team category (2 sub-buckets)
+            prompt-injection/
+            jailbreaking/
+        orchestrator/                  # Single bucket (top-level)
 
 Bucket names are paths relative to BUCKETS_DIR using forward slashes:
-    "collection", "ai-models/prompt-injection", "tools/metasploit"
+    "base/collection", "ai/prompt-injection", "tools/metasploit"
 
 This module provides:
     - list_buckets(category=None) — enumerate all buckets from manifest
@@ -24,10 +26,13 @@ This module provides:
     - build_combined(bucket_names, flags, seed=42) — concatenate buckets
       into a single shuffled JSONL with a content-hash for cache invalidation
     - cache_key(bucket_names, flags) — stable hash for the combined dataset
-    - get_tactic_buckets() — MITRE tactic buckets
-    - get_ai_model_buckets() — ai-models/* buckets (prompt-injection, jailbreaking)
+    - get_tactic_buckets() — MITRE tactic buckets (filtered by category)
+    - get_ai_model_buckets() — ai/* buckets (prompt-injection, jailbreaking)
     - get_tool_buckets() — tools/* buckets (metasploit, infection_monkey, rta)
     - get_default_train_buckets() — buckets trained by default (tactics + orchestrator)
+    - resolve_dataset_spec(spec) / resolve_dataset_specs(specs) — convert
+      a user-facing spec ("base/", "tools/metasploit/", "all", etc.) to
+      the underlying list of bucket dicts
 
 The combined dataset is cached at:
     data/datasets/combined/<cache_key>.jsonl
@@ -53,7 +58,7 @@ def list_buckets(category: Optional[str] = None) -> list[dict]:
     """Enumerate all buckets, optionally filtered by category.
 
     Returns a list of bucket metadata dicts sorted by path. Each bucket
-    has a 'path' field (e.g. "collection" or "ai-models/prompt-injection")
+    has a 'path' field (e.g. "base/collection" or "ai/prompt-injection")
     that is used as the bucket identifier.
     """
     manifest_path = BUCKETS_DIR / "manifest.json"
@@ -71,8 +76,8 @@ def list_buckets(category: Optional[str] = None) -> list[dict]:
 
 
 def get_bucket(name: str) -> Optional[dict]:
-    """Get metadata for a single bucket by path (e.g. 'collection' or
-    'ai-models/prompt-injection')."""
+    """Get metadata for a single bucket by path (e.g. 'base/collection' or
+    'ai/prompt-injection')."""
     for b in list_buckets():
         if b["path"] == name:
             return b
@@ -104,8 +109,8 @@ def build_combined(
 ) -> Path:
     """Concatenate the given buckets into a single shuffled JSONL file.
 
-    `bucket_names` is a list of bucket paths (e.g. "collection",
-    "ai-models/prompt-injection", "tools/metasploit").
+    `bucket_names` is a list of bucket paths (e.g. "base/collection",
+    "ai/prompt-injection", "tools/metasploit").
 
     Returns the path to the cached combined file. If a cached file with the
     same key already exists, it is returned unchanged (idempotent re-runs).
@@ -130,8 +135,8 @@ def build_combined(
             print(f"    WARNING: bucket '{name}' not found in manifest, skipping")
             continue
         # data.jsonl lives at BUCKETS_DIR / <path> / data.jsonl
-        # For nested paths like "ai-models/prompt-injection", the path component
-        # is preserved as a relative path
+        # For nested paths like "ai/prompt-injection" or "base/collection",
+        # the path component is preserved as a relative path.
         data_path = BUCKETS_DIR / name / "data.jsonl"
         if not data_path.exists():
             print(f"    WARNING: bucket '{name}' has no data.jsonl, skipping")
@@ -182,7 +187,7 @@ def get_tactic_buckets() -> list[dict]:
 
 
 def get_ai_model_buckets() -> list[dict]:
-    """Return ai-models/* buckets (prompt-injection, jailbreaking).
+    """Return ai/* buckets (prompt-injection, jailbreaking).
 
     These are AI/ML red team data — opt-in via --model-attacks flag.
     """
@@ -210,7 +215,7 @@ def get_default_train_buckets() -> list[dict]:
 
     Default training set = 10 MITRE tactic buckets + 1 orchestrator = 11 total.
     This matches the user's spec: train one model per bucket, 10 tactics
-    + orchestrator, then opt-in for ai-models/* and tools/* via flags.
+    + orchestrator, then opt-in for ai/* and tools/* via flags.
     """
     return [b for b in list_buckets() if b.get("category") in ("tactic", "meta")]
 
@@ -315,7 +320,9 @@ def resolve_dataset_spec(spec: str) -> list[dict]:
                 out.append(b)
         return _dedupe_buckets(out)
 
-    # Category (base, tools, ai, ai-models) → all buckets in that category
+    # Category (base, tools, ai) → all buckets in that category.
+    # Note: 'ai-models' is also accepted as an alias for 'ai' for
+    # backward compat with v0.2.0 scripts that used the old name.
     if s in _CATEGORY_RESOLVERS:
         return _CATEGORY_RESOLVERS[s]()
 
