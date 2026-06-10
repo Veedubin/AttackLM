@@ -467,6 +467,104 @@ def get_quantization_config() -> "BitsAndBytesConfig":
     )
 
 
+# Quantization methods we can detect + their (transformers) config class names.
+# The value None means "let HF auto-detect from config.json" — works for
+# FineGrainedFP8Config, GPTQConfig, AwqConfig, FbgemmFp8Config, etc.
+_QUANT_SCHEMES = {
+    "bitsandbytes_4bit": "BitsAndBytesConfig (4-bit)",
+    "bitsandbytes_8bit": "BitsAndBytesConfig (8-bit)",
+    "fp8": "FineGrainedFP8Config",
+    "fbgemm_fp8": "FbgemmFp8Config",
+    "gptq": "GPTQConfig",
+    "awq": "AwqConfig",
+    "compressed-tensors": "CompressedTensorsConfig",
+    "torchao": "TorchAoConfig",
+    "bitsandbytes": "BitsAndBytesConfig (legacy)",
+}
+
+
+def detect_quantization_scheme(model_id_or_path: str) -> str | None:
+    """Detect a pre-existing quantization scheme by reading the model's
+    `config.json` (and legacy `quantize_config.json` for old AutoGPTQ).
+
+    Returns the `quant_method` string (e.g. ``"fp8"``, ``"gptq"``,
+    ``"bitsandbytes_4bit"``) or ``None`` if the model is unquantized.
+
+    Resolution order:
+        1. Local ``<model_dir>/config.json`` — works for `transformers-cli download`
+           output, `git clone` of a model repo, or a path produced by
+           `huggingface-cli download`.
+        2. Hugging Face Hub — fall back to ``hf_hub_download("config.json")``
+           for the common case of ``org/model`` IDs.
+        3. Legacy ``quantize_config.json`` at model root — used by
+           AutoGPTQ pre-v0.8.
+
+    The function is intentionally cheap (no model weight download) and
+    never raises — returns ``None`` on any error so the caller can
+    fall back to applying our own BitsAndBytesConfig.
+    """
+    from pathlib import Path
+
+    candidate = None
+
+    # (1) Local file
+    local_cfg = Path(model_id_or_path) / "config.json"
+    if local_cfg.is_file():
+        candidate = local_cfg
+    else:
+        # (2) HF Hub
+        try:
+            from huggingface_hub import hf_hub_download
+
+            candidate = Path(hf_hub_download(model_id_or_path, "config.json"))
+        except Exception:
+            candidate = None
+
+    if candidate is not None and candidate.is_file():
+        try:
+            import json
+
+            with candidate.open() as f:
+                cfg = json.load(f)
+            quant_cfg = cfg.get("quantization_config") or {}
+            method = quant_cfg.get("quant_method")
+            if method:
+                return method
+        except Exception:
+            pass
+
+    # (3) Legacy AutoGPTQ `quantize_config.json`
+    try:
+        from pathlib import Path
+
+        legacy_dir = Path(model_id_or_path)
+        if not legacy_dir.is_dir():
+            # Try HF Hub for legacy file too
+            try:
+                from huggingface_hub import hf_hub_download
+
+                legacy_path = Path(
+                    hf_hub_download(model_id_or_path, "quantize_config.json")
+                )
+            except Exception:
+                legacy_path = None
+        else:
+            legacy_path = legacy_dir / "quantize_config.json"
+
+        if legacy_path is not None and legacy_path.is_file():
+            import json
+
+            with legacy_path.open() as f:
+                cfg = json.load(f)
+            # AutoGPTQ legacy always implies GPTQ
+            if "bits" in cfg:
+                return "gptq"
+    except Exception:
+        pass
+
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -784,12 +882,19 @@ def main() -> None:
         compute_dtype = torch.float32
 
     # --- Load base model in 4-bit ---
-    # Detect if model is already pre-quantized (e.g., unsloth/*-bnb-4bit)
-    is_pre_quantized = "bnb-4bit" in args.base_model.lower()
-    print(
-        f"Loading model: {args.base_model} "
-        f"({'pre-quantized 4-bit' if is_pre_quantized else '4-bit NF4 quantization'})"
+    # Detect pre-existing quantization scheme (FP8, GPTQ, AWQ, BnB, ...) by
+    # reading the model's config.json. Without this, we'd unconditionally
+    # pass BitsAndBytesConfig to from_pretrained() and transformers would
+    # raise: "The model is quantized with FineGrainedFP8Config but you are
+    # passing a BitsAndBytesConfig config".
+    quant_method = detect_quantization_scheme(args.base_model)
+    quant_label = (
+        _QUANT_SCHEMES.get(quant_method, quant_method)
+        if quant_method
+        else "unquantized (will NF4)"
     )
+    print(f"Loading model: {args.base_model}")
+    print(f"  Detected quantization: {quant_label}")
     try:
         # Map compute type string to actual torch dtype
         dtype_map = {
@@ -819,12 +924,42 @@ def main() -> None:
             load_kwargs["attn_implementation"] = "flash_attention_2"
         # else: use the default attention (sdpa or eager) — fine
         # for --no-packing since each example is in its own sequence
-        # Only apply BitsAndBytesConfig for non-pre-quantized models.
-        # Pre-quantized models already have 4-bit weights; re-quantizing errors.
-        if is_pre_quantized:
-            print("  Detected pre-quantized model — skipping bnb re-quantization")
-        else:
+
+        # Decide whether to pass a quantization_config:
+        #   - quant_method is None              → unquantized, apply NF4 ourselves
+        #   - quant_method in {bnb_4bit/8bit}   → pre-quantized BnB, let HF auto-detect
+        #   - quant_method in {fp8, gptq, ...}  → pre-quantized with other scheme,
+        #                                          MUST not pass a BnB config or HF errors
+        if quant_method is None:
             load_kwargs["quantization_config"] = bnb_config
+        elif quant_method in ("bitsandbytes_4bit", "bitsandbytes_8bit", "bitsandbytes"):
+            print(
+                f"  Pre-quantized BitsAndBytes ({quant_method}) — "
+                "letting transformers auto-detect from config.json"
+            )
+        else:
+            # FP8, GPTQ, AWQ, fbgemm_fp8, compressed-tensors, torchao, ...
+            print(
+                f"  Pre-quantized with {quant_label} — "
+                "letting transformers auto-detect from config.json"
+            )
+            # If FP8 + LoRA, we may need to dequantize first. Peft/trl handle
+            # this transparently in recent versions (peft >= 0.13, trl >= 0.12).
+            # Older versions may need: FineGrainedFP8Config(dequantize=True)
+            if quant_method == "fp8":
+                try:
+                    import peft, trl  # noqa: F401
+
+                    peft_ver = tuple(int(x) for x in peft.__version__.split(".")[:2])
+                    trl_ver = tuple(int(x) for x in trl.__version__.split(".")[:2])
+                    if peft_ver < (0, 13) or trl_ver < (0, 12):
+                        print(
+                            f"  WARNING: peft={peft.__version__}, trl={trl.__version__} "
+                            "may not support FP8 + LoRA without dequantize. "
+                            "If training fails, upgrade: uv pip install -U peft trl"
+                        )
+                except ImportError:
+                    pass
 
         try:
             model = AutoModelForCausalLM.from_pretrained(args.base_model, **load_kwargs)
