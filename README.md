@@ -96,9 +96,10 @@ attacklm-attribute
 # 7. Organize into 16 MITRE/AI/tools buckets
 attacklm-buckets
 
-# 8. Train! (3B QLoRA fits 16GB; 70B+ works on 128GB)
+# 8. Pick a base model — use an uncensored/abliterated one (see "Pick a base model" below)
+#    Example: Qwen2.5-Coder-3B-Instruct with refusal direction removed
 attacklm-train-all --single-model \
-  --base-model unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit \
+  --base-model huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated \
   --epochs 5 --max-length 2048
 
 # Optional: add --hpo for automatic lora_r / lora_dropout sweep
@@ -303,6 +304,49 @@ with pair counts and MITRE tactic IDs.
 
 ---
 
+## Pick a base model
+
+> **Use an uncensored / abliterated base.** The dataset teaches red-team
+> tradecraft, but it can't fully override the safety alignment baked into
+> a base Instruct model. Use a base that has had its refusal direction
+> removed (abliterated) — you'll get a much sharper, more consistent
+> result than SFT alone.
+
+### Recommended bases (pick one)
+
+| Model                                                        | Size  | VRAM needed  | Notes                                                                |
+| ------------------------------------------------------------ | ----- | ------------ | -------------------------------------------------------------------- |
+| `huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated`            | 3B    | 16 GB         | Best fit for RTX 4080 SUPER / 4070 Ti. Same Qwen2.5-Coder arch as the original default. Apache-2.0. |
+| `huihui-ai/Qwen2.5-Coder-1.5B-Instruct-abliterated`          | 1.5B  | 8 GB          | Tight hardware, fast iteration. Apache-2.0.                          |
+| `huihui-ai/Qwen2.5-Coder-7B-Instruct-abliterated`            | 7B    | 24 GB         | Better quality, more coherent long responses. Apache-2.0.            |
+| `BlossomsAI/Qwen2.5-Coder-32B-Instruct-Uncensored`          | 32B   | 64+ GB        | Top quality, needs 64+ GB VRAM. Apache-2.0.                         |
+| `failspy/Meta-Llama-3-8B-Instruct-abliterated-v3`            | 8B    | 24 GB         | If you'd rather train on Llama-3. Apache-style license.              |
+| `failspy/Meta-Llama-3-70B-Instruct-abliterated-v3.5`         | 70B   | 128+ GB       | Frontier quality. Quantized GGUF versions also available.            |
+
+Browse the full [failspy/abliterated-v3 collection](https://huggingface.co/collections/failspy/abliterated-v3-664a8ad0db255eefa7d0012b) and [3000+ Heretic models](https://huggingface.co/models?other=heretic) for more.
+
+### Make your own with Heretic (if your preferred base isn't pre-abliterated)
+
+[p-e-w/heretic](https://github.com/p-e-w/heretic) is a fully automatic
+abliteration tool. 30 minutes on a 16 GB card for a 3B model.
+
+```bash
+pip install heretic-llm
+heretic Qwen/Qwen2.5-Coder-3B-Instruct --n-trials 100
+# Interactive menu: choose "Save the model to a local folder"
+```
+
+Then point `--base-model` at the saved folder. The interactive menu
+**requires a real TTY** (gnome-terminal, konsole, xterm, etc.) — piping
+stdin via `printf "n\n"` only handles the first prompt.
+
+The other 30 lines of the technique are documented at:
+- [mlabonne/abliteration (the original 2024 recipe)](https://huggingface.co/blog/mlabonne/abliteration)
+- [grimjim/projected-abliteration (Oct 2025 — projection refinement)](https://huggingface.co/blog/grimjim/projected-abliteration)
+- [p-e-w/heretic (unified tool, modern state-of-the-art)](https://github.com/p-e-w/heretic)
+
+---
+
 ## Training
 
 `scripts/train_all.py` is the orchestrator. Key flags:
@@ -310,7 +354,7 @@ with pair counts and MITRE tactic IDs.
 | Flag | Default | Notes |
 |---|---|---|
 | `--single-model` | (off) | Train one model on all buckets combined |
-| `--base-model` | `Qwen/Qwen2.5-Coder-7B-Instruct` | Use `unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit` for 16GB cards |
+| `--base-model` | `Qwen/Qwen2.5-Coder-7B-Instruct` | **Use an abliterated base** (see *Pick a base model* above). E.g. `huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated` for 16 GB cards. |
 | `--epochs` | 10 | Total epochs over the combined dataset |
 | `--max-length` | 1024 | 2048 for richer context; 1024 for 7B on 16GB |
 | `--lora-r` | 16 | LoRA rank; 8 / 16 / 32 are good starting points |
@@ -358,9 +402,9 @@ and generation parameters.
 
 ```bash
 attacklm-merge \
-  --base-model unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit \
+  --base-model huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated \
   --adapter models/attacklm-single \
-  --output models/attacklm-merged
+  --output models/merged/attacklm
 ```
 
 Then load with `transformers.AutoModelForCausalLM.from_pretrained("models/attacklm-merged")`.
@@ -384,7 +428,7 @@ from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 base = AutoModelForCausalLM.from_pretrained(
-    "unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit",
+    "huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated",
     device_map="auto",
 )
 model = PeftModel.from_pretrained(base, "models/attacklm-single")

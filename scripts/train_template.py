@@ -239,6 +239,67 @@ Examples:
 # ---------------------------------------------------------------------------
 
 
+def _resolve_model_path(model_id_or_path: str) -> str:
+    """Resolve a user-supplied base-model argument to something `from_pretrained`
+    can actually load.
+
+    HuggingFace's `from_pretrained` does a name validation before checking
+    whether the input is a local path. The check rejects anything that
+    looks like a filesystem path with a leading `./`, `/`, or `~` and
+    raises:
+
+        Repo id must use alphanumeric chars, '-', '_' or '.'.
+        The name cannot start or end with '-' or '.' and the maximum length
+        is 96: './decensored_model'.
+
+    Even absolute paths like `/home/...` get rejected by some HF
+    versions because they don't look like `namespace/repo_name`. The
+    workaround is to resolve to an absolute path AND confirm the path
+    actually exists before passing it on. This gives a clean error
+    message ("path doesn't exist") instead of the cryptic
+    "Repo id must..." failure.
+
+    If the input doesn't look like a path (no leading `/`, `./`, `~`,
+    and contains a `/` that isn't a path separator) it's left alone
+    as a HF Hub repo ID like `Qwen/Qwen2.5-Coder-3B-Instruct`.
+    """
+    import os
+    from pathlib import Path
+
+    if not model_id_or_path:
+        return model_id_or_path
+
+    # Strip trailing slashes (HF rejects names ending with '/')
+    p = model_id_or_path.rstrip("/")
+    if not p:
+        p = model_id_or_path
+
+    # Looks like a local path?
+    is_path = (
+        p.startswith(("/", "./", "../", "~/"))
+        or Path(p).expanduser().is_absolute()
+        or Path(p).expanduser().exists()
+    )
+
+    if is_path:
+        resolved = str(Path(p).expanduser().resolve())
+        if not Path(resolved).exists():
+            # Give a clean error early so the user sees "path not found"
+            # instead of the cryptic HF repo-id rejection
+            raise FileNotFoundError(
+                f"--base-model points to a local path that doesn't exist: "
+                f"{resolved}\n"
+                f"  (originally passed: {model_id_or_path!r})\n"
+                f"  Either create that directory, point at an existing "
+                f"model, or pass a HF Hub repo ID like "
+                f"'Qwen/Qwen2.5-Coder-3B-Instruct'."
+            )
+        return resolved
+
+    # Not a path — treat as a HF Hub repo ID. Leave alone.
+    return p
+
+
 def check_python_version() -> None:
     """Ensure Python 3.9+ is available."""
     if sys.version_info < (3, 9):
@@ -710,8 +771,11 @@ def main() -> None:
     # --- Load tokenizer ---
     print(f"\nLoading tokenizer: {args.base_model}")
     try:
+        # Resolve local paths to absolute early so HF's name validation
+        # doesn't reject `./decensored_model` as an invalid repo ID.
+        base_model_resolved = _resolve_model_path(args.base_model)
         tokenizer = AutoTokenizer.from_pretrained(
-            args.base_model,
+            base_model_resolved,
             trust_remote_code=True,
         )
         if tokenizer.pad_token is None:
@@ -984,7 +1048,9 @@ def main() -> None:
                     pass
 
         try:
-            model = AutoModelForCausalLM.from_pretrained(args.base_model, **load_kwargs)
+            model = AutoModelForCausalLM.from_pretrained(
+                base_model_resolved, **load_kwargs
+            )
         except (ImportError, ValueError, ModuleNotFoundError) as e:
             error_str = str(e).lower()
             if "flash" in error_str or "flash_attention" in error_str:
@@ -1019,7 +1085,7 @@ def main() -> None:
                     )
                     load_kwargs["attn_implementation"] = "sdpa"
                     model = AutoModelForCausalLM.from_pretrained(
-                        args.base_model, **load_kwargs
+                        base_model_resolved, **load_kwargs
                     )
             elif "could not import module" in error_str:
                 # Common on newer model architectures (Qwen3-Next, etc.)
