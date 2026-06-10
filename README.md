@@ -120,15 +120,91 @@ The project ships as a **proper Python package** (`pyproject.toml`,
 `src/attacklm/` layout, hatchling build backend) so users don't have to
 build anything by hand.
 
-### Option A — Editable install (recommended for development)
+There are **two GPU stacks** — pick the one for your hardware.
+
+---
+
+### CUDA stack (NVIDIA) — primary
 
 ```bash
 git clone https://github.com/Veedubin/AttackLM.git
 cd AttackLM
-uv pip install -e ".[all]"          # gets all optional dependencies
+uv pip install -e ".[all]"
 ```
 
-This installs 11 console-script entry points into your environment:
+That installs everything: `torch` (CUDA wheel from PyPI), `bitsandbytes`,
+`transformers`, `peft`, `trl`, plus the C++ extensions `flash-attn`,
+`causal-conv1d`, and `flash-linear-attention` (for Qwen3-Next and similar
+hybrid linear-attention models).
+
+| Component | Where it comes from |
+|---|---|
+| `torch`, `torchvision`        | PyPI (CUDA build, auto-selected) |
+| `bitsandbytes`                | PyPI (CUDA wheels) |
+| `flash-attn`                  | Built from source via pip (~5 min) |
+| `causal-conv1d`               | Pre-built wheel from PyPI |
+| `flash-linear-attention`      | Pre-built wheel from PyPI |
+
+---
+
+### ROCm stack (AMD) — e.g. MI300X, RX 7900 XTX, Strix Halo
+
+ROCm PyTorch wheels are **not on PyPI** — you must add PyTorch's index
+URL. The `bitsandbytes` ROCm wheels are only published for Python 3.10/3.11.
+The C++ extensions (`flash-attn`, `causal-conv1d`, `flash-linear-attention`)
+**have no ROCm support** — the modeling has pure-PyTorch fallbacks
+(slower but works).
+
+```bash
+# 1. Install ROCm PyTorch from PyTorch's index
+uv pip install --index-url https://download.pytorch.org/whl/rocm6.2 \
+    torch==2.12.0 torchvision==0.27.0
+
+# 2. Install AttackLM with the ROCm meta-group
+git clone https://github.com/Veedubin/AttackLM.git
+cd AttackLM
+uv pip install -e ".[all-rocm]"
+```
+
+`[all-rocm]` is `attacklm[train-rocm,extract,convert]` — it pulls in
+`peft`, `trl`, `accelerate`, `bitsandbytes` (ROCm build) and **no**
+CUDA-only C++ extensions.
+
+| Component | Where it comes from |
+|---|---|
+| `torch`, `torchvision`        | PyTorch ROCm index (`+rocm6.2` build) |
+| `bitsandbytes`                | PyPI ROCm wheel (Py 3.10/3.11 only — source build on 3.12/3.13) |
+| `flash-attn`                  | **Not installed** — sdpa fallback in QLoRA |
+| `causal-conv1d`               | **Not installed** — pure-PyTorch fallback in Qwen3-Next modeling |
+| `flash-linear-attention`      | **Not installed** — pure-PyTorch fallback |
+
+> **If `attacklm-train` fails with** `Could not import module 'Qwen3NextForCausalLM'`:
+> Your ROCm env likely has a half-installed `causal-conv1d` or
+> `flash-linear-attention`. Remove them:
+> ```bash
+> uv pip uninstall causal-conv1d flash-linear-attention
+> ```
+> The model has pure-PyTorch fallbacks for these and will work without them.
+
+---
+
+### CPU / Apple Silicon (inference only)
+
+```bash
+git clone https://github.com/Veedubin/AttackLM.git
+cd AttackLM
+uv pip install -e ".[infer]"
+```
+
+Training on CPU/MPS is technically possible but will be **extremely slow**.
+Use only for dry-runs or for running a pre-trained adapter against
+prompts. Pick `[all-cuda]` or `[all-rocm]` for actual training.
+
+---
+
+### 11 console-script entry points
+
+All install paths give you these:
 
 | Command                  | Dispatches to                          | What it does                           |
 |--------------------------|----------------------------------------|----------------------------------------|
@@ -149,18 +225,24 @@ invoke the canonical script in `scripts/`. So `scripts/` stays the
 source of truth and you can still run `uv run python scripts/foo.py`
 directly if you prefer.
 
-### Optional-dependency groups
+---
+
+### Optional-dependency groups (advanced)
 
 ```bash
-uv pip install -e ".[train]"        # training only (peft, trl, accelerate, bitsandbytes)
-uv pip install -e ".[extract]"      # data extractors (pyyaml, requests, gitpython)
-uv pip install -e ".[convert]"      # GGUF conversion (gguf-python, llama-cpp-python)
-uv pip install -e ".[infer]"        # inference (transformers, peft)
-uv pip install -e ".[all]"          # everything
+# Fine-grained control
+uv pip install -e ".[train-cuda]"   # CUDA training stack
+uv pip install -e ".[train-rocm]"   # ROCm training stack
+uv pip install -e ".[infer-cuda]"   # CUDA inference
+uv pip install -e ".[infer-rocm]"   # ROCm inference
+uv pip install -e ".[extract]"      # data extractors
+uv pip install -e ".[convert]"      # GGUF conversion
 uv pip install -e ".[dev]"          # pytest, ruff, mypy
 ```
 
-### Option B — Just use uv (no install)
+---
+
+### No-install option (scripts only)
 
 If you'd rather not install into your environment:
 
@@ -171,17 +253,9 @@ uv sync                              # creates .venv with all deps
 uv run python scripts/train_all.py --single-model --epochs 5
 ```
 
-### Option C — pip install from GitHub (no clone)
-
-```bash
-uv pip install "git+https://github.com/Veedubin/AttackLM.git#[all]"
-attacklm-train --help
-```
-
-This works because the entry points in `pyproject.toml` resolve `scripts/`
-relative to the installed package — but the data files won't be present
-(this method is best for `attacklm-infer` and `attacklm-demo` against an
-existing adapter you've trained elsewhere).
+`uv sync` reads `pyproject.toml` and creates a venv with the `[all]`
+extras. Scripts in `scripts/` are the source of truth — the CLI is a
+thin dispatcher layer.
 
 ---
 
