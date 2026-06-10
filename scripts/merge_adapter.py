@@ -3,14 +3,20 @@
 merge_adapter.py — Merge a LoRA adapter into its base model for standalone deployment.
 
 Usage:
-    python scripts/merge_adapter.py --adapter models/orchestrator-agent --output models/merged/orchestrator
+    # Merge a single adapter (base model auto-detected from adapter_config.json):
+    attacklm-merge --adapter models/attacklm-single --output models/merged/attacklm
 
-    python scripts/merge_and_demo.py --merge-all   # merge all 9 models
-    python scripts/merge_and_demo.py --demo         # run the demo
+    # Merge all trained adapters:
+    attacklm-merge --merge-all
+
+    # Override the base model explicitly:
+    attacklm-merge --adapter models/attacklm-single --output models/merged/attacklm --base-model Qwen/Qwen2.5-Coder-3B-Instruct
 """
 
 import argparse
+import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -18,17 +24,74 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_BASE = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 
+# Patterns to strip from HuggingFace model IDs to find the upstream base model.
+# E.g. "unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit" → "Qwen/Qwen2.5-Coder-3B-Instruct"
+_BNB_SUFFIXES = [
+    (re.compile(r"-bnb-4bit$"), ""),
+    (re.compile(r"-bnb-8bit$"), ""),
+    (re.compile(r"-4bit$"), ""),
+    (re.compile(r"-8bit$"), ""),
+]
+
+# Mapping from unsloth/ quantized wrappers to the canonical upstream org.
+_UNSLOTCH_ORG_MAP = {
+    "unsloth": "Qwen",
+}
+
+
+def _strip_quant_suffixes(model_id: str) -> str:
+    """Remove BnB quantization suffixes and map unsloth/ to upstream org.
+
+    E.g. "unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit" → "Qwen/Qwen2.5-Coder-3B-Instruct"
+    """
+    org, _, name = model_id.partition("/")
+    for pattern, replacement in _BNB_SUFFIXES:
+        new_name = pattern.sub(replacement, name)
+        if new_name != name:
+            name = new_name
+            break  # Only strip the first match
+    org = _UNSLOTCH_ORG_MAP.get(org, org)
+    return f"{org}/{name}"
+
+
+def read_adapter_base_model(adapter_path: str | Path) -> str:
+    """Read the base model from adapter_config.json, stripping quant suffixes.
+
+    Falls back to DEFAULT_BASE if the config doesn't specify one.
+    """
+    config_path = Path(adapter_path) / "adapter_config.json"
+    if config_path.exists():
+        with open(config_path) as f:
+            cfg = json.load(f)
+        raw_base = cfg.get("base_model_name_or_path", "")
+        if raw_base:
+            cleaned = _strip_quant_suffixes(raw_base)
+            if cleaned != raw_base:
+                print(f"  ℹ️  Auto-detected base: {raw_base}")
+                print(f"      Using upstream base: {cleaned} (stripped quant suffix)")
+            else:
+                print(f"  ℹ️  Auto-detected base: {cleaned}")
+            return cleaned
+    print(
+        f"  ⚠️  No base_model_name_or_path in {config_path}, using default: {DEFAULT_BASE}"
+    )
+    return DEFAULT_BASE
+
 
 def merge_adapter(
     adapter_path: str,
     output_path: str,
-    base_model: str = DEFAULT_BASE,
+    base_model: str | None = None,
     push_to_hub: bool = False,
 ) -> None:
     """Merge a LoRA adapter into the base model and save."""
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from peft import PeftModel
+
+    # Auto-detect base model from adapter config if not explicitly provided
+    if base_model is None:
+        base_model = read_adapter_base_model(adapter_path)
 
     print(f"\n{'=' * 60}")
     print(f" Merging adapter")
@@ -47,10 +110,10 @@ def merge_adapter(
     print("Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
 
-    print("Loading base model (FP16, auto device map)...")
+    print("Loading base model (BF16, auto device map)...")
     model = AutoModelForCausalLM.from_pretrained(
         base_model,
-        torch_dtype=torch.float16,
+        torch_dtype=torch.bfloat16,
         device_map="auto",
         trust_remote_code=True,
     )
@@ -75,12 +138,25 @@ def merge_adapter(
     print(f"   Path: {output_path}")
 
 
-def merge_all(base_model: str = DEFAULT_BASE) -> list[str]:
+def _find_adapter_dirs(models_dir: Path) -> list[Path]:
+    """Find all directories under models/ that contain adapter_config.json."""
+    if not models_dir.exists():
+        return []
+    return sorted(
+        {
+            p
+            for p in models_dir.iterdir()
+            if p.is_dir() and (p / "adapter_config.json").exists()
+        }
+    )
+
+
+def merge_all(base_model: str | None = None) -> list[str]:
     """Merge all trained adapters. Returns list of output paths."""
     models_dir = BASE_DIR / "models"
     merged_dir = BASE_DIR / "models" / "merged"
 
-    adapters = sorted(models_dir.glob("*-agent"))
+    adapters = _find_adapter_dirs(models_dir)
     if not adapters:
         print("\nERROR: No trained adapters found in models/")
         print("Run train_all.py first.")
@@ -98,8 +174,11 @@ def merge_all(base_model: str = DEFAULT_BASE) -> list[str]:
             merged_paths.append(str(output))
             continue
 
+        # Auto-detect base model per adapter (or use the override)
+        effective_base = base_model or read_adapter_base_model(adapter)
+
         print(f"\n  [{i + 1}/{len(adapters)}] Merging {agent_name}...")
-        merge_adapter(str(adapter), str(output), base_model)
+        merge_adapter(str(adapter), str(output), effective_base)
         merged_paths.append(str(output))
 
     elapsed = time.time() - start_time
@@ -122,8 +201,8 @@ def main() -> None:
     parser.add_argument("--output", help="Output directory for merged model")
     parser.add_argument(
         "--base-model",
-        default=DEFAULT_BASE,
-        help=f"Base HuggingFace model ID (default: {DEFAULT_BASE})",
+        default=None,
+        help=f"Base HuggingFace model ID (default: auto-detect from adapter_config.json, fallback: {DEFAULT_BASE})",
     )
     parser.add_argument(
         "--merge-all", action="store_true", help="Merge all trained adapters"
