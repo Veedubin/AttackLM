@@ -301,6 +301,189 @@ def _resolve_model_path(model_id_or_path: str) -> str:
     return p
 
 
+# ---------------------------------------------------------------------------
+# Run state sidecar
+# ---------------------------------------------------------------------------
+# A `state.json` file lives at the root of every training output dir. It
+# captures the *intent* of a run: what base, what hparams, what dataset,
+# whether it's started, whether it's complete, and where it stopped.
+# This is separate from HF's `trainer_state.json` (which lives inside
+# `checkpoint-N/` and is HF-internal). Ours is for tooling + humans + the
+# "round-2 SFT" workflow (pass a finished run dir as --base-model to
+# start a new LoRA on top of the merged weights).
+#
+# Folder convention (v0.1.6):
+#   models/agent_TIMESTAMP/        <- training run output (timestamped)
+#       state.json                 <- THIS file (written on start, updated on end)
+#       adapter_config.json        <- written on completion
+#       adapter_model.safetensors
+#       tokenizer.json
+#       checkpoint-N/              <- HF internal, with trainer_state.json
+#   models/merged/agent/          <- merged BF16 (deployable, no timestamp)
+#   models/gguf/agent.Q4_K_M.gguf <- final GGUF (deployable, no timestamp)
+#   ~/.lmstudio/models/local/agent/  <- LM Studio (no timestamp)
+#
+# Resolution rules when --base-model is a path:
+#   1. Path has no state.json
+#      → treat as raw HF model (regular from_pretrained). Existing behavior.
+#   2. Path has state.json with completed=false + checkpoint-N/ exists
+#      → this is a started run, auto-resume from the latest checkpoint.
+#        The user is continuing the same run, not starting a new one.
+#   3. Path has state.json with completed=false but NO checkpoint-N/
+#      → "marked started but never ran" (probably a --dry-run that wrote
+#        state). Treat as base model (effectively same as case 1).
+#   4. Path has state.json with completed=true
+#      → this is a finished run. User is doing round-2 SFT: load the
+#        merged weights directly and train a new LoRA on top.
+#   5. Path has adapter_config.json (peft_type=LORA) but no state.json
+#      → bare LoRA adapter (not a finished run). Existing behavior:
+#        treat as base + apply the adapter on top during loading.
+#        (Used by `attacklm-merge` to find the base, etc.)
+
+_STATE_VERSION = 1
+
+
+def _now_iso() -> str:
+    """UTC ISO-8601 timestamp with second precision."""
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _default_state_template(
+    output_dir: str,
+    base_model: str,
+    hparams: dict,
+    dataset_info: dict,
+) -> dict:
+    """Build a fresh state.json template with completed=False."""
+    return {
+        "version": _STATE_VERSION,
+        "created_at": _now_iso(),
+        "updated_at": _now_iso(),
+        "completed": False,
+        "base_model": {
+            "source": "local"
+            if Path(base_model).is_absolute()
+            or base_model.startswith(("./", "../", "~/"))
+            else "hf",
+            "id": base_model,
+        },
+        "hparams": hparams,
+        "dataset": dataset_info,
+        "progress": {
+            "global_step": 0,
+            "max_steps": 0,
+            "current_epoch": 0.0,
+            "total_epochs": float(hparams.get("epochs", 0)),
+            "last_loss": None,
+            "last_token_accuracy": None,
+            "best_eval_loss": None,
+            "total_training_seconds": 0,
+        },
+        "hpo": {
+            "is_hpo_trial": False,
+            "trial_id": None,
+            "parent_run": None,
+            "axes": None,
+        },
+    }
+
+
+def read_state(output_dir: str) -> dict | None:
+    """Read state.json from a training output dir, or None if not present.
+
+    Tolerant of malformed files (returns None + warning, never raises).
+    """
+    sp = Path(output_dir) / "state.json"
+    if not sp.exists():
+        return None
+    try:
+        with sp.open() as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"  WARNING: state.json at {sp} is unreadable ({e}); ignoring")
+        return None
+
+
+def write_state(output_dir: str, state: dict) -> None:
+    """Atomically write state.json (write to .tmp, then rename).
+
+    Atomic write prevents a half-written state.json from being read by
+    a parallel tool (LM Studio scanner, attacklm-merge --merge-all, etc.)
+    """
+    sp = Path(output_dir) / "state.json"
+    tmp = sp.with_suffix(".json.tmp")
+    state["updated_at"] = _now_iso()
+    with tmp.open("w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
+    os.replace(tmp, sp)
+
+
+def resolve_base_model_path(model_id_or_path: str) -> tuple[str, dict | None]:
+    """Resolve --base-model into (load_path, state_or_None).
+
+    `load_path` is what to pass to `from_pretrained`. For HF Hub IDs
+    and raw local paths, it's the same as the input (resolved to abs).
+    For a "started" run dir, it's the path itself (the trainer auto-
+    finds checkpoint-N/ subdirs when resume_from_checkpoint=True).
+    For a "completed" run dir, it's the path itself (it has the merged
+    weights from the last successful save).
+
+    Returns (resolved_path, state_dict_or_None). The state dict is
+    surfaced so main() can log "this is a resumed run" and read hparams.
+
+    Raises FileNotFoundError with a clean message if the path doesn't
+    exist.
+    """
+    resolved = _resolve_model_path(model_id_or_path)
+    state = read_state(resolved)
+    return resolved, state
+
+
+def has_incomplete_checkpoint(output_dir: str) -> bool:
+    """True if there are checkpoint-N/ subdirs with trainer_state.json.
+
+    Used to disambiguate "marked started, never ran" (case 3) from
+    "started and partially trained" (case 2).
+    """
+    p = Path(output_dir)
+    if not p.exists():
+        return False
+    for child in p.iterdir():
+        if child.is_dir() and child.name.startswith("checkpoint-"):
+            if (child / "trainer_state.json").exists():
+                return True
+    return False
+
+
+def make_timestamped_output_dir(parent: str, agent_name: str) -> str:
+    """Build a fresh output dir name with a UTC timestamp suffix.
+
+    Format: {parent}/{agent_name}_{YYYY-MM-DD}_{HH-MM}/
+    Example: models/agent_runs/attacklm-single_2026-06-10_01-12/
+
+    This is for new training runs. We use a counter suffix (in-memory,
+    within this process) to avoid returning the same path twice when
+    the caller invokes us rapidly (e.g. train_all.py calling this
+    in a tight loop). The counter resets per-process, so re-running
+    train_all.py later still uses the wall-clock timestamp.
+    """
+    from datetime import datetime, timezone
+
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M")
+    base = Path(parent) / f"{agent_name}_{ts}"
+    # Use a counter to disambiguate in-process rapid calls. We pick
+    # the lowest N that doesn't exist on disk yet, so persisted
+    # numbering only collides on actual same-minute re-runs.
+    n = 1
+    candidate = base
+    while candidate.exists():
+        n += 1
+        candidate = Path(parent) / f"{agent_name}_{ts}_{n}"
+    return str(candidate)
+
+
 def check_python_version() -> None:
     """Ensure Python 3.9+ is available."""
     if sys.version_info < (3, 9):
@@ -774,7 +957,50 @@ def main() -> None:
     try:
         # Resolve local paths to absolute early so HF's name validation
         # doesn't reject `./decensored_model` as an invalid repo ID.
-        base_model_resolved = _resolve_model_path(args.base_model)
+        #
+        # v0.1.6: this also detects "started run" vs "finished run" vs
+        # "raw base" via the state.json sidecar (see resolve_base_model_path).
+        base_model_resolved, base_state = resolve_base_model_path(args.base_model)
+
+        # Decision: should we auto-resume from checkpoint?
+        # - If state.json says "completed: false" AND a checkpoint exists,
+        #   this is a started-but-not-finished run. Auto-resume.
+        # - If state.json says "completed: true", this is a finished run
+        #   being used as a base for round-2 SFT. Don't auto-resume — load
+        #   the merged weights and train a fresh LoRA on top.
+        # - If no state.json, this is either a raw HF repo or a bare
+        #   adapter. Don't auto-resume.
+        if base_state is not None and not base_state.get("completed", True):
+            if has_incomplete_checkpoint(base_model_resolved):
+                if not args.resume_from_checkpoint:
+                    print(
+                        f"  ↻ Detected started run (state.json: completed=false, "
+                        f"checkpoint-N/ present). Auto-resuming from latest checkpoint."
+                    )
+                    args.resume_from_checkpoint = True
+            else:
+                # Marked-started but no actual training happened. Treat as
+                # a fresh base. This happens when --dry-run is run twice
+                # on the same dir.
+                print(
+                    f"  ↻ Detected marked-started run but no checkpoint-N/ found. "
+                    f"Treating as base for a fresh training run."
+                )
+
+        # Surface the round-2 SFT case clearly to the user
+        if base_state is not None and base_state.get("completed", False):
+            print(
+                f"  ✓ Detected completed run (state.json: completed=true). "
+                f"Round-2 SFT: training a fresh LoRA on top of the merged weights."
+            )
+            prev_hp = base_state.get("hparams", {})
+            if prev_hp:
+                print(
+                    f"    Previous hparams: r={prev_hp.get('lora_r', '?')}, "
+                    f"alpha={prev_hp.get('lora_alpha', '?')}, "
+                    f"epochs={prev_hp.get('epochs', '?')}, "
+                    f"max_length={prev_hp.get('max_length', '?')}"
+                )
         tokenizer = AutoTokenizer.from_pretrained(
             base_model_resolved,
             trust_remote_code=True,
@@ -916,6 +1142,66 @@ def main() -> None:
     # ===================================================================
     print("Starting training...\n")
     start_time = time.time()
+
+    # --- Write state.json (started marker) ---
+    # This declares "this is a started run" so a future invocation with
+    # the same --output can auto-resume. We write it BEFORE the heavy
+    # model load so a crash during model load still leaves a recoverable
+    # state. The state is updated again on success (completed=true) and
+    # on every checkpoint save (progress.global_step, progress.last_loss).
+    os.makedirs(args.output, exist_ok=True)
+    hparams_for_state = {
+        "lora_r": args.lora_r,
+        "lora_alpha": args.lora_alpha,
+        "lora_dropout": args.lora_dropout,
+        "epochs": args.epochs,
+        "batch_size": args.batch_size,
+        "max_length": args.max_length,
+        "gradient_accumulation_steps": args.gradient_accumulation_steps,
+        "save_steps": args.save_steps,
+        "eval_steps": args.eval_steps if hasattr(args, "eval_steps") else None,
+        "learning_rate": args.learning_rate if hasattr(args, "learning_rate") else None,
+        "warmup_ratio": args.warmup_ratio if hasattr(args, "warmup_ratio") else None,
+        "seed": 42,
+        "optim": args.optim,
+        "packing": args.packing,
+    }
+    # Dataset info: from CLI flags if present (attacklm-train-all sets them)
+    dataset_info = {
+        "source": getattr(args, "dataset_source", "file"),
+        "path": args.dataset,
+        "buckets": getattr(args, "buckets", None),
+        "include_tools": getattr(args, "include_tools", None),
+        "include_ai": getattr(args, "include_ai", None),
+        "examples_total": len(dataset),
+        "examples_train": len(train_dataset) if "train_dataset" in dir() else None,
+        "examples_eval": len(eval_dataset) if "eval_dataset" in dir() else None,
+    }
+    initial_state = _default_state_template(
+        output_dir=args.output,
+        base_model=args.base_model,
+        hparams=hparams_for_state,
+        dataset_info=dataset_info,
+    )
+    # If we're resuming, preserve the prior created_at and progress
+    if (
+        base_state is not None
+        and base_state.get("base_model", {}).get("id") == args.base_model
+    ):
+        initial_state["created_at"] = base_state.get(
+            "created_at", initial_state["created_at"]
+        )
+        initial_state["progress"] = base_state.get(
+            "progress", initial_state["progress"]
+        )
+    try:
+        write_state(args.output, initial_state)
+        print(
+            f"  ↻ State recorded at {args.output}/state.json (version {_STATE_VERSION})"
+        )
+    except Exception as e:
+        # Non-fatal — we can still train, we just lose the resume signal
+        print(f"  (Skipped state.json write: {e})")
 
     try:
         from transformers import AutoModelForCausalLM
@@ -1755,6 +2041,93 @@ def main() -> None:
     config_path = os.path.join(args.output, "config.json")
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
+
+    # --- Update state.json to mark completion + record final metrics ---
+    # This is what makes the run dir "deployable" — a future invocation
+    # of train_template.py with this dir as --base-model will see
+    # completed=true and treat it as a finished merged model (round-2 SFT).
+    final_state = read_state(args.output) or initial_state
+    metrics = getattr(train_result, "metrics", {}) or {}
+
+    # Some HF versions serialize metrics as strings ('4.647' instead of
+    # 4.647). Coerce defensively. Skip on parse error → leave None.
+    def _coerce_float(v):
+        if v is None or v == "unknown":
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    best_eval_loss = _coerce_float(best_metric)
+    last_token_accuracy = _coerce_float(metrics.get("mean_token_accuracy"))
+    last_loss = _coerce_float(final_loss)
+
+    # `global_step` isn't always in TrainOutput.metrics. The reliable
+    # source is the trainer_state.json on disk (or `state.global_step`
+    # on the trainer object).
+    final_step = metrics.get("step")
+    if final_step is None:
+        final_step = metrics.get("global_step", 0)
+    try:
+        final_step = int(final_step)
+    except (TypeError, ValueError):
+        final_step = 0
+    # Last resort: read the latest trainer_state.json for `max_steps`
+    # and any log_history entries that didn't make it into TrainOutput.
+    # Note: best_metric is only set if `load_best_model_at_end=True`,
+    # which our config doesn't enable. We accept that and record null.
+    max_steps_estimate = 0
+    try:
+        ckpt_dirs = sorted(
+            [
+                d
+                for d in Path(args.output).iterdir()
+                if d.is_dir() and d.name.startswith("checkpoint-")
+            ],
+            key=lambda d: int(d.name.split("-")[-1]),
+        )
+        if ckpt_dirs:
+            ts_path = ckpt_dirs[-1] / "trainer_state.json"
+            if ts_path.exists():
+                with ts_path.open() as f:
+                    ts = json.load(f)
+                trainer_max = int(ts.get("max_steps", 0))
+                if trainer_max > 0:
+                    max_steps_estimate = trainer_max
+                if final_step == 0:
+                    final_step = int(ts.get("global_step", 0))
+                if last_token_accuracy is None:
+                    for entry in reversed(ts.get("log_history", [])):
+                        if "mean_token_accuracy" in entry:
+                            last_token_accuracy = _coerce_float(
+                                entry["mean_token_accuracy"]
+                            )
+                            break
+    except Exception:
+        pass
+    if max_steps_estimate == 0:
+        # Fallback: compute from dataset size (assumes batch_size=1)
+        max_steps_estimate = int(len(dataset) * args.epochs)
+
+    final_state["completed"] = True
+    final_state["progress"] = {
+        "global_step": final_step,
+        "max_steps": max_steps_estimate,
+        "current_epoch": _coerce_float(metrics.get("epoch", args.epochs))
+        or float(args.epochs),
+        "total_epochs": float(args.epochs),
+        "last_loss": last_loss,
+        "last_token_accuracy": last_token_accuracy,
+        "best_eval_loss": best_eval_loss,
+        "total_training_seconds": round(elapsed, 2),
+    }
+    if "stopped_early" not in final_state:
+        final_state["stopped_early"] = stopped_early
+    try:
+        write_state(args.output, final_state)
+    except Exception as e:
+        print(f"  (Skipped state.json update: {e})")
 
     # --- Summary ---
     print("\n" + "=" * 60)

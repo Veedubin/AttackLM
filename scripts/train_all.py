@@ -89,17 +89,83 @@ MODELS: list[tuple] = []
 
 
 def has_completed_checkpoint(output_path: Path) -> bool:
-    # The trainer writes adapter_config.json at the output root on success.
+    """True if the output dir looks like a completed run.
+
+    v0.1.6: Now also checks state.json[completed]=true. Previously we
+    just checked for the existence of adapter_config.json, but that
+    exists in partial checkpoints too (HF writes it on every save).
+    A truly complete run has the state.json sidecar marking it done.
+    """
     if (output_path / "adapter_config.json").exists():
-        return True
-    # Fallback: any checkpoint-N/ subdirectory with an adapter inside counts
-    # as a successful run (load_best_model_at_end picked the best one).
-    if output_path.exists():
-        for child in output_path.iterdir():
-            if child.is_dir() and child.name.startswith("checkpoint-"):
-                if (child / "adapter_config.json").exists():
+        # Newer: also verify state.json says completed (v0.1.6+)
+        sp = output_path / "state.json"
+        if sp.exists():
+            try:
+                with sp.open() as f:
+                    s = json.load(f)
+                if s.get("completed"):
                     return True
+            except (OSError, json.JSONDecodeError):
+                pass
+        # Fallback: any checkpoint-N/ subdirectory with an adapter inside
+        # counts as a successful run (load_best_model_at_end picked the
+        # best one). Preserves backward compat with runs from before
+        # state.json existed.
+        if output_path.exists():
+            for child in output_path.iterdir():
+                if child.is_dir() and child.name.startswith("checkpoint-"):
+                    if (child / "adapter_config.json").exists():
+                        return True
     return False
+
+
+def _make_timestamped_output_dir(agent_name: str) -> Path:
+    """Build a timestamped output dir for a new training run.
+
+    v0.1.6: each run gets its own timestamped subdir under MODELS_DIR
+    instead of clobbering a single un-suffixed dir. Format:
+        models/agent-name_2026-06-10_01-12/
+    Collision: append _2, _3, ... for runs started in the same minute.
+
+    The agent_name is used as-is (e.g. "attacklm-single", "execution-agent",
+    "orchestrator-agent"). We do NOT sanitize the name because all current
+    agent names are already valid in a path. If new agent names introduce
+    spaces or path separators, add a slugify step here.
+    """
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    base = MODELS_DIR / f"{agent_name}_{ts}"
+    if not base.exists():
+        return base
+    for i in range(2, 100):
+        candidate = MODELS_DIR / f"{agent_name}_{ts}_{i}"
+        if not candidate.exists():
+            return candidate
+    return base  # 100 collisions/min is implausible
+
+
+def _find_latest_run_dir(agent_name: str) -> Path | None:
+    """Find the most recent timestamped run dir for an agent, if any.
+
+    Returns the dir with the largest lexicographic name (timestamps
+    sort correctly as YYYY-MM-DD_HH-MM strings). Returns None if no
+    timestamped run dirs exist for this agent — meaning either the
+    agent has never been trained, or only the legacy un-suffixed
+    models/agent-name/ dir exists.
+    """
+    if not MODELS_DIR.exists():
+        return None
+    candidates = sorted(
+        [
+            p
+            for p in MODELS_DIR.iterdir()
+            if p.is_dir()
+            and p.name.startswith(f"{agent_name}_")
+            and len(p.name.split("_")) >= 3  # at least one underscore after name
+        ],
+        key=lambda p: p.name,
+        reverse=True,
+    )
+    return candidates[0] if candidates else None
 
 
 def build_train_cmd(
@@ -520,7 +586,27 @@ def main():
         out(f"  Combined dataset: {tactic_combined_path} ({total_tactic:,} examples)")
         out("")
 
-        output_path = MODELS_DIR / args.single_model_name
+        output_path = _make_timestamped_output_dir(args.single_model_name)
+        out(f"  Run output:   {output_path}")
+        # If a previous run for this agent exists and has a completed
+        # state.json, the user is doing round-2 SFT — load the previous
+        # run dir as the base. We pick the latest by lexicographic sort
+        # (timestamps sort correctly as YYYY-MM-DD_HH-MM strings).
+        # (Does NOT apply when --base-model is set explicitly.)
+        if not args.base_model and not args.round_two_base:
+            latest = _find_latest_run_dir(args.single_model_name)
+            if latest and (latest / "state.json").exists():
+                try:
+                    with (latest / "state.json").open() as _f:
+                        _st = json.load(_f)
+                    if _st.get("completed"):
+                        out(
+                            f"  ↻ Round-2 SFT detected: previous completed run at {latest.name}"
+                        )
+                        out(f"    Loading merged weights as base for this run.")
+                        args.base_model = str(latest)
+                except (OSError, json.JSONDecodeError):
+                    pass
         if args.skip_completed and has_completed_checkpoint(output_path):
             out(f"  SKIP — checkpoint already exists at {output_path}")
             log_fh.close()
@@ -744,9 +830,11 @@ def main():
 
         # Data path lives in the bucket directory
         dataset_path = BUCKETS_DIR / bucket_name / "data.jsonl"
-        output_path = MODELS_DIR / agent_name
+        # v0.1.6: per-run timestamped output dir (no clobbering, easy rollback)
+        output_path = _make_timestamped_output_dir(agent_name)
 
         out(f"[{idx + 1}/{len(MODELS)}] {agent_name}")
+        out(f"  Run output:  {output_path}")
 
         if not dataset_path.exists():
             out(f"  SKIP — bucket {bucket_name} has no data.jsonl")

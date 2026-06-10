@@ -17,6 +17,7 @@ Usage:
 """
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -157,6 +158,27 @@ def main() -> None:
         # architecture with `Failed to detect model architecture`. Detect
         # PEFT adapters early and point users at attacklm-merge.
         if _is_lora_adapter(input_path):
+            # Try to read the auto-detected base from state.json (v0.1.6+)
+            # or adapter_config.json (v0.1.5 and earlier) so the hint
+            # is accurate without the user needing to know.
+            suggested_base = "(unknown — set --base-model manually)"
+            for cfg_name in ("state.json", "adapter_config.json"):
+                cfg_path = input_path / cfg_name
+                if cfg_path.exists():
+                    try:
+                        with cfg_path.open() as f:
+                            cfg = json.load(f)
+                        if isinstance(cfg.get("base_model"), dict):
+                            suggested_base = cfg["base_model"].get("id", suggested_base)
+                        else:
+                            suggested_base = cfg.get(
+                                "base_model_name_or_path", suggested_base
+                            )
+                        if suggested_base != "(unknown — set --base-model manually)":
+                            break
+                    except (OSError, json.JSONDecodeError):
+                        pass
+
             print(
                 f"\nERROR: {args.input} looks like a LoRA adapter, not a merged model."
             )
@@ -168,7 +190,7 @@ def main() -> None:
             )
             print(f"\nFix: merge the adapter into the base first, then convert.")
             print(f"  attacklm-merge --adapter {args.input} \\")
-            print(f"                  --base ./uncensored \\")
+            print(f"                  --base {suggested_base} \\")
             print(f"                  --output models/merged/{input_path.name}")
             print(
                 f"  attacklm-gguf --input models/merged/{input_path.name}"

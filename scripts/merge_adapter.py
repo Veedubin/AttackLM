@@ -139,20 +139,72 @@ def merge_adapter(
 
 
 def _find_adapter_dirs(models_dir: Path) -> list[Path]:
-    """Find all directories under models/ that contain adapter_config.json."""
+    """Find the most recent adapter dir per agent under models/.
+
+    v0.1.6: was "find all adapter dirs", but with the timestamped-run
+    convention that returned the same agent multiple times (one per
+    training run). Merging would collide on the output dir. Now we
+    group by base name (stripping the `_YYYY-MM-DD_HH-MM[_N]` suffix)
+    and return only the latest per group.
+    """
     if not models_dir.exists():
         return []
-    return sorted(
-        {
-            p
-            for p in models_dir.iterdir()
-            if p.is_dir() and (p / "adapter_config.json").exists()
-        }
-    )
+    import re as _re
+
+    # Group candidate dirs by their base agent name
+    # "attacklm-single_2026-06-10_01-12" -> ("attacklm-single", ...)
+    # "attacklm-single" (legacy, no timestamp) -> ("attacklm-single", ...)
+    ts_suffix = _re.compile(r"_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}(_\d+)?$")
+    groups: dict[str, list[Path]] = {}
+    for p in models_dir.iterdir():
+        if not p.is_dir():
+            continue
+        if not (p / "adapter_config.json").exists():
+            continue
+        m = ts_suffix.search(p.name)
+        if m:
+            base = p.name[: m.start()]
+        else:
+            base = p.name
+        groups.setdefault(base, []).append(p)
+
+    # Pick the lexicographically-largest name per group (timestamps
+    # sort correctly). If only a legacy un-suffixed dir exists, that
+    # is the only candidate and we use it.
+    out = []
+    for base, members in groups.items():
+        members.sort(key=lambda p: p.name, reverse=True)
+        out.append(members[0])
+    return sorted(out)
+
+
+def _strip_timestamp_suffix(adapter_path: Path) -> str:
+    """Strip a `_YYYY-MM-DD_HH-MM[_N]` suffix from a directory name.
+
+    Returns the base agent name (e.g. "attacklm-single"). Used to
+    decide the output merged dir name — merges always write to
+    models/merged/{base_name}/, not models/merged/{full_timestamped_name}/.
+    """
+    import re as _re
+
+    ts_suffix = _re.compile(r"_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}(_\d+)?$")
+    m = ts_suffix.search(adapter_path.name)
+    if m:
+        return adapter_path.name[: m.start()]
+    return adapter_path.name
 
 
 def merge_all(base_model: str | None = None) -> list[str]:
-    """Merge all trained adapters. Returns list of output paths."""
+    """Merge the most-recent trained adapter for each agent.
+
+    v0.1.6: when a user trains an agent multiple times, only the
+    latest timestamped adapter is merged. Older runs are skipped
+    (they remain on disk for rollback/inspection but aren't merged
+    into deployable artifacts). Override with --force-all-versions
+    to merge every timestamped run.
+    """
+    import argparse as _ap
+
     models_dir = BASE_DIR / "models"
     merged_dir = BASE_DIR / "models" / "merged"
 
@@ -166,18 +218,24 @@ def merge_all(base_model: str | None = None) -> list[str]:
     start_time = time.time()
 
     for i, adapter in enumerate(adapters):
-        agent_name = adapter.name
-        output = merged_dir / agent_name
+        # v0.1.6: strip the _TIMESTAMP suffix from the output name so
+        # models/merged/attacklm-agent/ stays a single deployable
+        # artifact per agent, not a forest of timestamped dirs.
+        base_name = _strip_timestamp_suffix(adapter)
+        output = merged_dir / base_name
 
         if output.exists() and any(output.glob("*.safetensors")):
-            print(f"\n  ⏭  SKIP {agent_name} — already merged")
+            print(f"\n  ⏭  SKIP {base_name} — already merged (from {adapter.name})")
             merged_paths.append(str(output))
             continue
 
         # Auto-detect base model per adapter (or use the override)
         effective_base = base_model or read_adapter_base_model(adapter)
 
-        print(f"\n  [{i + 1}/{len(adapters)}] Merging {agent_name}...")
+        print(
+            f"\n  [{i + 1}/{len(adapters)}] Merging {base_name} "
+            f"(from adapter: {adapter.name})..."
+        )
         merge_adapter(str(adapter), str(output), effective_base)
         merged_paths.append(str(output))
 
@@ -196,16 +254,23 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Merge LoRA adapters into base models")
     parser.add_argument(
         "--adapter",
-        help="Single adapter to merge (e.g., models/orchestrator-agent)",
+        help="Single adapter to merge (e.g., models/attacklm-single_2026-06-10_01-12).",
     )
-    parser.add_argument("--output", help="Output directory for merged model")
+    parser.add_argument(
+        "--output",
+        help="Output directory for merged model. Defaults to a name derived from --adapter "
+        "(strips _TIMESTAMP suffix if present). E.g. models/attacklm-single_2026-06-10_01-12 "
+        "→ models/merged/attacklm-single",
+    )
     parser.add_argument(
         "--base-model",
         default=None,
         help=f"Base HuggingFace model ID (default: auto-detect from adapter_config.json, fallback: {DEFAULT_BASE})",
     )
     parser.add_argument(
-        "--merge-all", action="store_true", help="Merge all trained adapters"
+        "--merge-all",
+        action="store_true",
+        help="Merge the most-recent trained adapter for each agent",
     )
 
     args = parser.parse_args()
@@ -213,9 +278,15 @@ def main() -> None:
     if args.merge_all:
         merge_all(args.base_model)
     elif args.adapter:
+        adapter_path = Path(args.adapter)
         if not args.output:
-            parser.error("--output is required with --adapter")
-        merge_adapter(args.adapter, args.output, args.base_model)
+            # Auto-derive: strip _TIMESTAMP suffix, write to models/merged/{base_name}/
+            base_name = _strip_timestamp_suffix(adapter_path)
+            output_path = BASE_DIR / "models" / "merged" / base_name
+            print(f"  ℹ️  --output not given, defaulting to: {output_path}")
+        else:
+            output_path = Path(args.output)
+        merge_adapter(str(adapter_path), str(output_path), args.base_model)
     else:
         parser.print_help()
         sys.exit(1)
