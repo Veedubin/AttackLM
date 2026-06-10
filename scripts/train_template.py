@@ -1024,37 +1024,115 @@ def main() -> None:
             elif "could not import module" in error_str:
                 # Common on newer model architectures (Qwen3-Next, etc.)
                 # that require a recent transformers version + C++ extensions.
+                # The transformers _LazyModule raises a generic "Could not import
+                # module X" wrapper, but the actual failure is in the cause chain.
+                # Walk __cause__ / __context__ to find the real error so the user
+                # sees what's actually broken (CUDA .so on ROCm, half-installed
+                # C++ extension, etc.) instead of the cryptic wrapper.
                 model_class_match = None
                 import re
 
                 m = re.search(r"['\"]([A-Za-z0-9_]+)['\"]", str(e))
                 if m:
                     model_class_match = m.group(1)
+
+                # Walk the exception chain (deepest = most likely root cause)
+                chain = []
+                cur = e
+                seen = set()
+                while cur is not None and id(cur) not in seen:
+                    seen.add(id(cur))
+                    chain.append(cur)
+                    cur = cur.__cause__ or cur.__context__
+                root = chain[-1] if chain else e
+                chain_lines = [
+                    f"    {i}. [{type(c).__name__}] {str(c)[:300]}"
+                    for i, c in enumerate(chain)
+                ]
+
                 print(
                     "\nERROR: Failed to load model — transformers could not import "
                     f"the model class{f' ({model_class_match})' if model_class_match else ''}."
                 )
                 print(f"  Base model: {args.base_model}")
                 print()
-                print("  This usually means one of:")
-                print("    1. Your transformers version is too old for this model.")
-                print("       Upgrade: uv pip install -U 'transformers>=5.10'")
-                print("    2. A required C++ extension failed to build or load.")
-                print("       Qwen3-Next and similar architectures need:")
-                print("         - causal-conv1d (CUDA only)")
-                print("         - flash-linear-attention (CUDA only)")
-                print("       On ROCm these are NOT required — the modeling has")
-                print(
-                    "       pure-PyTorch fallbacks. Make sure they're not half-installed."
-                )
-                print(
-                    "       Try: uv pip uninstall causal-conv1d flash-linear-attention"
-                )
-                print("    3. The model uses trust_remote_code and the remote code")
-                print("       wasn't downloaded. Set HF_HUB_OFFLINE=0 and retry.")
+                print("  Exception chain (deepest = most likely root cause):")
+                for line in chain_lines:
+                    print(line)
                 print()
-                print("  Full error:")
-                print(f"    {e}")
+
+                # Heuristic detection of common root causes
+                chain_str = " | ".join(str(c) for c in chain)
+                if is_rocm() and (
+                    "bitsandbytes" in chain_str.lower()
+                    or re.search(r"cuda\d{3}|libbitsandbytes", chain_str, re.I)
+                ):
+                    print(
+                        "  DIAGNOSIS: bitsandbytes wheel doesn't support your ROCm version."
+                    )
+                    print(
+                        "  The PyPI bitsandbytes 0.49.2 wheel only ships CUDA .so files"
+                    )
+                    print("  (cuda118/120/121/122/126). On ROCm it loads but the first")
+                    print(
+                        "  CUDA call fails, which cascades into the model import error."
+                    )
+                    print()
+                    print(
+                        "  Fix: uninstall bitsandbytes — the FP8 path doesn't need it:"
+                    )
+                    print("    uv pip uninstall bitsandbytes")
+                    print()
+                elif is_rocm() and (
+                    "hip" in chain_str.lower()
+                    or re.search(r"amd|rocm|gfx\d+", chain_str, re.I)
+                ):
+                    print("  DIAGNOSIS: a HIP/ROCm symbol or device mismatch.")
+                    print(
+                        "  Verify your PyTorch is the ROCm build, not the CUDA build:"
+                    )
+                    print()
+                    print('    python -c "import torch; print(torch.version.hip)"')
+                    print()
+                    print("  If that prints 'None', your torch is the CUDA build.")
+                    print("  Reinstall with the ROCm index URL:")
+                    print(
+                        "    uv pip install --index-url https://download.pytorch.org/whl/rocm7.2 \\"
+                    )
+                    print("        torch==2.12.0 torchvision==0.27.0")
+                    print()
+                elif re.search(
+                    r"causal_conv1d|flash_linear_attention|flash[-_]linear",
+                    chain_str,
+                    re.I,
+                ):
+                    print(
+                        "  DIAGNOSIS: a C++ extension (causal-conv1d or flash-linear-attention)"
+                    )
+                    print(
+                        "  failed to build or load. On ROCm these are NOT required — the"
+                    )
+                    print(
+                        "  modeling has pure-PyTorch fallbacks. Remove the broken install:"
+                    )
+                    print()
+                    print("    uv pip uninstall causal-conv1d flash-linear-attention")
+                    print()
+                else:
+                    # Generic guidance when we can't pinpoint the cause
+                    print("  Possible causes (try in order):")
+                    print("    1. Outdated transformers — upgrade:")
+                    print("         uv pip install -U 'transformers>=5.10'")
+                    print("    2. Half-installed C++ extensions — uninstall:")
+                    print(
+                        "         uv pip uninstall causal-conv1d flash-linear-attention"
+                    )
+                    print("    3. On ROCm: bitsandbytes CUDA-only wheel — uninstall:")
+                    print("         uv pip uninstall bitsandbytes")
+                    print(
+                        "    4. Missing trust_remote_code — set HF_HUB_OFFLINE=0 and retry"
+                    )
+                    print()
                 sys.exit(1)
             else:
                 raise
