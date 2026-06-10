@@ -1,0 +1,166 @@
+# AttackLM .gitignore
+# ==================
+# This file controls what NOT to commit to the AttackLM public repo.
+# Rationale per section is below.
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ----- Virtual environments -----
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ----- Environment / secrets -----
+.env
+.envrc
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ----- IDE / editor -----
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.sublime-project
+*.sublime-workspace
+
+# ----- Logs (keep the directory, exclude content) -----
+logs/*.log
+logs/*.json
+logs/*.tmp
+!logs/.gitkeep
+
+# ----- HPO trial outputs (keep hpo_state.json, exclude trial CSVs and adapter dirs) -----
+hpo_runs/*_trial*/
+hpo_runs/*.csv
+hpo_runs/*.dataset_stats.json
+!hpo_runs/.gitkeep
+!hpo_runs/hpo_state.json
+
+# ----- Trained models (large, regenerable) -----
+models/
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+checkpoints/
+adapter_*/
+merged_*/
+
+# ----- MLflow / wandb / tensorboard -----
+mlruns/
+wandb/
+*.tfevents.*
+runs/
+
+# ----- OS / misc -----
+*.tmp
+*.bak
+*.orig
+*.rej
+nohup.out
+*.swp
+.fuse_hidden*
+.Trash-*
+
+# ----- Coverage / test artifacts -----
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.tox/
+.cache
+coverage.xml
+*.cover
+.hypothesis/
+
+# ----- Mypy / lint caches -----
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+
+# ----- Local notes (keep HANDOFF.md / TASKS.md tracked if you want) -----
+*.local.md
+notes.md
+
+# ============================================================================
+# DATA DIRECTORY — explicit per-source rules
+# ============================================================================
+#
+# The data/ tree has two parts:
+#   1. CLONED upstream repos (~1.5GB total, have their own .git directories)
+#      These are EXCLUDED — clone them yourself with scripts/clone_repos.sh
+#   2. DERIVED training data (data/datasets/buckets/*/data.jsonl, ~5MB)
+#      These are INCLUDED — they're the project's actual training data
+#
+# Why exclude the cloned repos?
+#   - Massive (1.5GB) — would bloat the repo
+#   - Have their own .git history (would confuse git)
+#   - Available via clone_repos.sh — one command to get them
+#   - Have their own LICENSE files (preserved in derived data)
+#
+# Why include the derived JSONL?
+#   - Small (5MB) — fits in any repo
+#   - This IS the training data — the most important artifact
+#   - Has source/license attribution (see /ATTRIBUTION.md)
+#   - Saves users from running 6 extractors just to start training
+
+# Cloned upstream repos — EXCLUDED
+data/atomic-red-team/
+data/stockpile/
+data/sigma/
+data/metasploit-framework/
+data/infection_monkey/
+data/RTA/
+data/arsenal/
+data/manx/
+data/access/
+data/ai_tools/
+data/manifests/
+data/tool_knowledge.json
+data/DATASET_EXPANSION_REPORT.md
+data/sigma/
+
+# Derived training data — INCLUDED
+# (no rule needed; nothing to ignore)
+# data/datasets/buckets/*/data.jsonl     ← included
+# data/datasets/buckets/manifest.json    ← included
+# data/datasets/combined/*.jsonl         ← included (cached combined datasets)
+# data/ATTRIBUTION.md                     ← included
+# data/.gitkeep                           ← included (preserves the directory)
+
+# ----- LFS (don't accidentally commit big files) -----
+*.lfs

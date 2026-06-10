@@ -1,0 +1,10 @@
+{
+  "name": "prompt_injection",
+  "display_name": "Prompt Injection",
+  "category": "ai_redteam",
+  "mitre_tactic": "TA0040",
+  "description": "Prompt injection & AI exploit (was prompt_injection)",
+  "source_file": "prompt_injection_dataset.jsonl",
+  "created": "2026-06-09T14:40:54.204089",
+  "count": 687
+}

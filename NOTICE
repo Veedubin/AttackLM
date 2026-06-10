@@ -1,0 +1,99 @@
+AttackLM
+Copyright (c) 2026 jcharles
+
+This product includes software developed by third parties:
+
+================================================================================
+Apache License 2.0 components
+================================================================================
+
+This product includes software developed at:
+
+- The MITRE Corporation (https://www.mitre.org/) — MITRE Caldera
+  (https://github.com/mitre/caldera) and Stockpile
+  (https://github.com/mitre/stockpile), including the Arsenal, Manx,
+  and Access plugins. MITRE ATT&CK framework (https://attack.mitre.org/).
+
+- NVIDIA Corporation (https://www.nvidia.com/) — garak LLM vulnerability
+  scanner (https://github.com/NVIDIA/garak).
+
+- CyberArk Software Ltd. (https://www.cyberark.com/) — FuzzyAI
+  adversarial prompt generator (https://github.com/cyberark/FuzzyAI).
+
+The Apache License 2.0 is reproduced in /ATTRIBUTION.md and in the
+respective upstream LICENSE files. The full text is available at:
+https://www.apache.org/licenses/LICENSE-2.0.txt
+
+================================================================================
+MIT License components
+================================================================================
+
+- Atomic Red Team by Red Canary, LLC.
+  (https://github.com/redcanaryco/atomic-red-team)
+
+- promptfoo (https://github.com/promptfoo/promptfoo)
+
+- promptmap (https://github.com/utkusen/promptmap)
+
+- PyRIT — Python Risk Identification Tool for generative AI
+  (https://github.com/Azure/PyRIT) by Microsoft Azure.
+
+The MIT License is reproduced in /ATTRIBUTION.md and in the
+respective upstream LICENSE files.
+
+================================================================================
+BSD 3-Clause License components
+================================================================================
+
+- Metasploit Framework by Rapid7, Inc.
+  (https://github.com/rapid7/metasploit-framework)
+
+  Copyright (c) 2006-2026, Rapid7, Inc. All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
+
+    1. Redistributions of source code must retain the above copyright notice,
+       this list of conditions and the following disclaimer.
+
+    2. Redistributions in binary form must reproduce the above copyright notice,
+       this list of conditions and the following disclaimer in the documentation
+       and/or other materials provided with the distribution.
+
+    3. Neither the name of Rapid7, Inc. nor the names of its contributors may
+       be used to endorse or promote products derived from this software without
+       specific prior written permission.
+
+  The full text is available at:
+  https://opensource.org/licenses/BSD-3-Clause
+
+================================================================================
+GPL-3.0 / AGPL-3.0 components
+================================================================================
+
+- Guardicore Infection Monkey
+  (https://github.com/guardicore/monkey) — GPL-3.0
+
+- RTA — Red Team Automation by Endgame (now Elastic)
+  (https://github.com/endgameinc/RTA) — AGPL-3.0
+
+The GPL/AGPL licenses have network-distribution implications. See
+/ATTRIBUTION.md §8 for the AGPLv3 analysis specific to RTA. The full
+texts are at:
+  GPL-3.0:    https://www.gnu.org/licenses/gpl-3.0.txt
+  AGPL-3.0:   https://www.gnu.org/licenses/agpl-3.0.txt
+
+================================================================================
+DRL 1.1 components
+================================================================================
+
+- Sigma rules by SigmaHQ (https://github.com/SigmaHQ/sigma) — Detection
+  Rule License 1.1. The Sigma specification itself is public domain.
+
+  DRL 1.1: https://github.com/SigmaHQ/Detection-Rule-License
+
+================================================================================
+
+For the complete attribution story (per-pair source mapping, per-bucket
+license summary, and re-distribution guidance), see /ATTRIBUTION.md
+at the root of this repository.

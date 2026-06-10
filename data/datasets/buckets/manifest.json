@@ -1,0 +1,201 @@
+{
+  "version": 2,
+  "layout": "nested (ai-models/, tools/)",
+  "created": "2026-06-09T15:03:12.124259",
+  "total_buckets": 16,
+  "total_pairs": 16982,
+  "buckets": [
+    {
+      "name": "collection",
+      "display_name": "Collection",
+      "category": "tactic",
+      "mitre_tactic": "TA0009",
+      "description": "Data collection from target systems (T1005, T1213, T1114, T1119)",
+      "source_file": "collection_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.191524",
+      "count": 634,
+      "path": "collection"
+    },
+    {
+      "name": "command_and_control",
+      "display_name": "Command and Control",
+      "category": "tactic",
+      "mitre_tactic": "TA0011",
+      "description": "C2 channel establishment (T1071, T1090, T1095, T1572, T1573)",
+      "source_file": "command_and_control_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.191751",
+      "count": 105,
+      "path": "command_and_control"
+    },
+    {
+      "name": "credential_access",
+      "display_name": "Credential Access",
+      "category": "tactic",
+      "mitre_tactic": "TA0006",
+      "description": "Credential theft and brute force (T1003, T1110, T1555, T1552)",
+      "source_file": "credential_access_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.192555",
+      "count": 589,
+      "path": "credential_access"
+    },
+    {
+      "name": "defense_evasion",
+      "display_name": "Defense Evasion",
+      "category": "tactic",
+      "mitre_tactic": "TA0005",
+      "description": "AV/EDR bypass, obfuscation, masquerading (T1027, T1055, T1562, T1070)",
+      "source_file": "defense_evasion_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.193770",
+      "count": 1375,
+      "path": "defense_evasion"
+    },
+    {
+      "name": "discovery",
+      "display_name": "Discovery",
+      "category": "tactic",
+      "mitre_tactic": "TA0007",
+      "description": "System/network enumeration (T1057, T1082, T1087, T1018, T1049)",
+      "source_file": "discovery_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.194670",
+      "count": 1846,
+      "path": "discovery"
+    },
+    {
+      "name": "execution",
+      "display_name": "Execution",
+      "category": "tactic",
+      "mitre_tactic": "TA0002",
+      "description": "Code execution techniques (T1059, T1106, T1204, T1047)",
+      "source_file": "execution_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.195414",
+      "count": 767,
+      "path": "execution"
+    },
+    {
+      "name": "exfiltration",
+      "display_name": "Exfiltration",
+      "category": "tactic",
+      "mitre_tactic": "TA0010",
+      "description": "Data exfiltration over C2 (T1041, T1567, T1052, T1011)",
+      "source_file": "exfiltration_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.195663",
+      "count": 173,
+      "path": "exfiltration"
+    },
+    {
+      "name": "lateral_movement",
+      "display_name": "Lateral Movement",
+      "category": "tactic",
+      "mitre_tactic": "TA0008",
+      "description": "Remote service exploitation (T1021, T1570, T1080, T1559)",
+      "source_file": "lateral_movement_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.196022",
+      "count": 252,
+      "path": "lateral_movement"
+    },
+    {
+      "name": "persistence",
+      "display_name": "Persistence",
+      "category": "tactic",
+      "mitre_tactic": "TA0003",
+      "description": "Maintain foothold (T1543, T1547, T1136, T1098, T1197)",
+      "source_file": "persistence_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.197101",
+      "count": 1120,
+      "path": "persistence"
+    },
+    {
+      "name": "privilege_escalation",
+      "display_name": "Privilege Escalation",
+      "category": "tactic",
+      "mitre_tactic": "TA0004",
+      "description": "Elevate privileges (T1068, T1548, T1134, T1543)",
+      "source_file": "privilege_escalation_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.197791",
+      "count": 537,
+      "path": "privilege_escalation"
+    },
+    {
+      "name": "orchestrator",
+      "display_name": "Orchestrator Routing",
+      "category": "meta",
+      "mitre_tactic": "n/a",
+      "description": "Agent routing decisions \u2014 380 examples across 6 agents",
+      "source_file": "orchestrator_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.202603",
+      "count": 380,
+      "path": "orchestrator"
+    },
+    {
+      "name": "jailbreak",
+      "display_name": "Jailbreak",
+      "category": "ai_redteam",
+      "mitre_tactic": "TA0040",
+      "description": "AI jailbreak patterns (was jailbreak)",
+      "source_file": "jailbreak_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.201966",
+      "count": 56,
+      "path": "ai-models/jailbreaking"
+    },
+    {
+      "name": "prompt_injection",
+      "display_name": "Prompt Injection",
+      "category": "ai_redteam",
+      "mitre_tactic": "TA0040",
+      "description": "Prompt injection & AI exploit (was prompt_injection)",
+      "source_file": "prompt_injection_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.204089",
+      "count": 687,
+      "path": "ai-models/prompt-injection"
+    },
+    {
+      "name": "infection_monkey",
+      "display_name": "Infection Monkey",
+      "category": "tools",
+      "mitre_tactic": "various",
+      "description": "guardicore/infection_monkey \u2014 36 plugin manifests",
+      "source_file": "infection_monkey_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.201669",
+      "count": 36,
+      "path": "tools/infection_monkey"
+    },
+    {
+      "name": "metasploit",
+      "display_name": "Metasploit Modules",
+      "category": "tools",
+      "mitre_tactic": "various",
+      "description": "Rapid7 Metasploit \u2014 15 module categories consolidated",
+      "source_files": [
+        "metasploit_collection_dataset.jsonl",
+        "metasploit_credential_access_dataset.jsonl",
+        "metasploit_defense_evasion_dataset.jsonl",
+        "metasploit_discovery_dataset.jsonl",
+        "metasploit_execution_dataset.jsonl",
+        "metasploit_lateral_movement_dataset.jsonl",
+        "metasploit_metasploit_auxiliary_dataset.jsonl",
+        "metasploit_metasploit_encoder_dataset.jsonl",
+        "metasploit_metasploit_evasion_dataset.jsonl",
+        "metasploit_metasploit_exploit_dataset.jsonl",
+        "metasploit_metasploit_nop_dataset.jsonl",
+        "metasploit_metasploit_payload_dataset.jsonl",
+        "metasploit_metasploit_post_dataset.jsonl",
+        "metasploit_persistence_dataset.jsonl",
+        "metasploit_privilege_escalation_dataset.jsonl"
+      ],
+      "created": "2026-06-09T14:40:54.220557",
+      "count": 8349,
+      "path": "tools/metasploit"
+    },
+    {
+      "name": "rta",
+      "display_name": "RTA",
+      "category": "tools",
+      "mitre_tactic": "various",
+      "description": "endgameinc/RTA \u2014 40 Python TTP scripts",
+      "source_file": "rta_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.201316",
+      "count": 76,
+      "path": "tools/rta"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "discovery",
+  "display_name": "Discovery",
+  "category": "tactic",
+  "mitre_tactic": "TA0007",
+  "description": "System/network enumeration (T1057, T1082, T1087, T1018, T1049)",
+  "source_file": "discovery_dataset.jsonl",
+  "created": "2026-06-09T14:40:54.194670",
+  "count": 1050
+}

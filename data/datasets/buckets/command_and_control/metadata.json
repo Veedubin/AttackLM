@@ -1,0 +1,10 @@
+{
+  "name": "command_and_control",
+  "display_name": "Command and Control",
+  "category": "tactic",
+  "mitre_tactic": "TA0011",
+  "description": "C2 channel establishment (T1071, T1090, T1095, T1572, T1573)",
+  "source_file": "command_and_control_dataset.jsonl",
+  "created": "2026-06-09T14:40:54.191751",
+  "count": 105
+}

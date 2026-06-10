@@ -1,0 +1,10 @@
+{
+  "name": "collection",
+  "display_name": "Collection",
+  "category": "tactic",
+  "mitre_tactic": "TA0009",
+  "description": "Data collection from target systems (T1005, T1213, T1114, T1119)",
+  "source_file": "collection_dataset.jsonl",
+  "created": "2026-06-09T14:40:54.191524",
+  "count": 410
+}

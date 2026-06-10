@@ -1,0 +1,52 @@
+{
+  "best_per_axis": {
+    "lora_r": 8,
+    "lora_dropout": 0.0
+  },
+  "all_trials": [
+    {
+      "axis": "lora_r",
+      "trial_index": 0,
+      "value": 8,
+      "csv_path": "/home/jcharles/Projects/reverse_engineering/AttackLM/hpo_runs/lora_r_trial0_v8.csv",
+      "final_loss": 0.9859185218811035,
+      "final_grad_norm": 2.796875,
+      "final_entropy": 1.0628583192825318,
+      "final_tok_acc": 0.7854159653186799,
+      "mean_loss_last10": 1.0625695514678957,
+      "loss_slope": -0.009988251327572013,
+      "max_grad_norm": 10.125,
+      "min_vram_free_gb": 8.33,
+      "mean_tokens_per_sec": 12563.8665,
+      "mean_pairs_per_sec": 4.931263636363637,
+      "wall_time_s": 84.08278560638428,
+      "verdict": "DIVERGED",
+      "reason": "grad_norm exploded to 10.12 (>5.0) \u2014 back off",
+      "returncode": 0
+    },
+    {
+      "axis": "lora_dropout",
+      "trial_index": 0,
+      "value": 0.0,
+      "csv_path": "/home/jcharles/Projects/reverse_engineering/AttackLM/hpo_runs/lora_dropout_trial0_v0.0.csv",
+      "final_loss": 0.9904585838317871,
+      "final_grad_norm": 2.703125,
+      "final_entropy": 1.0617491900920868,
+      "final_tok_acc": 0.7897720277309418,
+      "mean_loss_last10": 1.066448974609375,
+      "loss_slope": -0.009958806719098772,
+      "max_grad_norm": 9.6875,
+      "min_vram_free_gb": 8.31,
+      "mean_tokens_per_sec": 12898.6765,
+      "mean_pairs_per_sec": 5.07550909090909,
+      "wall_time_s": 78.01846146583557,
+      "verdict": "DIVERGED",
+      "reason": "grad_norm exploded to 9.69 (>5.0) \u2014 back off",
+      "returncode": 0
+    }
+  ],
+  "axes_order": [
+    "lora_r",
+    "lora_dropout"
+  ]
+}
