@@ -90,11 +90,11 @@ Buckets live in `data/datasets/buckets/<bucket_name>/` and contain a
 ## Development setup
 
 ```bash
-# Install dependencies
-uv sync
+# Install dependencies (editable, with all extras)
+uv pip install -e ".[all,dev]"
 
 # Run a sanity check on the training pipeline
-uv run python scripts/train_template.py \
+attacklm-train \
   --dataset data/datasets/combined/combined_*.jsonl \
   --output /tmp/test-output --dry-run
 ```

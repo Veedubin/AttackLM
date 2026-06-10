@@ -171,7 +171,7 @@ Examples:
         action="store_true",
         default=False,
         help="Enable example packing + padding-free training (default: OFF). "
-        "Concatenates short examples into max_length-sized sequences for ~30-40% throughput gain. "
+        "Concatenates short examples into max_length-sized sequences for ~30-40%% throughput gain. "
         "REQUIRES flash_attention_2 to prevent cross-sample contamination. "
         "If flash-attn is not installed, training will fail with a clear error and "
         "suggestion to use --no-packing instead. Default is OFF because flash-attn "

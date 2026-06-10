@@ -73,7 +73,7 @@ SCENARIOS = {
     "privilege_escalation": (
         """Engagement State:
 - OS: Windows 10 22H2
-- Privilege: Standard user (domain\jsmith)
+- Privilege: Standard user (domain\\jsmith)
 - EDR: None
 - Objective: Escalate to local administrator — SeImpersonatePrivilege is enabled.""",
         "PrivilegeEscalationAgent",

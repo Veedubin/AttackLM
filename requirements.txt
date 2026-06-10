@@ -1,3 +1,7 @@
+# This file is kept for backwards compatibility.
+# Modern install: `pip install attacklm[all]` or `uv add attacklm[all]`
+# See pyproject.toml [project.optional-dependencies] for the canonical deps.
+#
 # AttackLM training pipeline — pinned dependencies
 # Tested with Python 3.13 on Linux (Arch)
 # CUDA 12.x or 13.x required (RTX 40-series or newer recommended)

@@ -1,0 +1,107 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# AttackLM — pyproject.toml
+# ──────────────────────────────────────────────────────────────────────────────
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# ── Project metadata ──────────────────────────────────────────────────────────
+
+[project]
+name = "attacklm"
+version = "0.1.0"
+description = "QLoRA-fine-tuned Qwen2.5-Coder for offensive security and AI red-teaming"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{name = "Veedubin", email = "noreply@github.com"}]
+keywords = [
+    "security",
+    "red-team",
+    "mitre-attack",
+    "qlora",
+    "fine-tuning",
+    "ai-security",
+    "offensive-security",
+]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Security",
+    "Intended Audience :: Science/Research",
+    "Development Status :: 3 - Alpha",
+]
+
+[project.urls]
+Homepage = "https://github.com/Veedubin/AttackLM"
+Repository = "https://github.com/Veedubin/AttackLM"
+Issues = "https://github.com/Veedubin/AttackLM/issues"
+Documentation = "https://github.com/Veedubin/AttackLM#readme"
+
+# ── Optional dependency groups ────────────────────────────────────────────────
+
+[project.optional-dependencies]
+train = [
+    "peft==0.19.1",
+    "trl==1.5.1",
+    "accelerate==1.13.0",
+    "bitsandbytes==0.49.2",
+    "datasets==5.0.0",
+    "transformers==5.10.2",
+    "torch==2.12.0",
+]
+extract = [
+    "pyyaml",
+    "requests",
+    "gitpython",
+]
+convert = [
+    "gguf",
+    "llama-cpp-python",
+]
+infer = [
+    "transformers==5.10.2",
+    "peft==0.19.1",
+]
+dev = [
+    "pytest",
+    "ruff",
+    "mypy",
+    "ipython",
+]
+all = [
+    "attacklm[train,extract,convert,infer]",
+]
+
+# ── Console script entry points ───────────────────────────────────────────────
+
+[project.scripts]
+attacklm-train = "attacklm.cli:main_train"
+attacklm-train-all = "attacklm.cli:main_train_all"
+attacklm-hpo = "attacklm.cli:main_hpo"
+attacklm-infer = "attacklm.cli:main_infer"
+attacklm-merge = "attacklm.cli:main_merge"
+attacklm-gguf = "attacklm.cli:main_gguf"
+attacklm-demo = "attacklm.cli:main_demo"
+attacklm-extract = "attacklm.cli:main_extract"
+attacklm-buckets = "attacklm.cli:main_buckets"
+attacklm-attribute = "attacklm.cli:main_attribute"
+attacklm-clone = "attacklm.cli:main_clone"
+
+# ── Hatch build configuration ─────────────────────────────────────────────────
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/attacklm"]
+
+# data/ is ~5 MB of cloned repos — not included in the wheel.
+# Users should `git clone` the repo for the data.
+[tool.hatch.build.targets.wheel.force-include]
+
+[tool.hatch.version]
+path = "src/attacklm/__version__.py"

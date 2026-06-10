@@ -1,0 +1,7 @@
+include README.md
+include LICENSE
+include NOTICE
+include ATTRIBUTION.md
+include CONTRIBUTING.md
+include requirements.txt
+include pyproject.toml
