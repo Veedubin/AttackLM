@@ -95,7 +95,7 @@ def main() -> None:
     parser.add_argument(
         "--install-lmstudio",
         action="store_true",
-        help="Install GGUF files to ~/.lmstudio/local/models/attacklm/ (default: just save to models/gguf/)",
+        help="Install GGUF files to ~/.lmstudio/models/local/ (default: just save to models/gguf/)",
     )
     args = parser.parse_args()
 
@@ -189,25 +189,37 @@ def main() -> None:
             fp16_path.unlink()
 
     # Install to LM Studio (opt-in).
-    # LM Studio 0.3+ scans ~/.lmstudio/local/models/ (not ~/.lmstudio/models/).
+    # LM Studio scans ~/.lmstudio/models/local/ (NOT ~/.lmstudio/local/models/).
     if args.install_lmstudio:
-        lmstudio_dir = Path.home() / ".lmstudio" / "local" / "models" / "attacklm"
+        lmstudio_dir = Path.home() / ".lmstudio" / "models" / "local"
         for gguf in sorted(GGUF_DIR.glob("*.gguf")):
-            # LM Studio expects: ~/.lmstudio/local/models/attacklm/{name}/{name}-{quant}.gguf
-            agent_name = gguf.stem.replace(".Q4_K_M", "").replace(".FP16", "")
+            # LM Studio expects: ~/.lmstudio/models/local/{name}/{name}-{quant}.gguf
+            # Strip the .Q4_K_M / .FP16 suffix to get the agent_name
+            agent_name = gguf.stem
+            for suffix in (".Q4_K_M", ".Q8_0", ".F16", ".FP16"):
+                if agent_name.endswith(suffix):
+                    agent_name = agent_name[: -len(suffix)]
+                    break
             agent_dir = lmstudio_dir / agent_name
             agent_dir.mkdir(parents=True, exist_ok=True)
             dest = agent_dir / gguf.name
             if not dest.exists():
                 shutil.copy2(gguf, dest)
-                print(f"   ➜ ~/.lmstudio/local/models/attacklm/{agent_name}/")
+                print(f"   ➜ ~/.lmstudio/models/local/{agent_name}/")
 
-        print(f"\n✅ Installed to ~/.lmstudio/local/models/attacklm/")
+        print(f"\n✅ Installed to ~/.lmstudio/models/local/")
         print("   Restart LM Studio (or click 'Refresh') to pick up the new model.")
     else:
         # Print hint about manual install
+        agent_name_for_hint = "attacklm"
+        if GGUF_DIR.glob("*.gguf"):
+            stem = next(GGUF_DIR.glob("*.gguf")).stem
+            for suffix in (".Q4_K_M", ".Q8_0", ".F16", ".FP16"):
+                if stem.endswith(suffix):
+                    agent_name_for_hint = stem[: -len(suffix)]
+                    break
         print(
-            f"\n💡 To use in LM Studio, copy GGUF files to ~/.lmstudio/local/models/attacklm/"
+            f"\n💡 To use in LM Studio, copy GGUF files to ~/.lmstudio/models/local/{agent_name_for_hint}/"
         )
         print(f"   Or re-run with --install-lmstudio to do it automatically.")
 
