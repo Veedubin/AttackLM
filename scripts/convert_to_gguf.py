@@ -1,16 +1,24 @@
 #!/usr/bin/env python3
 """
-convert_to_gguf.py — Convert all merged AttackLM models to GGUF (Q4_K_M) in one shot.
+convert_to_gguf.py — Convert merged AttackLM models to GGUF (Q4_K_M).
 
 Step 1: convert_hf_to_gguf → FP16
 Step 2: llama-quantize → Q4_K_M
 
 Usage:
-    uv run python scripts/convert_to_gguf.py
+    # Convert all merged models:
+    attacklm-gguf
+
+    # Convert a single model:
+    attacklm-gguf --input models/merged/attacklm
+
+    # Convert and install to LM Studio:
+    attacklm-gguf --install-lmstudio
 """
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -58,12 +66,36 @@ def find_llama_bin(name: str) -> Path:
     return None
 
 
+def _find_merged_models(merged_dir: Path) -> list[Path]:
+    """Find directories under models/merged/ that contain config.json + safetensors."""
+    if not merged_dir.exists():
+        return []
+    return sorted(
+        [
+            p
+            for p in merged_dir.iterdir()
+            if p.is_dir()
+            and (p / "config.json").exists()
+            and any(p.glob("*.safetensors"))
+        ]
+    )
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Convert all merged models to Q4_K_M GGUF"
+    parser = argparse.ArgumentParser(description="Convert merged models to Q4_K_M GGUF")
+    parser.add_argument(
+        "--input",
+        type=str,
+        default=None,
+        help="Single model directory to convert (e.g., models/merged/attacklm)",
     )
     parser.add_argument(
         "--keep-fp16", action="store_true", help="Keep intermediate FP16 GGUF files"
+    )
+    parser.add_argument(
+        "--install-lmstudio",
+        action="store_true",
+        help="Install GGUF files to ~/.lmstudio/local/models/attacklm/ (default: just save to models/gguf/)",
     )
     args = parser.parse_args()
 
@@ -85,11 +117,22 @@ def main() -> None:
     print(f"Quantizer: {quantizer}")
 
     # Find merged models
-    models = sorted(MERGED_DIR.glob("*-agent"))
-    if not models:
-        print(f"\nERROR: No merged models found in {MERGED_DIR}")
-        print("Run: uv run python scripts/merge_adapter.py --merge-all")
-        sys.exit(1)
+    if args.input:
+        input_path = Path(args.input)
+        if not input_path.is_dir() or not (input_path / "config.json").exists():
+            print(f"\nERROR: {args.input} is not a valid merged model directory")
+            print("Expected a directory containing config.json and *.safetensors")
+            sys.exit(1)
+        models = [input_path]
+    else:
+        models = _find_merged_models(MERGED_DIR)
+        if not models:
+            print(f"\nERROR: No merged models found in {MERGED_DIR}")
+            print(
+                "Run: attacklm-merge --adapter models/attacklm-single --output models/merged/attacklm"
+            )
+            print("  or: attacklm-merge --merge-all")
+            sys.exit(1)
 
     GGUF_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -145,22 +188,32 @@ def main() -> None:
         if not args.keep_fp16 and fp16_path.exists():
             fp16_path.unlink()
 
-    # Install to LM Studio
-    lmstudio_dir = Path.home() / ".lmstudio" / "models" / "attacklm"
-    for gguf in sorted(GGUF_DIR.glob("*.gguf")):
-        # LM Studio expects: ~/.lmstudio/models/attacklm/{name}/{name}-{quant}.gguf
-        agent_name = gguf.stem.replace(".Q4_K_M", "").replace(".Q4_K_M", "")
-        agent_dir = lmstudio_dir / agent_name
-        agent_dir.mkdir(parents=True, exist_ok=True)
-        dest = agent_dir / gguf.name
-        if not dest.exists():
-            shutil.copy2(gguf, dest)
-            print(f"   ➜ ~/.lmstudio/models/attacklm/{agent_name}/")
+    # Install to LM Studio (opt-in).
+    # LM Studio 0.3+ scans ~/.lmstudio/local/models/ (not ~/.lmstudio/models/).
+    if args.install_lmstudio:
+        lmstudio_dir = Path.home() / ".lmstudio" / "local" / "models" / "attacklm"
+        for gguf in sorted(GGUF_DIR.glob("*.gguf")):
+            # LM Studio expects: ~/.lmstudio/local/models/attacklm/{name}/{name}-{quant}.gguf
+            agent_name = gguf.stem.replace(".Q4_K_M", "").replace(".FP16", "")
+            agent_dir = lmstudio_dir / agent_name
+            agent_dir.mkdir(parents=True, exist_ok=True)
+            dest = agent_dir / gguf.name
+            if not dest.exists():
+                shutil.copy2(gguf, dest)
+                print(f"   ➜ ~/.lmstudio/local/models/attacklm/{agent_name}/")
+
+        print(f"\n✅ Installed to ~/.lmstudio/local/models/attacklm/")
+        print("   Restart LM Studio (or click 'Refresh') to pick up the new model.")
+    else:
+        # Print hint about manual install
+        print(
+            f"\n💡 To use in LM Studio, copy GGUF files to ~/.lmstudio/local/models/attacklm/"
+        )
+        print(f"   Or re-run with --install-lmstudio to do it automatically.")
 
     print(f"\n✅ Done — {GGUF_DIR}/")
     for gguf in sorted(GGUF_DIR.glob("*.gguf")):
         print(f"   {gguf.name}  ({gguf.stat().st_size / 1e6:.0f}MB)")
-    print(f"\n✅ Installed to ~/.lmstudio/models/attacklm/")
 
 
 if __name__ == "__main__":

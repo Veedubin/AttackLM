@@ -1,7 +1,8 @@
 #!/bin/bash
 # Import all AttackLM models into LM Studio via lms CLI
 
-GGUF_DIR="$HOME/.lmstudio/models/attacklm"
+# LM Studio 0.3+ scans ~/.lmstudio/local/models/ (not ~/.lmstudio/models/).
+GGUF_DIR="$HOME/.lmstudio/local/models/attacklm"
 PUBLISHER="attacklm"
 
 for dir in "$GGUF_DIR"/*/; do
