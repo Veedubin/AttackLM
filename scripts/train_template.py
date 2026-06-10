@@ -1167,9 +1167,20 @@ def main() -> None:
         "packing": args.packing,
     }
     # Dataset info: from CLI flags if present (attacklm-train-all sets them)
+    # v0.1.6+: dataset_specs records the multi-positional --dataset values
+    # the user passed (e.g. ["base/", "tools/metasploit/"]). This makes the
+    # state.json self-describing — `attacklm-train-all` re-running with the
+    # same specs can reproduce the same combined dataset (same cache key).
+    # Source: ATTACKLM_DATASET_SPECS env var set by train_all.py
+    # (comma-separated, e.g. "base/,tools/metasploit/"). Falls back to
+    # args.dataset_specs if the env var isn't set (e.g. when this script
+    # is run directly).
+    env_specs = os.environ.get("ATTACKLM_DATASET_SPECS", "")
+    specs_from_env = [s for s in env_specs.split(",") if s]
     dataset_info = {
         "source": getattr(args, "dataset_source", "file"),
         "path": args.dataset,
+        "specs": specs_from_env or getattr(args, "dataset_specs", None),
         "buckets": getattr(args, "buckets", None),
         "include_tools": getattr(args, "include_tools", None),
         "include_ai": getattr(args, "include_ai", None),

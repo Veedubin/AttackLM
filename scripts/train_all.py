@@ -143,6 +143,140 @@ def _make_timestamped_output_dir(agent_name: str) -> Path:
     return base  # 100 collisions/min is implausible
 
 
+def _backup_previous_run(agent_name: str) -> Path | None:
+    """Tar.gz the most-recent completed run for `agent_name` plus its
+    merged model. Returns the backup path, or None if there's nothing
+    to back up.
+
+    Default behavior: the previous run stays on disk (easy rollback
+    via inspection of models/{name}_*/). This backup is a compressed
+    *copy* in case the user wants to free disk space later by deleting
+    the unpacked run dir, or move it off-machine.
+
+    Contents (all optional, only included if they exist):
+      - models/{name}_{timestamp}/        the run dir (adapters + state.json)
+      - models/merged/{name}/             the merged BF16 model (deployable)
+    Excluded: HF checkpoint-N/ subdirs (large, regenerable from the
+    adapter; the state.json already records global_step for resume).
+
+    Skips silently if the user passed --no-backup (caller checks).
+    """
+    import tarfile
+
+    latest = _find_latest_run_dir(agent_name)
+    merged_dir = BASE_DIR / "models" / "merged" / agent_name
+
+    # Nothing to back up?
+    if (latest is None or not latest.exists()) and not merged_dir.exists():
+        return None
+
+    backup_root = BASE_DIR / "models" / ".backups"
+    backup_root.mkdir(parents=True, exist_ok=True)
+
+    if latest is not None:
+        backup_name = f"{latest.name}.tar.gz"
+    else:
+        backup_name = f"{agent_name}_merged_only.tar.gz"
+    backup_path = backup_root / backup_name
+
+    # What's in the tar
+    members = []
+    if latest is not None and latest.exists():
+        for child in latest.rglob("*"):
+            if child.is_file():
+                # Skip the heavy HF checkpoint-N/ subdirs
+                rel = child.relative_to(latest)
+                if rel.parts and rel.parts[0].startswith("checkpoint-"):
+                    # Keep the small trainer_state.json (resume metadata)
+                    # but skip the giant safetensors
+                    if child.name != "trainer_state.json":
+                        continue
+                members.append(child)
+    if merged_dir.exists():
+        for child in merged_dir.rglob("*"):
+            if child.is_file():
+                members.append(child)
+
+    if not members:
+        return None
+
+    total_bytes = sum(m.stat().st_size for m in members)
+    backed_up = 0
+
+    # tarfile doesn't have a built-in progress callback, so we use a
+    # filter that reports progress as it streams each file.
+    class _ProgressFile:
+        def __init__(self, src_path, fileobj):
+            self._src = open(src_path, "rb")
+            self._fileobj = fileobj
+            self._size = src_path.stat().st_size
+            self._written = 0
+
+        def read(self, size=-1):
+            data = self._src.read(size)
+            if data:
+                self._written += len(data)
+                self._fileobj.write(data) if hasattr(self._fileobj, "write") else None
+            return data
+
+        def close(self):
+            self._src.close()
+
+    def _progress_filter(tarinfo):
+        nonlocal backed_up
+        backed_up += tarinfo.size
+        pct = min(100.0, 100.0 * backed_up / max(1, total_bytes))
+        bar_len = 30
+        filled = int(bar_len * pct / 100)
+        bar = "█" * filled + "░" * (bar_len - filled)
+        # Carriage return (no newline) for in-place progress
+        print(
+            f"\r  Backing up: [{bar}] {pct:5.1f}%  ({backed_up / 1e6:6.1f} / {total_bytes / 1e6:6.1f} MB)",
+            end="",
+            flush=True,
+        )
+        return tarinfo
+
+    print(f"  Backing up previous run to {backup_path}...")
+    print(f"  Members: {len(members)} files, {total_bytes / 1e6:.1f} MB uncompressed")
+
+    with tarfile.open(backup_path, "w:gz", compresslevel=6) as tar:
+        # Add the run dir
+        if latest is not None and latest.exists():
+            for child in latest.iterdir():
+                if child.is_dir() and child.name.startswith("checkpoint-"):
+                    # Add only trainer_state.json from each checkpoint
+                    ts_path = child / "trainer_state.json"
+                    if ts_path.exists():
+                        tar.add(
+                            ts_path,
+                            arcname=f"{latest.name}/{child.name}/trainer_state.json",
+                            filter=_progress_filter,
+                        )
+                else:
+                    tar.add(
+                        child,
+                        arcname=f"{latest.name}/{child.name}",
+                        filter=_progress_filter,
+                    )
+        # Add the merged dir
+        if merged_dir.exists():
+            for child in merged_dir.iterdir():
+                tar.add(
+                    child,
+                    arcname=f"merged/{agent_name}/{child.name}",
+                    filter=_progress_filter,
+                )
+
+    print()  # newline after progress bar
+    final_size = backup_path.stat().st_size
+    print(
+        f"  ✓ Backup complete: {backup_path.name} ({final_size / 1e6:.1f} MB compressed, "
+        f"{100 * final_size / max(1, total_bytes):.0f}% of original)"
+    )
+    return backup_path
+
+
 def _find_latest_run_dir(agent_name: str) -> Path | None:
     """Find the most recent timestamped run dir for an agent, if any.
 
@@ -175,6 +309,7 @@ def build_train_cmd(
     lora_dropout: float = None,
     max_steps: int = None,
     hpo_metrics_csv: str = None,
+    dataset_specs: list = None,
 ) -> list:
     """Build the subprocess cmd for train_template.py.
 
@@ -184,6 +319,13 @@ def build_train_cmd(
     curriculum stage 2 to reset dropout to 0 for fine-tuning), an
     optional max_steps override (HPO short trials), and an optional
     hpo_metrics_csv (per-step CSV for HPO analysis).
+
+    v0.1.6+: `dataset_specs` records the multi-positional --dataset
+    values (e.g. ["base/", "tools/metasploit/"]) so the spawned
+    train_template.py subprocess can persist them in state.json. This
+    makes runs reproducible — a future round-2 invocation can read the
+    specs from the previous run's state.json and re-derive the same
+    combined dataset.
     """
     dropout = args.lora_dropout if lora_dropout is None else lora_dropout
     cmd = [
@@ -225,6 +367,13 @@ def build_train_cmd(
     # HPO per-step CSV log
     if hpo_metrics_csv:
         cmd.extend(["--hpo-metrics-csv", str(hpo_metrics_csv)])
+    # v0.1.6+: pass dataset specs so train_template can record them in
+    # state.json[dataset.specs] (reproducibility).
+    if dataset_specs:
+        # We use ATTACKLM_DATASET_SPECS env var rather than CLI arg
+        # because train_template.py uses argparse which is finicky with
+        # repeated list args. Env vars are simpler.
+        os.environ["ATTACKLM_DATASET_SPECS"] = ",".join(dataset_specs)
     # Resume: only if user asked AND there's actually a checkpoint to resume
     if args.resume_from_checkpoint and output_path.exists():
         if any(
@@ -365,19 +514,43 @@ def main():
     parser.add_argument(
         "--include-orchestrator",
         action="store_true",
-        help="When --single-model is set, also include the orchestrator routing data",
+        help="When --single-model is set, also include the orchestrator routing data. "
+        "DEPRECATED in v0.1.6: use --dataset orchestrator instead.",
     )
     parser.add_argument(
         "--model-attacks",
         action="store_true",
         help="When --single-model is set, also include the ai-models/* buckets "
-        "(prompt-injection + jailbreaking) for AI/ML attack data",
+        "(prompt-injection + jailbreaking) for AI/ML attack data. "
+        "DEPRECATED in v0.1.6: use --dataset ai/ instead.",
     )
     parser.add_argument(
         "--include-tools",
         action="store_true",
         help="When --single-model is set, also include the tools/* buckets "
-        "(metasploit, infection_monkey, rta)",
+        "(metasploit, infection_monkey, rta). "
+        "DEPRECATED in v0.1.6: use --dataset tools/ instead.",
+    )
+    # v0.1.6+: multi-positional --dataset flag (preferred over the
+    # --include-* boolean soup above). Takes N positions, each one
+    # is a bucket spec:
+    #   --dataset base/                           # 10 tactics
+    #   --dataset base/ tools/                    # 10 tactics + 3 tools
+    #   --dataset base/ tools/metasploit/          # 10 tactics + 1 tool
+    #   --dataset tools/                          # 3 tools only
+    #   --dataset orchestrator ai/                # orch + 2 ai
+    #   --dataset all                             # everything (16,982 pairs)
+    # Aliases: tactics, tools-all, all
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        nargs="*",
+        default=None,
+        help="One or more dataset specs to combine. v0.1.6+ preferred over "
+        "--include-tools/--model-attacks/--include-orchestrator. Each spec is a "
+        "category prefix (base/, tools/, ai/), a subpath (tools/metasploit/), "
+        "the orchestrator bucket, or an alias (all, tactics, tools-all). "
+        "Example: --dataset base/ tools/metasploit/",
     )
     parser.add_argument(
         "--lora-r",
@@ -480,6 +653,22 @@ def main():
         "(--include-tools --include-orchestrator --model-attacks) used at full "
         "training time, but capped to 5000 examples for speed.",
     )
+    # v0.1.6+: round-2 SFT backup control
+    parser.add_argument(
+        "--backup",
+        action="store_true",
+        default=True,
+        help="(default) Tar.gz the previous completed run for this agent "
+        "before training starts, including the merged model. Saved to "
+        "models/.backups/{run_name}.tar.gz. Pass --no-backup to skip.",
+    )
+    parser.add_argument(
+        "--no-backup",
+        action="store_true",
+        help="Skip the round-2 SFT backup. Use this if you're tight on disk "
+        "or have already backed up the previous run out-of-band. The previous "
+        "run dir is NOT deleted — it stays in models/{name}_*/ for inspection.",
+    )
     args = parser.parse_args()
 
     # HPO mode implies single-model (we tune one combined dataset)
@@ -542,35 +731,46 @@ def main():
         out("=" * 60)
         out(f"  Mode:           single (combines selected buckets)")
         out(f"  Output:         {MODELS_DIR / args.single_model_name}")
-        out(f"  Include orch:   {args.include_orchestrator}")
-        out(f"  Model attacks:  {args.model_attacks}")
-        out(f"  Include tools:  {args.include_tools}")
+        if args.dataset:
+            out(f"  Dataset spec:   {' '.join(args.dataset)}")
+        else:
+            out(f"  Include orch:   {args.include_orchestrator}  (legacy flag)")
+            out(f"  Model attacks:  {args.model_attacks}  (legacy flag)")
+            out(f"  Include tools:  {args.include_tools}  (legacy flag)")
         out(f"  Curriculum:     {args.curriculum}")
         out("")
 
-        # Determine which buckets to combine
-        # Default: all 10 MITRE tactic buckets
-        # Plus optionally orchestrator, ai-models/*, and/or tools/*
-        bucket_names = [
-            b["path"]
-            for b in get_default_train_buckets()
-            if b.get("category") == "tactic"
-        ]
-        flags_used = {
-            "include_orchestrator": args.include_orchestrator,
-            "model_attacks": args.model_attacks,
-            "include_tools": args.include_tools,
-            "curriculum": args.curriculum,
-        }
-        if args.include_orchestrator:
-            bucket_names.append("orchestrator")
-        if args.model_attacks:
-            ai_names = [b["path"] for b in get_ai_model_buckets()]
-            bucket_names.extend(ai_names)
-        if args.include_tools:
-            tool_names = [b["path"] for b in get_tool_buckets()]
-            bucket_names.extend(tool_names)
+        # Determine which buckets to combine.
+        # v0.1.6+: --dataset (multi-positional) takes precedence over
+        # the legacy --include-* flags. Old flags are still honored
+        # for backward compat and translate to --dataset specs.
+        from bucket_loader import resolve_dataset_specs, format_specs_human
 
+        if args.dataset:
+            # User used the new --dataset flag
+            specs = list(args.dataset)
+        else:
+            # Backward-compat: build specs from old flags
+            specs = ["base/"]  # always include tactics
+            if args.include_orchestrator:
+                specs.append("orchestrator")
+            if args.model_attacks:
+                specs.append("ai/")
+            if args.include_tools:
+                specs.append("tools/")
+
+        # Resolve specs → bucket dicts (with dedup)
+        resolved_buckets = resolve_dataset_specs(specs)
+        bucket_names = [b["path"] for b in resolved_buckets]
+
+        # flags_used is the cache key, so we use the resolved spec list
+        # (not the old booleans) to ensure two equivalent invocations
+        # produce the same cache key. This means: if a user runs with
+        # `--include-tools` once and `--dataset tools/` another time on
+        # the same data, they get the same cached combined dataset.
+        flags_used = {"specs": sorted(specs), "curriculum": args.curriculum}
+
+        out(f"  Dataset spec:   {format_specs_human(specs)}")
         out(f"  Buckets ({len(bucket_names)}): {', '.join(bucket_names)}")
         out("")
 
@@ -604,6 +804,18 @@ def main():
                             f"  ↻ Round-2 SFT detected: previous completed run at {latest.name}"
                         )
                         out(f"    Loading merged weights as base for this run.")
+                        # Backup the previous run BEFORE training starts.
+                        # Default: --backup ON. Skip with --no-backup.
+                        # The backup tar includes both the run dir and the
+                        # merged model so the user has a complete deployable
+                        # snapshot even if they later delete the unpacked
+                        # run dir to free disk space.
+                        if not args.no_backup:
+                            out("")
+                            _backup_previous_run(args.single_model_name)
+                            out("")
+                        else:
+                            out(f"  --no-backup set: skipping backup of {latest.name}")
                         args.base_model = str(latest)
                 except (OSError, json.JSONDecodeError):
                     pass
@@ -646,17 +858,10 @@ def main():
                     "orchestrator routing data (dropout=0.0)"
                 )
             else:
-                extras = []
-                if args.include_orchestrator:
-                    extras.append("orchestrator")
-                if args.model_attacks:
-                    extras.append("ai-models/*")
-                if args.include_tools:
-                    extras.append("tools/*")
-                extra_str = f" + {' + '.join(extras)}" if extras else ""
                 out(
                     f"  [DRY RUN] would train single model on "
-                    f"{total_tactic:,} examples from {len(bucket_names)} buckets{extra_str}"
+                    f"{total_tactic:,} examples from {len(bucket_names)} buckets "
+                    f"(spec: {format_specs_human(specs)})"
                 )
             log_fh.close()
             return 0
@@ -677,7 +882,9 @@ def main():
             n_s1 = total_tactic  # build_combined above already excludes orchestrator
             out(f" STAGE 1/2 — Train on tactic+tooling+ai_redteam ({n_s1:,} examples)")
             out("=" * 60)
-            cmd_s1 = build_train_cmd(args, tactic_combined_path, output_path)
+            cmd_s1 = build_train_cmd(
+                args, tactic_combined_path, output_path, dataset_specs=specs
+            )
             out(f"  Command: {Path(cmd_s1[3]).name} {' '.join(cmd_s1[4:])}")
             out(f"  Timeout: {args.timeout}s")
             out("")
@@ -801,7 +1008,7 @@ def main():
             log_fh.close()
             return rc
 
-        cmd = build_train_cmd(args, combined_path, output_path)
+        cmd = build_train_cmd(args, combined_path, output_path, dataset_specs=specs)
         out(f"  Command: {Path(cmd[3]).name} {' '.join(cmd[4:])}")
         out(f"  Timeout: {args.timeout}s")
         out("")
@@ -870,7 +1077,7 @@ def main():
             out("")
             continue
 
-        cmd = build_train_cmd(args, dataset_path, output_path)
+        cmd = build_train_cmd(args, dataset_path, output_path, dataset_specs=None)
 
         out(f"  Command: {Path(cmd[3]).name} {' '.join(cmd[4:])}")
         out(f"  Timeout: {args.timeout}s")

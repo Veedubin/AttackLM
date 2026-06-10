@@ -223,6 +223,196 @@ def get_all_train_buckets() -> list[dict]:
     return get_default_train_buckets()
 
 
+# ---------------------------------------------------------------------------
+# Dataset spec resolver (v0.1.6+)
+# ---------------------------------------------------------------------------
+# Users want to pass a list of bucket specs on the CLI and have them
+# resolved to actual bucket paths. The syntax is intentionally simple
+# and directory-shaped so it mirrors the on-disk layout:
+#
+#   base/                     → all 10 MITRE tactic buckets
+#   tools/                    → all 3 tool buckets (metasploit, infection_monkey, rta)
+#   tools/metasploit/         → just metasploit
+#   ai/                       → both AI buckets
+#   ai/jailbreaking/          → just jailbreaking
+#   orchestrator              → the orchestrator bucket
+#
+# Aliases for common combinations:
+#   all                       → base + tools + ai + orchestrator
+#   tactics                   → just base/
+#   tools-all                 → just tools/ (alias for "tools/")
+#
+# This makes the CLI natural: `--dataset base/ tools/metasploit/`
+# reads as "tactics + just metasploit, no infection_monkey or rta".
+
+# Map from category-name to a function returning the list of buckets
+_CATEGORY_RESOLVERS = {
+    "base": get_tactic_buckets,
+    "tools": get_tool_buckets,
+    "ai": get_ai_model_buckets,
+    "ai-models": get_ai_model_buckets,  # alias for 'ai'
+}
+
+# Map from top-level alias to a list of (resolver, subfilter)
+_ALIAS_RESOLVERS = {
+    "all": [
+        ("base", None),
+        ("tools", None),
+        ("ai", None),
+        ("orchestrator", None),
+    ],
+    "tactics": [("base", None)],
+    "tools-all": [("tools", None)],
+}
+
+
+def _normalize_spec(spec: str) -> str:
+    """Normalize a dataset spec: strip trailing slashes, lowercase."""
+    s = spec.strip().rstrip("/").lower()
+    return s
+
+
+def resolve_dataset_spec(spec: str) -> list[dict]:
+    """Resolve a single dataset spec to a list of bucket dicts.
+
+    Accepts:
+        "base/"                    → 10 tactic buckets
+        "tools/"                   → 3 tool buckets
+        "tools/metasploit/"        → 1 bucket
+        "ai/"                      → 2 AI buckets
+        "ai/jailbreaking/"         → 1 bucket
+        "orchestrator"             → 1 orchestrator bucket
+        "all"                      → all 4 categories
+        "tactics"                  → just base/
+        "tools-all"                → just tools/
+
+    Returns list of bucket dicts (in stable, sorted order). Duplicate
+    buckets are deduplicated while preserving first-seen order. If a
+    spec doesn't match any known pattern, raises ValueError with a
+    helpful message listing what was tried.
+    """
+    s = _normalize_spec(spec)
+    if not s:
+        return []
+
+    # Alias?
+    if s in _ALIAS_RESOLVERS:
+        out: list[dict] = []
+        for category, subfilter in _ALIAS_RESOLVERS[s]:
+            if category == "orchestrator":
+                b = get_orchestrator_bucket()
+                if b:
+                    out.append(b)
+                continue
+            resolver = _CATEGORY_RESOLVERS[category]
+            for b in resolver():
+                if (
+                    subfilter
+                    and not b["path"].startswith(subfilter + "/")
+                    and b["path"] != subfilter
+                ):
+                    continue
+                out.append(b)
+        return _dedupe_buckets(out)
+
+    # Category (base, tools, ai, ai-models) → all buckets in that category
+    if s in _CATEGORY_RESOLVERS:
+        return _CATEGORY_RESOLVERS[s]()
+
+    # Subpath (e.g. "tools/metasploit")
+    # Treat the first segment as a category and the rest as a subfilter
+    parts = s.split("/", 1)
+    category = parts[0]
+    subfilter = parts[1] if len(parts) > 1 else None
+
+    if category in _CATEGORY_RESOLVERS:
+        out = []
+        for b in _CATEGORY_RESOLVERS[category]():
+            if subfilter:
+                # b["path"] is like "tools/metasploit", subfilter is "metasploit"
+                if b["path"] == f"{category}/{subfilter}" or b["path"].endswith(
+                    f"/{subfilter}"
+                ):
+                    out.append(b)
+        if not out and subfilter:
+            # Try the full path as a literal bucket name
+            for b in _CATEGORY_RESOLVERS[category]():
+                if b["path"] == f"{category}/{subfilter}":
+                    return [b]
+        return out
+
+    # Orchestrator (no subpath — it's a single bucket, not a category)
+    if s == "orchestrator":
+        b = get_orchestrator_bucket()
+        return [b] if b else []
+
+    # Top-level bucket name (e.g. "collection", "defense_evasion")?
+    b = get_bucket(s)
+    if b:
+        return [b]
+
+    # Nothing matched — raise with a helpful list
+    available = sorted({b["path"] for b in list_buckets()})
+    available.extend(
+        ["base/", "tools/", "ai/", "orchestrator", "all", "tactics", "tools-all"]
+    )
+    raise ValueError(
+        f"Unknown dataset spec: {spec!r}\n"
+        f"  Tried: alias, category, subpath, top-level bucket.\n"
+        f"  Available specs:\n    " + "\n    ".join(available)
+    )
+
+
+def resolve_dataset_specs(specs: list[str]) -> list[dict]:
+    """Resolve a list of dataset specs and return the union of buckets.
+
+    Dedupes buckets across specs (preserving first-seen order). The output
+    is suitable for passing directly to build_combined().
+    """
+    out = []
+    for spec in specs:
+        out.extend(resolve_dataset_spec(spec))
+    return _dedupe_buckets(out)
+
+
+def _dedupe_buckets(buckets: list[dict]) -> list[dict]:
+    """Remove duplicate bucket dicts from a list, preserving first-seen order."""
+    seen_paths = set()
+    out = []
+    for b in buckets:
+        if b["path"] not in seen_paths:
+            seen_paths.add(b["path"])
+            out.append(b)
+    return out
+
+
+def format_specs_human(specs: list[str]) -> str:
+    """Format a list of specs for human-readable display (e.g. in logs).
+
+    Example: ['base/', 'tools/metasploit/'] → 'base + 1/3 tools (metasploit)'
+    """
+    parts = []
+    for spec in specs:
+        try:
+            resolved = resolve_dataset_spec(spec)
+            n = len(resolved)
+            names = [b["path"] for b in resolved]
+            if n == 0:
+                parts.append(f"{spec} (no buckets)")
+            elif n == 1:
+                parts.append(f"{names[0]}")
+            elif spec.rstrip("/") in _CATEGORY_RESOLVERS:
+                # e.g. "tools/" → "3/3 tools"
+                cat = spec.rstrip("/").lower()
+                total = len(_CATEGORY_RESOLVERS[cat]())
+                parts.append(f"{n}/{total} {cat}")
+            else:
+                parts.append(f"{n} buckets ({', '.join(names)})")
+        except ValueError as e:
+            parts.append(f"{spec} (invalid)")
+    return " + ".join(parts)
+
+
 if __name__ == "__main__":
     # CLI: list buckets or build combined
     import argparse
