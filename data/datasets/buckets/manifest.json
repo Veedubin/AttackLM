@@ -14,7 +14,7 @@
       "source_file": "collection_dataset.jsonl",
       "created": "2026-06-09T14:40:54.191524",
       "count": 634,
-      "path": "collection"
+      "path": "base/collection"
     },
     {
       "name": "command_and_control",
@@ -25,7 +25,7 @@
       "source_file": "command_and_control_dataset.jsonl",
       "created": "2026-06-09T14:40:54.191751",
       "count": 105,
-      "path": "command_and_control"
+      "path": "base/command_and_control"
     },
     {
       "name": "credential_access",
@@ -36,7 +36,7 @@
       "source_file": "credential_access_dataset.jsonl",
       "created": "2026-06-09T14:40:54.192555",
       "count": 589,
-      "path": "credential_access"
+      "path": "base/credential_access"
     },
     {
       "name": "defense_evasion",
@@ -47,7 +47,7 @@
       "source_file": "defense_evasion_dataset.jsonl",
       "created": "2026-06-09T14:40:54.193770",
       "count": 1375,
-      "path": "defense_evasion"
+      "path": "base/defense_evasion"
     },
     {
       "name": "discovery",
@@ -58,7 +58,7 @@
       "source_file": "discovery_dataset.jsonl",
       "created": "2026-06-09T14:40:54.194670",
       "count": 1846,
-      "path": "discovery"
+      "path": "base/discovery"
     },
     {
       "name": "execution",
@@ -69,7 +69,7 @@
       "source_file": "execution_dataset.jsonl",
       "created": "2026-06-09T14:40:54.195414",
       "count": 767,
-      "path": "execution"
+      "path": "base/execution"
     },
     {
       "name": "exfiltration",
@@ -80,7 +80,7 @@
       "source_file": "exfiltration_dataset.jsonl",
       "created": "2026-06-09T14:40:54.195663",
       "count": 173,
-      "path": "exfiltration"
+      "path": "base/exfiltration"
     },
     {
       "name": "lateral_movement",
@@ -91,7 +91,7 @@
       "source_file": "lateral_movement_dataset.jsonl",
       "created": "2026-06-09T14:40:54.196022",
       "count": 252,
-      "path": "lateral_movement"
+      "path": "base/lateral_movement"
     },
     {
       "name": "persistence",
@@ -102,7 +102,7 @@
       "source_file": "persistence_dataset.jsonl",
       "created": "2026-06-09T14:40:54.197101",
       "count": 1120,
-      "path": "persistence"
+      "path": "base/persistence"
     },
     {
       "name": "privilege_escalation",
@@ -113,7 +113,7 @@
       "source_file": "privilege_escalation_dataset.jsonl",
       "created": "2026-06-09T14:40:54.197791",
       "count": 537,
-      "path": "privilege_escalation"
+      "path": "base/privilege_escalation"
     },
     {
       "name": "orchestrator",
@@ -135,7 +135,7 @@
       "source_file": "jailbreak_dataset.jsonl",
       "created": "2026-06-09T14:40:54.201966",
       "count": 56,
-      "path": "ai-models/jailbreaking"
+      "path": "ai/jailbreaking"
     },
     {
       "name": "prompt_injection",
@@ -146,7 +146,7 @@
       "source_file": "prompt_injection_dataset.jsonl",
       "created": "2026-06-09T14:40:54.204089",
       "count": 687,
-      "path": "ai-models/prompt-injection"
+      "path": "ai/prompt-injection"
     },
     {
       "name": "infection_monkey",

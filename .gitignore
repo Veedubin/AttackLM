@@ -165,6 +165,8 @@ data/manifests/
 data/tool_knowledge.json
 data/DATASET_EXPANSION_REPORT.md
 data/sigma/
+# Bucket layout backup snapshots (created by migrate_buckets_to_v021.py)
+data/.bucket_layout_backup/
 
 # Derived training data — INCLUDED
 # (no rule needed; nothing to ignore)
