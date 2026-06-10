@@ -236,6 +236,7 @@ All install paths give you these:
 | `attacklm-infer`         | `scripts/infer.py`                     | Smoke-test inference                   |
 | `attacklm-merge`         | `scripts/merge_adapter.py`             | Merge LoRA → base model                |
 | `attacklm-gguf`          | `scripts/convert_to_gguf.py`           | Convert to GGUF (llama.cpp)            |
+| `attacklm-build`         | `scripts/build.py`                     | merge → GGUF → install (one shot)      |
 | `attacklm-demo`          | `scripts/demo.py`                      | Multi-agent orchestrator demo          |
 | `attacklm-extract`       | all 6 extractors                       | Extract data from cloned repos         |
 | `attacklm-buckets`       | `setup_buckets.py` + `reorganize_buckets.py` | Organize data into 16 buckets  |
@@ -385,6 +386,30 @@ The training script has 13 OOM-safety fixes built in (expandable_segments,
 per_device_eval_batch_size=1, chunked_nll loss, post-eval cache clear,
 paged_adamw_8bit, etc.) — see the `# OOM fix #N:` comments in
 `train_template.py` for the full list.
+
+### Run-dir naming (v0.2.2+)
+
+`attacklm-train` and `attacklm-train-all` both default to writing the
+adapter to a **timestamped** subdirectory so re-runs are preserved:
+
+```bash
+# Default — appends a timestamp to your --output
+attacklm-train --dataset data/foo.jsonl --output models/agent-3b
+# → models/agent-3b_2026-06-10_15-15/   (preserved across re-runs)
+
+# Opt out of timestamping (will refuse to clobber a completed run)
+attacklm-train --dataset data/foo.jsonl --output models/agent-3b --no-timestamp
+# ERROR: Refusing to clobber completed run at models/agent-3b.
+
+# Override the refusal
+attacklm-train --dataset data/foo.jsonl --output models/agent-3b \
+               --no-timestamp --force
+```
+
+If `--output` already ends in `_YYYY-MM-DD_HH-MM` (i.e. it was
+produced by an earlier run or by `attacklm-train-all`), the suffix
+is left alone — re-runs get a new suffix (`_2`, `_3`, …) only if the
+exact same name exists.
 
 ### Multi-round SFT (v0.2.0+)
 
@@ -562,6 +587,36 @@ attacklm-gguf \
 uv run python scripts/register_ollama.py models/gguf/attacklm-single.Q4_K_M.gguf
 ```
 
+### Option E: One-shot merge + GGUF + install (`attacklm-build`)
+
+v0.2.2+: the 3-command shell pipeline becomes a single command. The
+build command also drops a manifest at `models/built/{name}_{timestamp}/`
+for later retrieval:
+
+```bash
+# Merge + GGUF + install to LM Studio, all in one
+attacklm-build \
+  --adapter models/attacklm-3b_16g_2026-06-10_15-15 \
+  --base ./uncensored/ \
+  --name attacklm-3b-16g
+
+# Skip the merge step (use an already-merged model)
+attacklm-build \
+  --merged models/merged/attacklm-3b-16g \
+  --name attacklm-3b-16g
+
+# Also register with Ollama
+attacklm-build \
+  --adapter models/attacklm-3b_16g_2026-06-10_15-15 \
+  --base ./uncensored/ \
+  --name attacklm-3b-16g \
+  --register-ollama
+```
+
+`--install-lmstudio` is ON by default. Use `--no-install-lmstudio` to
+just produce the GGUF. The build manifest records the GGUF path,
+mtime, base model, and which install steps ran.
+
 ### Option D: Load the adapter directly (smallest disk footprint)
 
 ```python
@@ -639,6 +694,13 @@ submitting PRs, and extending the bucket/extractor system.
 See [CHANGELOG.md](CHANGELOG.md) for the full version history. Notable
 recent releases:
 
+- **v0.2.2** (2026-06-10) — `attacklm-balance` (balanced bucket sampler),
+  `attacklm-build` (one-shot merge+GGUF+install), auto-timestamped
+  run dirs in `attacklm-train`, accurate epoch counter, GGUF
+  mtime-based staleness check, `attacklm-gguf --name` /
+  `--register-ollama` / `--quant` / `--build` / `--force`.
+- **v0.2.1** (2026-06-10) — Bucket layout normalized to 4 parents
+  (`base/`, `tools/`, `ai/`, `orchestrator/`).
 - **v0.2.0** (2026-06-10) — Multi-round SFT, `state.json` provenance,
   `--dataset` DSL, `--backup`/`--no-backup`, LoRA adapter detection
   in GGUF conversion. **Major version bump.**

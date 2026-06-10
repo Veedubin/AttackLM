@@ -111,12 +111,32 @@ def _is_lora_adapter(model_dir: Path) -> bool:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Convert merged models to Q4_K_M GGUF")
+    parser = argparse.ArgumentParser(
+        description="Convert merged models to Q4_K_M GGUF (v0.2.2+)"
+    )
     parser.add_argument(
         "--input",
         type=str,
         default=None,
-        help="Single model directory to convert (e.g., models/merged/attacklm)",
+        help="Single model directory to convert (e.g., models/merged/attacklm). "
+        "Default: convert all models found in models/merged/.",
+    )
+    parser.add_argument(
+        "--name",
+        type=str,
+        default=None,
+        help=(
+            "v0.2.2+: Override the auto-derived model name (used for GGUF "
+            "filename and LM Studio install path). Default: the basename of "
+            "--input. Example: --input models/merged/foo --name bar → "
+            "models/gguf/bar.Q4_K_M.gguf, ~/.lmstudio/models/local/bar/bar.Q4_K_M.gguf"
+        ),
+    )
+    parser.add_argument(
+        "--quant",
+        type=str,
+        default="Q4_K_M",
+        help="Quantization type (default: Q4_K_M). Other options: Q8_0, Q5_K_M, Q6_K.",
     )
     parser.add_argument(
         "--keep-fp16", action="store_true", help="Keep intermediate FP16 GGUF files"
@@ -125,6 +145,34 @@ def main() -> None:
         "--install-lmstudio",
         action="store_true",
         help="Install GGUF files to ~/.lmstudio/models/local/ (default: just save to models/gguf/)",
+    )
+    parser.add_argument(
+        "--register-ollama",
+        action="store_true",
+        help=(
+            "v0.2.2+: After conversion, register the GGUF with Ollama as a "
+            "local model (creates a Modelfile + `ollama create`). "
+            "Default: skip Ollama registration."
+        ),
+    )
+    parser.add_argument(
+        "--build",
+        action="store_true",
+        help=(
+            "v0.2.2+: One-shot full pipeline. Converts → installs to LM Studio "
+            "→ registers with Ollama (if --register-ollama) → copies a "
+            "build manifest to models/built/{name}_{timestamp}/. "
+            "Equivalent to: --install-lmstudio + a build-manifest drop."
+        ),
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "v0.2.2+: Force re-conversion even if the GGUF already exists. "
+            "Default: skip if models/gguf/{name}.{quant}.gguf exists AND its "
+            "mtime is newer than the source model.safetensors."
+        ),
     )
     args = parser.parse_args()
 
@@ -217,22 +265,40 @@ def main() -> None:
 
     GGUF_DIR.mkdir(parents=True, exist_ok=True)
 
-    print(f"\nConverting {len(models)} models to Q4_K_M GGUF:\n")
+    print(f"\nConverting {len(models)} model(s) to {args.quant} GGUF:\n")
 
     converted_now: list[Path] = []  # only GGUFs produced THIS run
 
     for model_dir in models:
-        name = model_dir.name
-        final_path = GGUF_DIR / f"{name}.Q4_K_M.gguf"
+        # v0.2.2+: name can be overridden via --name
+        name = args.name if args.name else model_dir.name
+        final_path = GGUF_DIR / f"{name}.{args.quant}.gguf"
 
-        if final_path.exists():
-            print(f"  ⏭  {name} — already exists at {final_path.name}")
-            continue
+        # v0.2.2+: skip-if-exists only when:
+        #   - the GGUF exists AND
+        #   - it has a non-zero size AND
+        #   - its mtime is >= the source model.safetensors mtime
+        # Otherwise, treat as stale and re-convert. --force bypasses
+        # the mtime check entirely.
+        if final_path.exists() and not args.force:
+            src_sf = next(iter(model_dir.glob("*.safetensors")), None)
+            if (
+                src_sf is not None
+                and final_path.stat().st_mtime >= src_sf.stat().st_mtime
+            ):
+                print(
+                    f"  ⏭  {name} — already exists at {final_path.name} (use --force to re-convert)"
+                )
+                continue
+            else:
+                print(
+                    f"  ↻  {name} — stale GGUF found (source is newer); re-converting"
+                )
 
         fp16_path = GGUF_DIR / f"{name}.FP16.gguf"
 
         # Step 1: HuggingFace → FP16 GGUF
-        if not fp16_path.exists():
+        if not fp16_path.exists() or args.force:
             print(f"  ⏳ {name} → FP16 ...", end=" ", flush=True)
             result = subprocess.run(
                 [
@@ -254,16 +320,13 @@ def main() -> None:
                 combined = (result.stderr or "") + (result.stdout or "")
                 tail = combined.strip()[-800:] if combined.strip() else "(no output)"
                 print(f"     {tail}")
-                print(
-                    f"\n     Full log: {fp16_path}.failed.log" if False else ""
-                )  # placeholder, no extra file
                 continue
             print(f"✅ {fp16_path.stat().st_size / 1e9:.2f}GB")
 
-        # Step 2: FP16 → Q4_K_M
-        print(f"  ⏳ {name} → Q4_K_M ...", end=" ", flush=True)
+        # Step 2: FP16 → target quant
+        print(f"  ⏳ {name} → {args.quant} ...", end=" ", flush=True)
         result = subprocess.run(
-            [str(quantizer), str(fp16_path), str(final_path), "Q4_K_M"],
+            [str(quantizer), str(fp16_path), str(final_path), args.quant],
             capture_output=True,
             text=True,
         )
@@ -295,21 +358,27 @@ def main() -> None:
     # *in this invocation*. A run that crashed on FP16 conversion now
     # correctly produces a "no new GGUFs to install" message instead of
     # silently re-deploying yesterday's stale build.
-    if args.install_lmstudio:
+    # v0.2.2+: --build mode is equivalent to --install-lmstudio
+    do_install_lmstudio = args.install_lmstudio or args.build
+    if do_install_lmstudio:
         if not converted_now:
             print(
                 "\n⚠️  No new GGUFs were produced this run — skipping LM Studio install."
             )
-            print("   (This usually means conversion failed. See error above.)")
+            print(
+                "   (This usually means conversion failed or all GGUFs were skipped.)"
+            )
         else:
             lmstudio_dir = Path.home() / ".lmstudio" / "models" / "local"
             for gguf in converted_now:
-                # LM Studio expects: ~/.lmstudio/models/local/{name}/{name}-{quant}.gguf
-                agent_name = gguf.stem
-                for suffix in (".Q4_K_M", ".Q8_0", ".F16", ".FP16"):
-                    if agent_name.endswith(suffix):
-                        agent_name = agent_name[: -len(suffix)]
-                        break
+                # Use the explicit --name if given, else strip the
+                # {quant} suffix from the GGUF stem. The two
+                # approaches should produce the same name.
+                agent_name = (
+                    args.name
+                    if args.name
+                    else Path(gguf).stem.replace(f".{args.quant}", "")
+                )
                 agent_dir = lmstudio_dir / agent_name
                 agent_dir.mkdir(parents=True, exist_ok=True)
                 dest = agent_dir / gguf.name
@@ -337,6 +406,155 @@ def main() -> None:
     print(f"\n✅ Done — {GGUF_DIR}/")
     for gguf in sorted(GGUF_DIR.glob("*.gguf")):
         print(f"   {gguf.name}  ({gguf.stat().st_size / 1e6:.0f}MB)")
+
+    # v0.2.2+: optional Ollama registration
+    if args.register_ollama and converted_now:
+        _register_with_ollama(
+            converted_now,
+            name=args.name,
+            quant=args.quant,
+        )
+
+    # v0.2.2+: --build mode drops a build manifest at
+    # models/built/{name}_{timestamp}/ containing symlinks to the GGUF,
+    # the source merged model, and a summary JSON.
+    if args.build and converted_now:
+        _drop_build_manifest(
+            converted_now,
+            name=args.name,
+            quant=args.quant,
+            do_install_lmstudio=do_install_lmstudio,
+            do_register_ollama=args.register_ollama,
+        )
+
+
+# ---------------------------------------------------------------------------
+# v0.2.2+: Ollama registration
+# ---------------------------------------------------------------------------
+
+
+def _register_with_ollama(
+    ggufs: list[Path],
+    name: str | None,
+    quant: str,
+) -> None:
+    """Register GGUFs with Ollama as local models.
+
+    Ollama reads a `Modelfile` and runs `ollama create`. We write a
+    minimal Modelfile per GGUF and invoke `ollama create`. The user
+    can then run `ollama run {name}` to use it.
+
+    The ollama binary must be on PATH. If it's not, we just print
+    the Modelfile content and the manual command — non-fatal.
+    """
+    import shutil as _sh
+    from datetime import datetime, timezone
+
+    ollama_bin = _sh.which("ollama")
+    if ollama_bin is None:
+        print("\n⚠️  --register-ollama requested but 'ollama' is not on PATH.")
+        print("   Skipping Ollama registration (you can do it manually).")
+        return
+
+    for gguf in ggufs:
+        # Derive the ollama model name (must be lowercase + dashes only)
+        agent_name = name if name else Path(gguf).stem.replace(f".{quant}", "")
+        ollama_name = agent_name.lower().replace("_", "-").replace("/", "-")
+        # Modelfile: just `FROM <absolute path to gguf>`
+        modelfile_path = gguf.parent / f"{ollama_name}.Modelfile"
+        with open(modelfile_path, "w") as f:
+            f.write(f"FROM {gguf.resolve()}\n")
+
+        print(f"\n🐫 Registering {gguf.name} with Ollama as '{ollama_name}'...")
+        result = subprocess.run(
+            [ollama_bin, "create", ollama_name, "-f", str(modelfile_path)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print(f"   ❌ Ollama create failed: {result.stderr[:400]}")
+            continue
+        print(f"   ✅ Created: ollama run {ollama_name}")
+
+
+# ---------------------------------------------------------------------------
+# v0.2.2+: Build manifest
+# ---------------------------------------------------------------------------
+
+
+def _drop_build_manifest(
+    ggufs: list[Path],
+    name: str | None,
+    quant: str,
+    do_install_lmstudio: bool,
+    do_register_ollama: bool,
+) -> None:
+    """Drop a build manifest at models/built/{name}_{timestamp}/.
+
+    Contents:
+        {name}_{timestamp}.gguf         symlink to the GGUF in models/gguf/
+        {name}_{timestamp}.manifest.json  build summary (size, paths, mtimes)
+        source_model/                  symlink to the source merged model dir
+    """
+    from datetime import datetime, timezone
+    import json as _json
+
+    BUILT_DIR = Path("models/built")
+    BUILT_DIR.mkdir(parents=True, exist_ok=True)
+
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M")
+    for gguf in ggufs:
+        agent_name = name if name else Path(gguf).stem.replace(f".{quant}", "")
+        build_dir = BUILT_DIR / f"{agent_name}_{ts}"
+        build_dir.mkdir(parents=True, exist_ok=True)
+
+        # Symlink the GGUF into the build dir (use a stable name without quant)
+        gguf_link = build_dir / f"{agent_name}.gguf"
+        if gguf_link.exists() or gguf_link.is_symlink():
+            gguf_link.unlink()
+        gguf_link.symlink_to(gguf.resolve())
+
+        # Symlink the source merged model
+        # The source is models/merged/{agent_name}/ — find it
+        source_merged = Path("models/merged") / agent_name
+        if source_merged.exists():
+            source_link = build_dir / "source_model"
+            if source_link.exists() or source_link.is_symlink():
+                source_link.unlink()
+            source_link.symlink_to(source_merged.resolve())
+
+        # Write a manifest
+        manifest = {
+            "name": agent_name,
+            "built_at": datetime.now(timezone.utc).isoformat(),
+            "quant": quant,
+            "gguf_path": str(gguf.resolve()),
+            "gguf_size_bytes": gguf.stat().st_size,
+            "source_merged": (
+                str(source_merged.resolve()) if source_merged.exists() else None
+            ),
+            "lmstudio_installed": do_install_lmstudio,
+            "ollama_registered": do_register_ollama,
+            "lmstudio_path": (
+                str(
+                    Path.home()
+                    / ".lmstudio"
+                    / "models"
+                    / "local"
+                    / agent_name
+                    / gguf.name
+                )
+                if do_install_lmstudio
+                else None
+            ),
+        }
+        manifest_path = build_dir / f"{agent_name}.manifest.json"
+        with open(manifest_path, "w") as f:
+            _json.dump(manifest, f, indent=2)
+
+        print(f"\n📦 Build manifest: {build_dir}/")
+        print(f"   {manifest_path.name}  (full build summary)")
+        print(f"   {gguf_link.name}  → {gguf}")
 
 
 if __name__ == "__main__":

@@ -6,7 +6,18 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ## [0.2.2] — 2026-06-10
 
+### Fixed
+
+- **Epoch counter now accurate.** `state.json[progress].current_epoch` is now read from the trainer's own `log_history` (the real fractional value at the last logged step) instead of HF Trainer's rounded `train_result.metrics["epoch"]` (which is an int). Previously the counter reported `epoch: 3.0` when the trainer actually ran `2.999` epochs. Also added `state.json[progress].target_epochs` (the user's --epochs value) and `state.json[progress].filtered_examples` (how many examples the long-example filter dropped) so the user can see exactly what happened.
+- **`attacklm-train` no longer clobbers previous runs.** Default behavior: a `_YYYY-MM-DD_HH-MM` timestamp is appended to `--output` so each run is preserved (matching what `attacklm-train-all` has done since v0.1.6). Opt out with `--no-timestamp`. If `--no-timestamp` is set and the output is a **completed** run, the trainer refuses unless `--force` is also passed. If the path already ends in a timestamp, it's left alone (so re-runs of `train_all.py` keep working).
+- **`attacklm-gguf` no longer silently skips when source is newer.** Previously, `attacklm-gguf` printed `⏭ attacklm-single — already exists` and skipped even when the source BF16 model was just re-merged. v0.2.2 compares mtime: if `models/gguf/{name}.Q4_K_M.gguf` is older than the source `model.safetensors`, it's treated as stale and re-converted (with a clear log line). `--force` bypasses the mtime check entirely.
+- **`attacklm-gguf --name` now exists.** Previously `--name` was referenced in the help text and in a v0.2.0-era TODO but never implemented — passing it produced `unrecognized arguments`. v0.2.2 adds the flag; it overrides the auto-derived name from `--input`.
+
 ### Added
+
+- **`attacklm-build`** — One-shot full pipeline: merge LoRA → BF16 → GGUF → install to LM Studio → (optional) register with Ollama → drop a build manifest at `models/built/{name}_{timestamp}/`. Replaces the 3-command shell pipeline (`attacklm-merge && rm && attacklm-gguf --install-lmstudio`) with a single command. Auto-detects the base model from the adapter's `state.json` / `adapter_config.json`. Defaults: `--install-lmstudio` ON, `--register-ollama` OFF. Wired in as a console script.
+
+- **`attacklm-gguf --quant` and `--register-ollama`.** `--quant` lets you pick `Q8_0` / `Q5_K_M` / `Q6_K` instead of the hardcoded `Q4_K_M`. `--register-ollama` writes a `Modelfile` next to the GGUF and runs `ollama create {name}`, so the model shows up in `ollama list` and you can run it via `ollama run {name}`.
 
 - **`scripts/balance_buckets.py`** — Balanced bucket sampler for SFT data. Auto-sizes per-bucket caps based on target model + VRAM profile (3b-16gb / 7b-16gb / 7b-128gb / 14b-128gb / 31b-128gb / full / custom). Three within-bucket sampling strategies (head / random / **stratified** — the default). Stratified sampler groups examples by their first MITRE technique ID, source, or first assistant-content line, then allocates with **minimum-1-per-group** so every technique / module gets representation. Solves the "metasploit 49% of training" problem for round-2 SFT.
 

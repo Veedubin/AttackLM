@@ -231,6 +231,28 @@ Examples:
         "(tokens/sec, pairs/sec, pair size stats) that HF's default JSON log "
         "doesn't capture. Default: None (off)",
     )
+    parser.add_argument(
+        "--no-timestamp",
+        action="store_true",
+        default=False,
+        help=(
+            "v0.2.2+: Use --output as-is, no timestamp suffix. Default is to "
+            "auto-append a timestamp so re-runs don't clobber previous runs. "
+            "If --output already has a _YYYY-MM-DD_HH-MM suffix, it's left "
+            "alone. If --output exists and is a completed run, refused "
+            "without --force."
+        ),
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help=(
+            "v0.2.2+: Allow overwriting an existing completed run dir at "
+            "--output. Without this, the run is refused if a state.json "
+            "with completed=true is found at --output."
+        ),
+    )
 
     return parser.parse_args()
 
@@ -482,6 +504,79 @@ def make_timestamped_output_dir(parent: str, agent_name: str) -> str:
         n += 1
         candidate = Path(parent) / f"{agent_name}_{ts}_{n}"
     return str(candidate)
+
+
+_TIMESTAMP_SUFFIX_RE = __import__("re").compile(
+    r"_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}(_\d+)?$"
+)
+
+
+def resolve_output_path(
+    user_output: str, no_timestamp: bool = False, force: bool = False
+) -> str:
+    """Resolve the --output argument for `attacklm-train` (v0.2.2+).
+
+    Rules (in order):
+        1. If the path already ends in `_YYYY-MM-DD_HH-MM` (or
+           `_YYYY-MM-DD_HH-MM_N`), use it as-is. The user has
+           explicitly chosen a timestamped name — respect it.
+           (This is what train_all.py produces; we recognize its
+           own output.)
+        2. If --no-timestamp was passed, use the path as-is.
+        3. If the path exists and has a state.json with completed=true
+           (a finished run from a previous invocation):
+             a. If --force was passed, use the path as-is (clobber).
+             b. Otherwise, raise FileExistsError with a clear hint
+                about how to use a timestamped name or --force.
+        4. Otherwise, append `_YYYY-MM-DD_HH-MM` to the basename.
+           If that name exists on disk (rare — same-minute re-run),
+           append `_2`, `_3`, ... until unique.
+
+    Returns: absolute path string.
+
+    Why: the previous behavior (`attacklm-train --output foo` clobbers
+    `foo/` if it exists) was the source of the "I lost my run"
+    footgun. v0.2.2 makes timestamped outputs the default, matching
+    what train_all.py does for multi-bucket runs.
+    """
+    from datetime import datetime, timezone
+    from pathlib import Path as _P
+
+    p = _P(user_output).expanduser()
+    name = p.name
+    parent = p.parent if str(p.parent) not in ("", ".") else _P(".")
+
+    # Rule 1: already has a timestamp
+    if _TIMESTAMP_SUFFIX_RE.search(name):
+        return str(p.resolve())
+
+    # Rule 2: user said no timestamp
+    if no_timestamp:
+        if p.exists() and (p / "state.json").exists() and not force:
+            try:
+                with (p / "state.json").open() as f:
+                    st = __import__("json").load(f)
+            except (OSError, __import__("json").JSONDecodeError):
+                st = None
+            if st is not None and st.get("completed"):
+                raise FileExistsError(
+                    f"Refusing to clobber completed run at {p}.\n"
+                    f"  state.json[completed]=true, training was finished.\n"
+                    f"  Pass --force to overwrite, or use a different --output.\n"
+                    f"  (Default: a timestamp will be appended to your --output\n"
+                    f"  so each run is preserved. Pass --no-timestamp to disable.)"
+                )
+        return str(p.resolve())
+
+    # Rule 3: append timestamp
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M")
+    base_name = f"{name}_{ts}"
+    candidate = parent / base_name
+    n = 1
+    while candidate.exists():
+        n += 1
+        candidate = parent / f"{base_name}_{n}"
+    return str(candidate.resolve())
 
 
 def check_python_version() -> None:
@@ -915,6 +1010,20 @@ def main() -> None:
     args = parse_args()
     check_python_version()
 
+    # --- Resolve --output path (v0.2.2+ auto-timestamp) ---
+    # Default: append a timestamp to --output so re-runs don't clobber.
+    # Override with --no-timestamp. Refuse to clobber a completed run
+    # unless --force is also set.
+    try:
+        args.output = resolve_output_path(
+            args.output,
+            no_timestamp=args.no_timestamp,
+            force=args.force,
+        )
+    except FileExistsError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(2)
+
     is_dry_run = args.dry_run or not args.train
 
     print("\n" + "=" * 60)
@@ -925,6 +1034,19 @@ def main() -> None:
     print(f" Base model:  {args.base_model}")
     print(f" Dataset:     {args.dataset}")
     print(f" Output:      {args.output}")
+    if args.no_timestamp:
+        print(
+            f"              (no-timestamp mode: clobbers existing runs without --force)"
+        )
+    else:
+        # If the output has a _YYYY-MM-DD_HH-MM suffix, note that we
+        # preserved it. Otherwise note that we appended one.
+        import re as _re
+
+        if _re.search(r"_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}", args.output):
+            print(f"              (timestamp suffix preserved)")
+        else:
+            print(f"              (auto-timestamped: each run is preserved)")
     print(f" Epochs:      {args.epochs}")
     print(f" Batch size:   {args.batch_size}")
     print(f" Max length:   {args.max_length}")
@@ -1055,6 +1177,10 @@ def main() -> None:
     # outlier payloads (huge metasploit modules) that would OOM anyway
     # and the model can't really learn from 3000-token contexts at
     # max-length=1024.
+    #
+    # The dropped count is recorded in state.json so the user can see
+    # the actual train/eval split (and not be surprised by the epoch
+    # counter being lower than expected).
     def _filter_long_examples(
         example, tokenizer=tokenizer, max_len=args.max_length, hard_cap_mult=1.5
     ):
@@ -1072,6 +1198,7 @@ def main() -> None:
     dataset = dataset.filter(_filter_long_examples, num_proc=1)
     post_filter_count = len(dataset)
     dropped = pre_filter_count - post_filter_count
+    _filtered_out: int = dropped  # captured for state.json
     if dropped > 0:
         print(
             f"  Dropped {dropped} examples exceeding {int(args.max_length * 1.5)} tokens "
@@ -2013,7 +2140,10 @@ def main() -> None:
     elapsed = time.time() - start_time
     final_loss = train_result.training_loss
     best_metric = getattr(train_result, "metrics", {}).get("eval_loss", "unknown")
-    stopped_early = train_result.metrics.get("epoch", args.epochs) < args.epochs
+    # Note: stopped_early is now computed from actual_current_epoch
+    # vs target, post-hoc, in the state.json section below. We don't
+    # use train_result.metrics["epoch"] for that because HF rounds it
+    # to an int and we want the fractional value from log_history.
 
     print(f"\nSaving best LoRA adapter to: {args.output}")
     os.makedirs(args.output, exist_ok=True)
@@ -2084,11 +2214,15 @@ def main() -> None:
         final_step = int(final_step)
     except (TypeError, ValueError):
         final_step = 0
-    # Last resort: read the latest trainer_state.json for `max_steps`
-    # and any log_history entries that didn't make it into TrainOutput.
-    # Note: best_metric is only set if `load_best_model_at_end=True`,
-    # which our config doesn't enable. We accept that and record null.
-    max_steps_estimate = 0
+    # The accurate `current_epoch` and `max_steps` come from the trainer's
+    # own log_history. trainer_state.json's top-level `epoch` is rounded
+    # to int (HF behavior), but the per-step log entries have the real
+    # float value. Same for `max_steps` — the trainer's max_steps is
+    # based on the *post-filter* train split, which can differ from
+    # `len(dataset) * epochs / batch_size` if the long-example filter
+    # dropped items.
+    actual_max_steps = 0
+    actual_current_epoch: float | None = None
     try:
         ckpt_dirs = sorted(
             [
@@ -2103,9 +2237,15 @@ def main() -> None:
             if ts_path.exists():
                 with ts_path.open() as f:
                     ts = json.load(f)
+                # max_steps is reliable
                 trainer_max = int(ts.get("max_steps", 0))
                 if trainer_max > 0:
-                    max_steps_estimate = trainer_max
+                    actual_max_steps = trainer_max
+                # The last log_history entry has the most accurate fractional epoch
+                for entry in reversed(ts.get("log_history", [])):
+                    if "epoch" in entry:
+                        actual_current_epoch = _coerce_float(entry["epoch"])
+                        break
                 if final_step == 0:
                     final_step = int(ts.get("global_step", 0))
                 if last_token_accuracy is None:
@@ -2117,24 +2257,48 @@ def main() -> None:
                             break
     except Exception:
         pass
-    if max_steps_estimate == 0:
-        # Fallback: compute from dataset size (assumes batch_size=1)
-        max_steps_estimate = int(len(dataset) * args.epochs)
+
+    # Fallback: if trainer_state.json was unavailable for some reason
+    if actual_max_steps == 0:
+        # Compute from post-filter, post-split counts. With dataloader_drop_last
+        # False (HF default), all train examples are seen.
+        train_count = len(dataset) - int(len(dataset) * 0.05)  # eval_split default
+        actual_max_steps = int((train_count / max(args.batch_size, 1)) * args.epochs)
+    if actual_current_epoch is None:
+        # Fallback: derive from final_step
+        actual_current_epoch = (
+            float(final_step) / float(actual_max_steps) * float(args.epochs)
+            if actual_max_steps > 0
+            else float(args.epochs)
+        )
+
+    # Detect "stopped early" by comparing the fractional epoch to the
+    # requested one. < 99% of target → stopped early.
+    stopped_early_flag = actual_current_epoch < (float(args.epochs) - 0.01)
 
     final_state["completed"] = True
     final_state["progress"] = {
         "global_step": final_step,
-        "max_steps": max_steps_estimate,
-        "current_epoch": _coerce_float(metrics.get("epoch", args.epochs))
-        or float(args.epochs),
+        "max_steps": actual_max_steps,
+        "current_epoch": round(actual_current_epoch, 4),
+        "target_epochs": float(args.epochs),
         "total_epochs": float(args.epochs),
         "last_loss": last_loss,
         "last_token_accuracy": last_token_accuracy,
         "best_eval_loss": best_eval_loss,
         "total_training_seconds": round(elapsed, 2),
     }
+    # Also record how many examples the filter dropped, so the user
+    # can correlate the epoch count with the actual data seen.
+    try:
+        filtered_out_val = int(_filtered_out)
+    except (NameError, ValueError):
+        filtered_out_val = 0
+    if filtered_out_val > 0:
+        final_state["progress"]["filtered_examples"] = filtered_out_val
+        final_state["progress"]["examples_after_filter"] = len(dataset)
     if "stopped_early" not in final_state:
-        final_state["stopped_early"] = stopped_early
+        final_state["stopped_early"] = stopped_early_flag
     try:
         write_state(args.output, final_state)
     except Exception as e:
@@ -2147,7 +2311,12 @@ def main() -> None:
     print(f"  Model saved to:      {args.output}")
     print(f"  Training time:       {elapsed:.1f}s ({elapsed / 60:.1f} min)")
     print(f"  Final loss:          {final_loss:.4f}")
-    print(f"  Examples trained:   {len(dataset)}")
+    print(
+        f"  Epochs:              {actual_current_epoch:.4f} / {args.epochs} target ({final_step} steps)"
+    )
+    print(
+        f"  Examples trained:   {len(dataset)} (post-filter, target was {len(dataset) + filtered_out_val})"
+    )
     print(f"  Config written to:   {config_path}")
     print("=" * 60)
     print("\nTo load the trained adapter for inference:")
