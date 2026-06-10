@@ -473,7 +473,16 @@ def _run_with_retry(
 
 def main():
     parser = argparse.ArgumentParser(description="Train all AttackLM agents")
-    parser.add_argument("--base-model", default="Qwen/Qwen2.5-Coder-7B-Instruct")
+    parser.add_argument(
+        "--base-model",
+        default=None,
+        help="Base HuggingFace model ID. Default behavior (v0.1.6+): "
+        "(1) if a previous completed run exists for this agent, use it "
+        "(round-2 SFT); (2) otherwise use the abliterated Qwen "
+        "'huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated'. Pass this "
+        "flag to override (e.g. to use the non-abliterated base, or "
+        "a different size).",
+    )
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--max-length", type=int, default=1024)
@@ -696,7 +705,9 @@ def main():
     out(" AttackLM — Train All Agents")
     out("=" * 60)
     out(f"  Start time:    {datetime.now().isoformat()}")
-    out(f"  Base model:    {args.base_model}")
+    out(
+        f"  Base model:    {args.base_model or '(auto-resolve: round-2 → abliterated fallback)'}"
+    )
     out(f"  Epochs:        {args.epochs}")
     out(f"  Batch size:    {args.batch_size}")
     out(f"  Max length:    {args.max_length}")
@@ -794,7 +805,7 @@ def main():
         # run dir as the base. We pick the latest by lexicographic sort
         # (timestamps sort correctly as YYYY-MM-DD_HH-MM strings).
         # (Does NOT apply when --base-model is set explicitly.)
-        if not args.base_model and not args.round_two_base:
+        if not args.base_model:
             latest = _find_latest_run_dir(args.single_model_name)
             if latest and (latest / "state.json").exists():
                 try:
@@ -820,6 +831,15 @@ def main():
                         args.base_model = str(latest)
                 except (OSError, json.JSONDecodeError):
                     pass
+        # v0.1.6+: fallback for first-ever run of this agent. The
+        # README recommends the abliterated Qwen 3B as the default
+        # base — matches what the user just trained round 1 on.
+        # (Previously hard-coded to Qwen/Qwen2.5-Coder-7B-Instruct,
+        # which is the WRONG default for this project — that was
+        # only correct before we had an abliterated base.)
+        if not args.base_model:
+            args.base_model = "huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated"
+            out(f"  No previous run found, using default base: {args.base_model}")
         if args.skip_completed and has_completed_checkpoint(output_path):
             out(f"  SKIP — checkpoint already exists at {output_path}")
             log_fh.close()
