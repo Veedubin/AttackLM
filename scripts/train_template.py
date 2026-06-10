@@ -27,13 +27,14 @@ Dependencies:
 
 import argparse
 import json
-import os
 import sys
 import time
 from pathlib import Path
 
+import torch
+
 # ---------------------------------------------------------------------------
-# OOM fix #1: PyTorch CUDA allocator configuration
+# OOM fix #1: PyTorch CUDA / ROCm allocator configuration
 # ---------------------------------------------------------------------------
 # `expandable_segments:True` is the single biggest fix for long-running OOMs.
 # It tells the allocator to use virtual memory mapping, so freed blocks can be
@@ -46,9 +47,26 @@ from pathlib import Path
 # keeping large allocations from being broken into many small pieces.
 #
 # MUST be set BEFORE any CUDA tensor is allocated, so we do it at import time.
-os.environ.setdefault(
-    "PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True,max_split_size_mb:128"
+# We do this through `device_utils` so ROCm gets the same setup (it honors
+# the same env var in PyTorch >= 2.4 and falls back to PYTORCH_HIP_ALLOC_CONF
+# on older builds).
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from device_utils import (  # noqa: E402  (import after sys.path tweak)
+    is_cuda,
+    is_rocm,
+    setup_allocator_env,
+    enable_tf32,
+    empty_cache_and_sync,
+    gpu_mem_info,
+    gpu_mem_info_bytes,
+    suggest_attn_implementation,
+    is_flash_attn_available,
+    print_hardware_banner,
 )
+
+# Apply the allocator env vars at import time, before any tensor allocation.
+setup_allocator_env()
 
 # ---------------------------------------------------------------------------
 # CLI Arguments
@@ -229,35 +247,42 @@ def check_python_version() -> None:
 
 
 def check_gpu() -> str:
-    """Check for CUDA/BF16 availability and return compute dtype string."""
-    try:
-        import torch
+    """Check for CUDA / ROCm / MPS availability and return compute dtype string.
 
-        if not torch.cuda.is_available():
-            print(
-                "WARNING: No CUDA GPU detected. Training will be extremely slow on CPU."
-            )
-            print(
-                "         Consider using Google Colab (T4/A100) or RunPod if you lack a local GPU."
-            )
+    Works on NVIDIA CUDA, AMD ROCm, Apple Silicon MPS, and CPU.
+    """
+    from device_utils import (
+        is_cuda,
+        is_mps,
+        gpu_name_and_memory,
+        print_hardware_banner,
+    )
+
+    print_hardware_banner()
+
+    if not is_cuda():
+        if is_mps():
+            print("Apple Silicon (MPS) detected — training will be very slow.")
             return "fp32"
+        print(
+            "WARNING: No CUDA / ROCm GPU detected. Training will be extremely slow on CPU."
+        )
+        print(
+            "         Consider using Google Colab (T4/A100) or RunPod if you lack a local GPU."
+        )
+        return "fp32"
 
-        gpu_name = torch.cuda.get_device_name(0)
-        gpu_mem = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-        print(f"GPU: {gpu_name} ({gpu_mem:.1f} GB VRAM)")
+    gpu_name, gpu_mem = gpu_name_and_memory()
+    print(f"GPU: {gpu_name} ({gpu_mem:.1f} GB VRAM)")
 
-        if gpu_mem < 10:
-            print(f"WARNING: GPU has only {gpu_mem:.1f} GB VRAM.")
-            print("         If you hit OOM, try: --batch-size 1 --max-length 1024")
+    if gpu_mem < 10:
+        print(f"WARNING: GPU has only {gpu_mem:.1f} GB VRAM.")
+        print("         If you hit OOM, try: --batch-size 1 --max-length 1024")
 
-        # Use FP16 for compatibility (BF16 + AMP scaler can conflict with
-        # some model weight formats, especially when the model stores BF16 weights)
-        print("Mixed precision: FP16 (forced for AMP compatibility)")
-        return "fp16"
-
-    except ImportError:
-        print("WARNING: PyTorch not installed. Install with: pip install torch")
-        return "fp16"
+    # Use FP16 for compatibility (BF16 + AMP scaler can conflict with
+    # some model weight formats, especially when the model stores BF16 weights)
+    print("Mixed precision: FP16 (forced for AMP compatibility)")
+    return "fp16"
 
 
 def validate_dataset(dataset_path: str) -> None:
@@ -452,17 +477,14 @@ def get_qlora_config(
 def get_quantization_config() -> "BitsAndBytesConfig":
     """Build 4-bit NF4 quantization config — FP32 compute to avoid AMP conflicts."""
     from transformers import BitsAndBytesConfig
-    import torch as _torch
 
-    # Set TF32 for faster matmul on Ampere (RTX 30xx/40xx)
-    if _torch.cuda.is_available():
-        _torch.backends.cuda.matmul.allow_tf32 = True
-        _torch.backends.cudnn.allow_tf32 = True
+    # Set TF32 for faster matmul (Ampere/Ada/Blackwell on CUDA, CDNA/RDNA on ROCm)
+    enable_tf32()
 
     return BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=_torch.float32,  # no AMP/ BF16 conflicts
+        bnb_4bit_compute_dtype=torch.float32,  # no AMP/ BF16 conflicts
         bnb_4bit_use_double_quant=True,
     )
 
@@ -919,11 +941,11 @@ def main() -> None:
         # packed samples.
         # RTX 4080 (Ada Lovelace, compute 8.9) supports FA2 perfectly.
         # FA3 requires Hopper (H100) — not available on consumer cards.
+        # ROCm has no official flash-attn — suggest_attn_implementation()
+        # will fall back to sdpa with a warning.
         # See: https://github.com/Dao-AILab/flash-attention
-        if args.packing:
-            load_kwargs["attn_implementation"] = "flash_attention_2"
-        # else: use the default attention (sdpa or eager) — fine
-        # for --no-packing since each example is in its own sequence
+        attn_impl = suggest_attn_implementation(args.packing)
+        load_kwargs["attn_implementation"] = attn_impl
 
         # Decide whether to pass a quantization_config:
         #   - quant_method is None              → unquantized, apply NF4 ourselves
@@ -963,7 +985,7 @@ def main() -> None:
 
         try:
             model = AutoModelForCausalLM.from_pretrained(args.base_model, **load_kwargs)
-        except (ImportError, ValueError) as e:
+        except (ImportError, ValueError, ModuleNotFoundError) as e:
             error_str = str(e).lower()
             if "flash" in error_str or "flash_attention" in error_str:
                 if args.packing:
@@ -979,7 +1001,7 @@ def main() -> None:
                     print(
                         "  cross-contaminating each other (sample A attends to sample B)."
                     )
-                    print("  Install flash-attn:")
+                    print("  Install flash-attn (CUDA only, ROCm has no support):")
                     print("    uv pip install flash-attn --no-build-isolation")
                     print("  (takes ~5 min to compile, requires CUDA dev tools)")
                     print()
@@ -999,6 +1021,41 @@ def main() -> None:
                     model = AutoModelForCausalLM.from_pretrained(
                         args.base_model, **load_kwargs
                     )
+            elif "could not import module" in error_str:
+                # Common on newer model architectures (Qwen3-Next, etc.)
+                # that require a recent transformers version + C++ extensions.
+                model_class_match = None
+                import re
+
+                m = re.search(r"['\"]([A-Za-z0-9_]+)['\"]", str(e))
+                if m:
+                    model_class_match = m.group(1)
+                print(
+                    "\nERROR: Failed to load model — transformers could not import "
+                    f"the model class{f' ({model_class_match})' if model_class_match else ''}."
+                )
+                print(f"  Base model: {args.base_model}")
+                print()
+                print("  This usually means one of:")
+                print("    1. Your transformers version is too old for this model.")
+                print("       Upgrade: uv pip install -U 'transformers>=5.10'")
+                print("    2. A required C++ extension failed to build or load.")
+                print("       Qwen3-Next and similar architectures need:")
+                print("         - causal-conv1d (CUDA only)")
+                print("         - flash-linear-attention (CUDA only)")
+                print("       On ROCm these are NOT required — the modeling has")
+                print(
+                    "       pure-PyTorch fallbacks. Make sure they're not half-installed."
+                )
+                print(
+                    "       Try: uv pip uninstall causal-conv1d flash-linear-attention"
+                )
+                print("    3. The model uses trust_remote_code and the remote code")
+                print("       wasn't downloaded. Set HF_HUB_OFFLINE=0 and retry.")
+                print()
+                print("  Full error:")
+                print(f"    {e}")
+                sys.exit(1)
             else:
                 raise
     except Exception as e:
@@ -1195,14 +1252,11 @@ def main() -> None:
 
         def on_evaluate(self, args, state, control, **kwargs):
             import gc
-            import torch as _torch
 
             gc.collect()
-            if _torch.cuda.is_available():
-                _torch.cuda.empty_cache()
-                _torch.cuda.synchronize()
-                free_gb = _torch.cuda.mem_get_info()[0] / (1024**3)
-                total_gb = _torch.cuda.mem_get_info()[1] / (1024**3)
+            if is_cuda():
+                empty_cache_and_sync()
+                free_gb, total_gb = gpu_mem_info()
                 print(
                     f"  [GCEpochCallback] Post-eval VRAM: "
                     f"{free_gb:.2f}GB free / {total_gb:.2f}GB total"
@@ -1217,16 +1271,14 @@ def main() -> None:
             (that would cost 5-10% throughput). Instead, we only clear
             if free VRAM is below the emergency threshold.
             """
-            import torch as _torch
-
-            if not _torch.cuda.is_available():
+            if not is_cuda():
                 return control
-            free_bytes, _total_bytes = _torch.cuda.mem_get_info()
+            free_bytes, _total_bytes = gpu_mem_info_bytes()
             if free_bytes < self.EMERGENCY_CLEAR_THRESHOLD_BYTES:
                 import gc
 
                 gc.collect()
-                _torch.cuda.empty_cache()
+                torch.cuda.empty_cache()
                 # Don't sync here — that defeats the purpose of the
                 # threshold check. The next forward pass will sync
                 # implicitly if it needs to.
@@ -1314,7 +1366,6 @@ def main() -> None:
             """
             if self._writer is None or not logs:
                 return control
-            import torch as _torch
 
             now = time.time()
             step = state.global_step
@@ -1370,9 +1421,9 @@ def main() -> None:
             # VRAM
             vram_free = ""
             vram_total = ""
-            if _torch.cuda.is_available():
+            if is_cuda():
                 try:
-                    free_b, total_b = _torch.cuda.mem_get_info()
+                    free_b, total_b = gpu_mem_info_bytes()
                     vram_free = round(free_b / (1024**3), 2)
                     vram_total = round(total_b / (1024**3), 2)
                 except Exception:
@@ -1450,14 +1501,10 @@ def main() -> None:
     import gc
 
     try:
-        import torch
-
         gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
-            free_gb = torch.cuda.mem_get_info()[0] / (1024**3)
-            total_gb = torch.cuda.mem_get_info()[1] / (1024**3)
+        if is_cuda():
+            empty_cache_and_sync()
+            free_gb, total_gb = gpu_mem_info()
             print(f"  Pre-train VRAM: {free_gb:.2f}GB free / {total_gb:.2f}GB total")
     except Exception as e:
         print(f"  (Skipped cache clear: {e})")
