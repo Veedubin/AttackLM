@@ -150,14 +150,17 @@ hybrid linear-attention models).
 ### ROCm stack (AMD) — e.g. MI300X, RX 7900 XTX, Strix Halo
 
 ROCm PyTorch wheels are **not on PyPI** — you must add PyTorch's index
-URL. The `bitsandbytes` ROCm wheels are only published for Python 3.10/3.11.
-The C++ extensions (`flash-attn`, `causal-conv1d`, `flash-linear-attention`)
-**have no ROCm support** — the modeling has pure-PyTorch fallbacks
-(slower but works).
+URL. The `bitsandbytes` 0.49+ wheel **only ships CUDA .so files** (cuda118/120/121/122/126) — on ROCm, install bitsandbytes with `--no-deps` and verify, or skip it entirely (the FP8 path doesn't need it). The C++ extensions (`flash-attn`, `causal-conv1d`, `flash-linear-attention`) **have no ROCm support** — the modeling has pure-PyTorch fallbacks (slower but works).
+
+**Important: which ROCm version?** The PyTorch ROCm index publishes
+different `torch` versions per channel. The version pins in this repo
+(`torch==2.12.0`, `torchvision==0.27.0`) are only available on the
+**rocm7.1 / rocm7.2** channels. Older channels (rocm6.x) cap out at
+torch 2.5-2.9 and will fail to resolve the pin.
 
 ```bash
-# 1. Install ROCm PyTorch from PyTorch's index
-uv pip install --index-url https://download.pytorch.org/whl/rocm6.2 \
+# 1. Install ROCm PyTorch from the rocm7.2 channel (has torch 2.12.0)
+uv pip install --index-url https://download.pytorch.org/whl/rocm7.2 \
     torch==2.12.0 torchvision==0.27.0
 
 # 2. Install AttackLM with the ROCm meta-group
@@ -166,25 +169,39 @@ cd AttackLM
 uv pip install -e ".[all-rocm]"
 ```
 
+After install, verify:
+```bash
+python -c "import torch; print('torch:', torch.__version__, '— hip:', torch.version.hip)"
+# should print something like: torch: 2.12.0+rocm7.2 — hip: 7.2.XXXXX
+```
+
 `[all-rocm]` is `attacklm[train-rocm,extract,convert]` — it pulls in
-`peft`, `trl`, `accelerate`, `bitsandbytes` (ROCm build) and **no**
-CUDA-only C++ extensions.
+`peft`, `trl`, `accelerate`, `bitsandbytes` and **no** CUDA-only C++
+extensions.
 
 | Component | Where it comes from |
 |---|---|
-| `torch`, `torchvision`        | PyTorch ROCm index (`+rocm6.2` build) |
-| `bitsandbytes`                | PyPI ROCm wheel (Py 3.10/3.11 only — source build on 3.12/3.13) |
+| `torch`, `torchvision`        | PyTorch ROCm index (`+rocm7.2` build) |
+| `bitsandbytes`                | PyPI (CUDA-only — works for non-FP8 paths; uninstall for FP8) |
 | `flash-attn`                  | **Not installed** — sdpa fallback in QLoRA |
 | `causal-conv1d`               | **Not installed** — pure-PyTorch fallback in Qwen3-Next modeling |
 | `flash-linear-attention`      | **Not installed** — pure-PyTorch fallback |
 
-> **If `attacklm-train` fails with** `Could not import module 'Qwen3NextForCausalLM'`:
-> Your ROCm env likely has a half-installed `causal-conv1d` or
-> `flash-linear-attention`. Remove them:
+> **If `attacklm-train` fails with** `Could not import module '...ForCausalLM'`:
+> The error message usually hides the actual cause in its exception chain.
+> The most common ROCm causes (in order of likelihood):
 > ```bash
+> # 1. bitsandbytes CUDA-only wheel — uninstall (FP8 path doesn't need it)
+> uv pip uninstall bitsandbytes
+>
+> # 2. Half-installed C++ extensions — remove them
 > uv pip uninstall causal-conv1d flash-linear-attention
+>
+> # 3. Wrong PyTorch channel — verify ROCm build is installed
+> python -c "import torch; print(torch.version.hip)"
+> # If 'None', reinstall with --index-url https://download.pytorch.org/whl/rocm7.2
 > ```
-> The model has pure-PyTorch fallbacks for these and will work without them.
+> v0.1.3+ prints the actual exception chain so you can see which of these it is.
 
 ---
 
