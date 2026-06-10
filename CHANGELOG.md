@@ -4,6 +4,55 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
+## [0.2.2] — 2026-06-10
+
+### Added
+
+- **`scripts/balance_buckets.py`** — Balanced bucket sampler for SFT data. Auto-sizes per-bucket caps based on target model + VRAM profile (3b-16gb / 7b-16gb / 7b-128gb / 14b-128gb / 31b-128gb / full / custom). Three within-bucket sampling strategies (head / random / **stratified** — the default). Stratified sampler groups examples by their first MITRE technique ID, source, or first assistant-content line, then allocates with **minimum-1-per-group** so every technique / module gets representation. Solves the "metasploit 49% of training" problem for round-2 SFT.
+
+  Category-balanced allocation (the default for `--target-total`): targets 50% base / 25% tools / 15% ai / 10% orchestrator, then redistributes proportionally when small categories hit their caps. Overridable via `--category-shares` JSON.
+
+  Wired in as `attacklm-balance` console script.
+
+- **`tests/test_balance_buckets.py`** — 19 unit tests covering stratification key selection, sampling strategies, cap resolution, integration with the real bucket manifest, and CLI output. All pass.
+
+- **`.gitignore`** — `data/datasets/balanced/` excluded (regenerable output of the new sampler).
+
+- **`README.md`** — new "Balanced sampling" section in the Training area; `attacklm-balance` added to the 11-script table (now 12).
+
+### Usage
+
+```bash
+# Dry-run: see the per-bucket caps + total without writing
+attacklm-balance --profile 7b-128gb --dry-run
+
+# Write a balanced dataset to data/datasets/balanced/
+attacklm-balance --profile 7b-128gb \
+    --output data/datasets/balanced/balanced_7b-128gb.jsonl
+
+# Pass to training
+attacklm-train --dataset data/datasets/balanced/balanced_7b-128gb.jsonl \
+               --output models/attacklm-7b-128gb \
+               --base-model huihui-ai/Qwen2.5-Coder-7B-Instruct-abliterated
+
+# Custom target total with custom category shares
+attacklm-balance --profile custom --target-total 12000 \
+    --category-shares '{"tactic": 0.3, "tools": 0.4, "ai_redteam": 0.2, "meta": 0.1}'
+```
+
+### Profiles
+
+| Profile    | Per-bucket cap | Total pairs | Train time (3B) | Train time (7B) | Train time (14B) |
+|------------|---------------:|------------:|----------------:|----------------:|-----------------:|
+| 3b-16gb    |            800 |     ~7,500  |          2-3 hr |          3-4 hr |                 |
+| 7b-16gb    |            800 |     ~7,500  |          2-3 hr |          3-4 hr |                 |
+| 7b-128gb   |          1,500 |     ~9,800  |          1-2 hr |          4-6 hr |          5-7 hr  |
+| 14b-128gb  |          1,500 |     ~9,800  |          1-2 hr |          4-6 hr |          5-7 hr  |
+| 31b-128gb  |          2,000 |    ~10,600  |                |                |          6-8 hr  |
+| full       |   unlimited    |    16,982   |                |                |       12-16 hr  |
+
+---
+
 ## [0.2.1] — 2026-06-10
 
 **Bucket layout reorganized into 4 parents.** The v0.2.0 layout was asymmetric (10 flat tactic dirs + 1 flat orchestrator + 2 nested parents) which made the on-disk filesystem not match the user-facing spec syntax. v0.2.1 normalizes to 4 parent directories that all work the same way.

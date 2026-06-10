@@ -141,10 +141,17 @@ def main_clone(argv: Sequence[str] | None = None) -> int:
     )
 
 
+def main_balance(argv: Sequence[str] | None = None) -> int:
+    """Build a balanced subset of the buckets: attacklm-balance"""
+    return _run_python_script(
+        "balance_buckets.py", argv if argv is not None else sys.argv[1:]
+    )
+
+
 if __name__ == "__main__":
     # Allow ``python -m attacklm.cli`` to show a help message
     print("AttackLM CLI dispatchers. Use the installed console scripts:")
     print("  attacklm-train, attacklm-train-all, attacklm-hpo, attacklm-infer,")
     print("  attacklm-merge, attacklm-gguf, attacklm-demo, attacklm-extract,")
-    print("  attacklm-buckets, attacklm-attribute, attacklm-clone")
+    print("  attacklm-buckets, attacklm-attribute, attacklm-clone, attacklm-balance")
     sys.exit(0)

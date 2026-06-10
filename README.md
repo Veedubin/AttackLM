@@ -241,6 +241,7 @@ All install paths give you these:
 | `attacklm-buckets`       | `setup_buckets.py` + `reorganize_buckets.py` | Organize data into 16 buckets  |
 | `attacklm-attribute`     | `scripts/augment_attribution.py`       | Add source/license to each JSONL row   |
 | `attacklm-clone`         | `scripts/clone_repos.sh`               | Clone upstream data repos              |
+| `attacklm-balance`       | `scripts/balance_buckets.py`           | Build a balanced subset of the buckets |
 
 The CLI dispatchers are thin wrappers — they use `runpy.run_path()` to
 invoke the canonical script in `scripts/`. So `scripts/` stays the
@@ -439,6 +440,73 @@ Multiple specs combine: `--dataset base/ tools/metasploit/` = 10 tactics + just 
 
 Legacy `--include-tools` / `--model-attacks` / `--include-orchestrator` still work
 and translate internally to `--dataset` specs. The new flag wins if both are passed.
+
+### Balanced sampling (`attacklm-balance`)
+
+The 16 buckets are heavily skewed: `tools/metasploit` alone has 8,349
+pairs (49% of the 16,982 total). Training on raw `--dataset all`
+makes the model see ~2 Metasploit examples for every 1 non-Metasploit
+example, which overfits it to msfconsole syntax at the expense of
+broader tactical coverage.
+
+`attacklm-balance` builds a balanced subset of the buckets. It applies
+a per-bucket cap (one cap applied uniformly to all buckets) and
+selects examples from each bucket with a chosen strategy:
+
+```bash
+# Dry-run: see the per-bucket caps + total without writing
+attacklm-balance --profile 7b-128gb --dry-run
+
+# Write a balanced dataset to data/datasets/balanced/
+attacklm-balance --profile 7b-128gb \
+    --output data/datasets/balanced/balanced_7b-128gb.jsonl
+
+# Then train on it
+attacklm-train --dataset data/datasets/balanced/balanced_7b-128gb.jsonl \
+               --output models/attacklm-7b-128gb \
+               --base-model huihui-ai/Qwen2.5-Coder-7B-Instruct-abliterated
+```
+
+**Profiles** (named per-bucket cap values, tuned for common hardware combos):
+
+| Profile    | Per-bucket cap | Total pairs | Notes                                      |
+|------------|---------------:|------------:|--------------------------------------------|
+| `3b-16gb`  |            800 |     ~7,500  | 3B QLoRA on 16 GB card                     |
+| `7b-16gb`  |            800 |     ~7,500  | 7B QLoRA on 16 GB card                     |
+| `7b-128gb` |          1,500 |     ~9,800  | 7B QLoRA on 128 GB rig                     |
+| `14b-128gb`|          1,500 |     ~9,800  | 14B QLoRA on 128 GB rig                    |
+| `31b-128gb`|          2,000 |    ~10,600  | 31B QLoRA on 128 GB rig                    |
+| `full`     |      unlimited |     16,982  | All data, no cap                           |
+| `custom`   |       (you set)|    (you set)| `--per-bucket-cap` or `--target-total`     |
+
+**Strategies** (within a bucket, after the cap is applied):
+
+- `stratified` (default) — group examples by their first MITRE
+  technique ID, source, or first line of assistant content, then
+  allocate **at least 1 per group** so every technique / module gets
+  representation. Falls back to uniform random if there are fewer
+  than 3 groups in the bucket.
+- `random` — uniform random sample of N (seeded by `--seed`).
+- `head` — first N examples in the file (reproducible but biased to
+  whatever order the data is in).
+
+**Custom allocation** — the `custom` profile takes either an explicit
+`--per-bucket-cap` JSON or a `--target-total` with `--category-shares`:
+
+```bash
+# 12K pairs total, weighted 30% tactics / 40% tools / 20% ai / 10% orchestrator
+attacklm-balance --profile custom --target-total 12000 \
+    --category-shares '{"tactic": 0.3, "tools": 0.4, "ai_redteam": 0.2, "meta": 0.1}'
+
+# Just metasploit at 1500 + discovery at 800, everything else uncapped
+attacklm-balance --profile custom \
+    --per-bucket-cap '{"tools/metasploit": 1500, "base/discovery": 800}'
+```
+
+Output JSONLs are written to `data/datasets/balanced/`, are excluded
+from git, and contain a `_source_bucket` field on every example for
+traceability. See `scripts/balance_buckets.py --help` for the full
+flag list and `CHANGELOG.md` for the design rationale.
 
 ### HPO
 
