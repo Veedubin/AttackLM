@@ -98,14 +98,18 @@ attacklm-buckets
 
 # 8. Pick a base model — use an uncensored/abliterated one (see "Pick a base model" below)
 #    Example: Qwen2.5-Coder-3B-Instruct with refusal direction removed
+#    v0.2.0+ uses --dataset (multi-positional) instead of --include-tools etc.
 attacklm-train-all --single-model \
+  --dataset base/ \
   --base-model huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated \
   --epochs 5 --max-length 2048
 
 # Optional: add --hpo for automatic lora_r / lora_dropout sweep
 ```
 
-The trained LoRA adapter lands in `models/attacklm-single/`. See
+The trained LoRA adapter lands in `models/attacklm-single_<TIMESTAMP>/`
+(v0.2.0+ uses timestamped dirs so multiple runs coexist for rollback).
+The merged model goes to `models/merged/attacklm-single/`. See
 [**Inference**](#inference) below for how to use it.
 
 > **Don't want to install?** The `scripts/` directory is the source of truth.
@@ -354,7 +358,9 @@ The other 30 lines of the technique are documented at:
 | Flag | Default | Notes |
 |---|---|---|
 | `--single-model` | (off) | Train one model on all buckets combined |
-| `--base-model` | `Qwen/Qwen2.5-Coder-7B-Instruct` | **Use an abliterated base** (see *Pick a base model* above). E.g. `huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated` for 16 GB cards. |
+| `--base-model` | (auto) | v0.2.0+: defaults to round-2 SFT (latest completed run for this agent), then abliterated Qwen 3B. Pass this to override. |
+| `--dataset` (multi) | none | v0.2.0+: positional list of bucket specs. `base/`, `tools/`, `ai/`, `orchestrator`, subpaths (`tools/metasploit/`), aliases (`all`, `tactics`, `tools-all`). |
+| `--backup` | (on) | Tar.gz the previous round-2 SFT run to `models/.backups/` before training starts. `--no-backup` to skip. |
 | `--epochs` | 10 | Total epochs over the combined dataset |
 | `--max-length` | 1024 | 2048 for richer context; 1024 for 7B on 16GB |
 | `--lora-r` | 16 | LoRA rank; 8 / 16 / 32 are good starting points |
@@ -362,9 +368,9 @@ The other 30 lines of the technique are documented at:
 | `--lora-dropout` | 0.05 | Try 0.0 for less regularization |
 | `--no-packing` | (packing off) | Default is OFF because flash-attn is hard to install |
 | `--packing` | (off) | Enable for ~30% speedup; requires `flash_attn` |
-| `--include-tools` | (off) | Include the 3 tool buckets in the combined dataset |
-| `--include-orchestrator` | (off) | Include the orchestrator routing data |
-| `--model-attacks` | (off) | Include the AI-model attack buckets |
+| `--include-tools` | (off) | **Deprecated in v0.2.0**: use `--dataset tools/` instead |
+| `--include-orchestrator` | (off) | **Deprecated in v0.2.0**: use `--dataset orchestrator` instead |
+| `--model-attacks` | (off) | **Deprecated in v0.2.0**: use `--dataset ai/` instead |
 | `--curriculum` | (off) | 2-stage: tactic data first, then orchestrator fine-tune |
 | `--hpo` | (off) | Run coordinate-descent HPO before final training |
 
@@ -372,6 +378,61 @@ The training script has 13 OOM-safety fixes built in (expandable_segments,
 per_device_eval_batch_size=1, chunked_nll loss, post-eval cache clear,
 paged_adamw_8bit, etc.) — see the `# OOM fix #N:` comments in
 `train_template.py` for the full list.
+
+### Multi-round SFT (v0.2.0+)
+
+Each training run writes a `state.json` sidecar at `models/{agent}_{TIMESTAMP}/state.json`.
+It records the base model, hparams, dataset, progress, and a `completed` flag.
+
+**Round 2 SFT** trains a fresh LoRA on top of a previously completed run:
+
+```bash
+# Round 1: train on tactics (10 buckets, 7,398 pairs)
+attacklm-train-all --single-model --dataset base/ --epochs 5
+
+# Round 2: train on tools ON TOP of the round-1 merged weights
+# (auto-detected from state.json; backup tar of round 1 happens first)
+attacklm-train-all --single-model --dataset tools/ --epochs 3
+
+# Round 3: train on everything
+attacklm-train-all --single-model --dataset all --epochs 2
+```
+
+Each round:
+1. Detects the latest completed run for the agent name
+2. Backups it to `models/.backups/{name}_{timestamp}.tar.gz` (5 GB, ~30 sec)
+3. Loads the merged weights as the new base
+4. Trains a new LoRA on top
+5. Writes a new timestamped run dir with updated `state.json`
+
+**Auto-resume** for crashed/killed runs:
+
+```bash
+# If a run died mid-training, just re-run with the same command.
+# state.json (completed=false) + checkpoint-N/ present → auto-resume.
+attacklm-train-all --single-model --dataset base/ --epochs 5
+```
+
+### `--dataset` DSL
+
+The new dataset spec is dir-shaped and hierarchical:
+
+| Spec                          | Resolves to                                          | Pair count |
+|-------------------------------|------------------------------------------------------|-----------:|
+| `base/`                       | All 10 MITRE tactic buckets                          |      7,398 |
+| `tools/`                      | All 3 tool buckets (metasploit, infection_monkey, rta) |      8,461 |
+| `tools/metasploit/`           | Just metasploit                                       |      8,349 |
+| `tools/infection_monkey/`     | Just infection_monkey                                 |         36 |
+| `tools/rta/`                  | Just RTA                                              |         76 |
+| `ai/`                         | Both AI buckets (jailbreaking, prompt-injection)      |        743 |
+| `orchestrator`                | The orchestrator bucket                               |        380 |
+| `all`                         | Everything (alias for `base + tools + ai + orchestrator`) |     16,982 |
+| `tactics`                     | Alias for `base/`                                     |      7,398 |
+
+Multiple specs combine: `--dataset base/ tools/metasploit/` = 10 tactics + just metasploit = 15,747 pairs.
+
+Legacy `--include-tools` / `--model-attacks` / `--include-orchestrator` still work
+and translate internally to `--dataset` specs. The new flag wins if both are passed.
 
 ### HPO
 
@@ -384,13 +445,17 @@ Results land in `hpo_runs/hpo_state.json`; re-analyze later with
 
 ## Inference
 
-After training, you have a LoRA adapter in `models/attacklm-single/`.
-Three ways to use it:
+After training, you have one or more LoRA adapters in
+`models/attacklm-single_*/` (timestamped). Pick the latest one (most
+recent date) and merge it. Three ways to use it:
 
 ### Option A: Quick smoke test with `infer.py`
 
 ```bash
-attacklm-infer --adapter models/attacklm-single
+# v0.2.0+: list available run dirs and pick the latest
+ls -d models/attacklm-single_*/ | tail -1
+# Then infer against it
+attacklm-infer --adapter models/attacklm-single_2026-06-10_01-12
 ```
 
 This runs 4 example prompts (MITRE tactics, orchestrator routing,
@@ -401,24 +466,26 @@ and generation parameters.
 ### Option B: Merge into the base model (simplest)
 
 ```bash
+# v0.2.0+: --adapter takes a timestamped run dir directly.
+# merge_all auto-picks the latest run for an agent if you omit --adapter.
 attacklm-merge \
   --base-model huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated \
-  --adapter models/attacklm-single \
-  --output models/merged/attacklm
+  --adapter models/attacklm-single_2026-06-10_01-12 \
+  --output models/merged/attacklm-single
 ```
 
-Then load with `transformers.AutoModelForCausalLM.from_pretrained("models/attacklm-merged")`.
+Then load with `transformers.AutoModelForCausalLM.from_pretrained("models/merged/attacklm-single")`.
 
 ### Option C: Convert to GGUF for Ollama / LM Studio / llama.cpp
 
 ```bash
-# Requires llama.cpp checked out and built
+# v0.2.0+: --input is the merged model dir (not the adapter)
 attacklm-gguf \
-  --model models/attacklm-merged \
-  --output models/attacklm.gguf
+  --input models/merged/attacklm-single \
+  --install-lmstudio
 
 # Register with Ollama
-uv run python scripts/register_ollama.py models/attacklm.gguf
+uv run python scripts/register_ollama.py models/gguf/attacklm-single.Q4_K_M.gguf
 ```
 
 ### Option D: Load the adapter directly (smallest disk footprint)
@@ -490,6 +557,20 @@ CyberArk components is preserved in [**`/NOTICE`**](NOTICE).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on opening issues,
 submitting PRs, and extending the bucket/extractor system.
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the full version history. Notable
+recent releases:
+
+- **v0.2.0** (2026-06-10) — Multi-round SFT, `state.json` provenance,
+  `--dataset` DSL, `--backup`/`--no-backup`, LoRA adapter detection
+  in GGUF conversion. **Major version bump.**
+- v0.1.5 (2026-06-10) — LM Studio path fix, kernels pin, path resolver
+- v0.1.4 (2026-06-10) — Merge + GGUF pipeline
+- v0.1.0 (2026-06-10) — Initial public release
 
 ---
 
