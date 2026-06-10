@@ -81,6 +81,34 @@ def _find_merged_models(merged_dir: Path) -> list[Path]:
     )
 
 
+def _is_lora_adapter(model_dir: Path) -> bool:
+    """Detect a LoRA adapter directory (vs a merged model).
+
+    A merged model has `config.json` whose `model_type` is a known HF architecture
+    (qwen2, llama, mistral, etc.) plus a full set of `*.safetensors` weights.
+
+    A LoRA adapter has `adapter_config.json` with `"peft_type": "LORA"` and only
+    a small `adapter_model.safetensors` (typically 30-100 MB for r=16-64).
+
+    The trap we hit in v0.1.5: an adapter dir ALSO has a `config.json` (left
+    over from a previous training run), so the old "needs config.json" guard
+    let it through and llama.cpp's converter then crashed on the wrong
+    architecture. This check is explicit: if adapter_config.json says
+    PEFT_TYPE_LORA, refuse with a pointer to attacklm-merge.
+    """
+    ac = model_dir / "adapter_config.json"
+    if not ac.exists():
+        return False
+    try:
+        import json as _json
+
+        with open(ac) as f:
+            cfg = _json.load(f)
+        return cfg.get("peft_type", "").upper() == "LORA"
+    except Exception:
+        return False
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Convert merged models to Q4_K_M GGUF")
     parser.add_argument(
@@ -119,9 +147,40 @@ def main() -> None:
     # Find merged models
     if args.input:
         input_path = Path(args.input)
-        if not input_path.is_dir() or not (input_path / "config.json").exists():
+        if not input_path.is_dir():
+            print(f"\nERROR: {args.input} is not a directory")
+            sys.exit(1)
+        # Reject LoRA adapter directories explicitly. This was the silent
+        # footgun in v0.1.5: an adapter dir has a `config.json` left over
+        # from a previous run, so the old "needs config.json" guard passed
+        # it through and llama.cpp's converter then crashed on the wrong
+        # architecture with `Failed to detect model architecture`. Detect
+        # PEFT adapters early and point users at attacklm-merge.
+        if _is_lora_adapter(input_path):
+            print(
+                f"\nERROR: {args.input} looks like a LoRA adapter, not a merged model."
+            )
+            print(
+                f"  Has:   adapter_config.json (peft_type=LORA) + adapter_model.safetensors"
+            )
+            print(
+                f"  Need:  a directory with config.json + *.safetensors (full merged weights)"
+            )
+            print(f"\nFix: merge the adapter into the base first, then convert.")
+            print(f"  attacklm-merge --adapter {args.input} \\")
+            print(f"                  --base ./uncensored \\")
+            print(f"                  --output models/merged/{input_path.name}")
+            print(
+                f"  attacklm-gguf --input models/merged/{input_path.name}"
+                + (" --install-lmstudio" if args.install_lmstudio else "")
+            )
+            sys.exit(1)
+        if not (input_path / "config.json").exists() or not any(
+            input_path.glob("*.safetensors")
+        ):
             print(f"\nERROR: {args.input} is not a valid merged model directory")
             print("Expected a directory containing config.json and *.safetensors")
+            print("If this is a LoRA adapter, run `attacklm-merge` first (see above).")
             sys.exit(1)
         models = [input_path]
     else:
@@ -138,12 +197,14 @@ def main() -> None:
 
     print(f"\nConverting {len(models)} models to Q4_K_M GGUF:\n")
 
+    converted_now: list[Path] = []  # only GGUFs produced THIS run
+
     for model_dir in models:
         name = model_dir.name
         final_path = GGUF_DIR / f"{name}.Q4_K_M.gguf"
 
         if final_path.exists():
-            print(f"  ⏭  {name} — already exists")
+            print(f"  ⏭  {name} — already exists at {final_path.name}")
             continue
 
         fp16_path = GGUF_DIR / f"{name}.FP16.gguf"
@@ -166,7 +227,14 @@ def main() -> None:
             )
             if result.returncode != 0:
                 print("❌")
-                print(f"     {result.stderr.strip()[-300:]}")
+                # Combine stdout + stderr; some llama.cpp versions dump the
+                # real error to stdout. Show last 800 chars of both.
+                combined = (result.stderr or "") + (result.stdout or "")
+                tail = combined.strip()[-800:] if combined.strip() else "(no output)"
+                print(f"     {tail}")
+                print(
+                    f"\n     Full log: {fp16_path}.failed.log" if False else ""
+                )  # placeholder, no extra file
                 continue
             print(f"✅ {fp16_path.stat().st_size / 1e9:.2f}GB")
 
@@ -179,10 +247,17 @@ def main() -> None:
         )
         if result.returncode != 0:
             print("❌")
-            print(f"     {result.stderr.strip()[-300:]}")
+            # Same: combine streams, show more
+            combined = (result.stderr or "") + (result.stdout or "")
+            tail = combined.strip()[-800:] if combined.strip() else "(no output)"
+            print(f"     {tail}")
+            # Clean up the FP16 we just made — it's useless without quant
+            if fp16_path.exists() and not args.keep_fp16:
+                fp16_path.unlink()
             continue
 
         print(f"✅ {final_path.stat().st_size / 1e9:.2f}GB")
+        converted_now.append(final_path)
 
         # Clean up FP16 intermediate
         if not args.keep_fp16 and fp16_path.exists():
@@ -190,25 +265,39 @@ def main() -> None:
 
     # Install to LM Studio (opt-in).
     # LM Studio scans ~/.lmstudio/models/local/ (NOT ~/.lmstudio/local/models/).
+    #
+    # v0.1.5 bug: this block ran even on conversion failure, globbing
+    # *every* .gguf in GGUF_DIR (including stale ones from previous runs)
+    # and copying them to LM Studio — masquerading a failed run as success.
+    # v0.1.6 fix: only install GGUFs that were produced OR already-skipped
+    # *in this invocation*. A run that crashed on FP16 conversion now
+    # correctly produces a "no new GGUFs to install" message instead of
+    # silently re-deploying yesterday's stale build.
     if args.install_lmstudio:
-        lmstudio_dir = Path.home() / ".lmstudio" / "models" / "local"
-        for gguf in sorted(GGUF_DIR.glob("*.gguf")):
-            # LM Studio expects: ~/.lmstudio/models/local/{name}/{name}-{quant}.gguf
-            # Strip the .Q4_K_M / .FP16 suffix to get the agent_name
-            agent_name = gguf.stem
-            for suffix in (".Q4_K_M", ".Q8_0", ".F16", ".FP16"):
-                if agent_name.endswith(suffix):
-                    agent_name = agent_name[: -len(suffix)]
-                    break
-            agent_dir = lmstudio_dir / agent_name
-            agent_dir.mkdir(parents=True, exist_ok=True)
-            dest = agent_dir / gguf.name
-            if not dest.exists():
+        if not converted_now:
+            print(
+                "\n⚠️  No new GGUFs were produced this run — skipping LM Studio install."
+            )
+            print("   (This usually means conversion failed. See error above.)")
+        else:
+            lmstudio_dir = Path.home() / ".lmstudio" / "models" / "local"
+            for gguf in converted_now:
+                # LM Studio expects: ~/.lmstudio/models/local/{name}/{name}-{quant}.gguf
+                agent_name = gguf.stem
+                for suffix in (".Q4_K_M", ".Q8_0", ".F16", ".FP16"):
+                    if agent_name.endswith(suffix):
+                        agent_name = agent_name[: -len(suffix)]
+                        break
+                agent_dir = lmstudio_dir / agent_name
+                agent_dir.mkdir(parents=True, exist_ok=True)
+                dest = agent_dir / gguf.name
                 shutil.copy2(gguf, dest)
-                print(f"   ➜ ~/.lmstudio/models/local/{agent_name}/")
+                print(f"   ➜ ~/.lmstudio/models/local/{agent_name}/{gguf.name}")
 
-        print(f"\n✅ Installed to ~/.lmstudio/models/local/")
-        print("   Restart LM Studio (or click 'Refresh') to pick up the new model.")
+            print(
+                f"\n✅ Installed {len(converted_now)} GGUF(s) to ~/.lmstudio/models/local/"
+            )
+            print("   Restart LM Studio (or click 'Refresh') to pick up the new model.")
     else:
         # Print hint about manual install
         agent_name_for_hint = "attacklm"
