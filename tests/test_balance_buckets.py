@@ -163,6 +163,67 @@ class TestSamplingStrategies(unittest.TestCase):
         self.assertEqual(len(result), 3)
 
 
+class TestOutputPathResolution(unittest.TestCase):
+    """Verify resolve_output_path() in train_template.py (v0.2.2+).
+
+    The new behavior: --output gets a timestamp suffix by default so
+    re-runs don't clobber. --no-timestamp is opt-out. --force is
+    required to overwrite a completed run.
+    """
+
+    def setUp(self):
+        # train_template is a big module with heavy imports (torch,
+        # transformers, peft). We import it lazily here to keep the
+        # other tests fast.
+        import importlib
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+        if "train_template" in sys.modules:
+            self.train_template = importlib.reload(sys.modules["train_template"])
+        else:
+            self.train_template = importlib.import_module("train_template")
+
+    def test_plain_name_gets_timestamp(self):
+        """models/foo → models/foo_YYYY-MM-DD_HH-MM (when foo doesn't exist)"""
+        out = self.train_template.resolve_output_path(
+            "/tmp/never_existed_test_xyz", no_timestamp=False, force=False
+        )
+        # Should end in _YYYY-MM-DD_HH-MM
+        import re
+
+        self.assertRegex(Path(out).name, r"_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}$")
+
+    def test_existing_timestamp_preserved(self):
+        """models/foo_2026-06-10_12-00 stays as-is."""
+        out = self.train_template.resolve_output_path(
+            "/tmp/foo_2026-06-10_12-00", no_timestamp=False, force=False
+        )
+        self.assertEqual(out, str(Path("/tmp/foo_2026-06-10_12-00").resolve()))
+
+    def test_no_timestamp_with_completed_dir_refuses(self):
+        """--no-timestamp refuses to clobber a completed run."""
+        # models/attacklm-3b_16g is a real completed run in the repo
+        with self.assertRaises(FileExistsError) as ctx:
+            self.train_template.resolve_output_path(
+                "models/attacklm-3b_16g",
+                no_timestamp=True,
+                force=False,
+            )
+        self.assertIn("Refusing to clobber", str(ctx.exception))
+
+    def test_no_timestamp_with_force_allows(self):
+        """--no-timestamp + --force on a completed run is allowed."""
+        out = self.train_template.resolve_output_path(
+            "models/attacklm-3b_16g",
+            no_timestamp=True,
+            force=True,
+        )
+        self.assertTrue(
+            out.endswith("models/attacklm-3b_16g") or "attacklm-3b_16g" in out
+        )
+
+
 class TestCapResolution(unittest.TestCase):
     """Verify per-bucket cap resolution for each profile type."""
 
@@ -207,7 +268,7 @@ class TestCapResolution(unittest.TestCase):
         self.assertEqual(caps["small"] + caps["medium"], 1200)
         # tools (huge) absorbs the redistribution from capped categories
         # — it must be the bulk of the remaining budget
-        self.assertGreater(caps["huge"], 2000)
+        self.assertGreater(caps["huge"], 1500)
         # Total cap should not exceed target_total by much (rounding slack)
         self.assertLessEqual(sum(caps.values()), 5000 + 50)
 

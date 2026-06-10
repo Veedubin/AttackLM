@@ -211,6 +211,7 @@ attacklm-buckets = "attacklm.cli:main_buckets"
 attacklm-attribute = "attacklm.cli:main_attribute"
 attacklm-clone = "attacklm.cli:main_clone"
 attacklm-balance = "attacklm.cli:main_balance"
+attacklm-build = "attacklm.cli:main_build"
 
 # ── Hatch build configuration ─────────────────────────────────────────────────
 

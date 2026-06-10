@@ -6,19 +6,36 @@ draw from each bucket so that no single bucket dominates training.
 
 Why this exists
 ---------------
-The 16-bucket layout is heavily skewed: ``tools/metasploit`` alone has
-8,349 pairs (49% of the 16,982 total), while ``ai/jailbreaking`` has
-56 (0.3%). If you train on ``--dataset all`` straight, the model sees
-~2 Metasploit examples for every 1 non-Metasploit example. For a 3B
-model on a 16GB card that's a 8K-example step budget being burned
-mostly on Metasploit syntax.
+The bucket layout is heavily skewed: ``tools/metasploit`` alone can
+dominate the dataset, while niche categories like ``ics/`` or
+``wireless/`` may have only a handful of examples. If you train on
+``--dataset all`` straight, the model overfits to the largest source.
+For a 3B model on a 16GB card that's a limited step budget being burned
+mostly on a single category.
 
-For a 128GB rig, you have room to train on the full 16,982 — but the
+For larger rigs, you have room to train on more data — but the
 balance is still off. This sampler applies per-bucket caps that
 shrink the largest buckets down toward a target distribution, while
 keeping the small buckets at their full size (no upsampling — the
 small buckets are the natural ceiling because we only have that
 many real examples to teach from).
+
+Categories (12)
+---------------
+AttackLM uses 12 attack-vector categories for balanced sampling:
+
+    tactic              MITRE tactic buckets (recon, initial access, etc.)
+    tools               External red-team tools (Metasploit, IM, RTA)
+    web_app             Web application attacks (SQLi, XSS, CSRF, IDOR, SSRF)
+    identity            Identity & access management (cred stuff, MFA bypass)
+    cloud               Cloud & container security (AWS/GCP/Azure, K8s)
+    social_engineering  Social engineering & OSINT (phishing, vishing)
+    supply_chain        Supply chain attacks (dep confusion, typosquatting)
+    wireless            Wireless/RF attacks (WPA, deauth, rogue AP)
+    ics                 ICS/SCADA & OT (Modbus, PLC exploitation)
+    physical            Physical security (tailgating, badge cloning)
+    ai_specific         AI-specific security (prompt injection, jailbreaks)
+    meta                Orchestrator / meta-level instruction pairs
 
 Profiles
 --------
@@ -26,12 +43,15 @@ A profile is a named bundle of (per-bucket cap, min-per-bucket).
 The defaults below are derived from the bucket size distribution as
 of 2026-06-10:
 
-    3b-16gb    3B QLoRA on 16GB card. Total ~7-9K pairs, ~2-3 hr train.
-    7b-16gb    7B QLoRA on 16GB card. Total ~7-9K pairs, ~3-4 hr train.
-    7b-128gb   7B QLoRA on 128GB rig. Total ~10-12K pairs, ~4-6 hr.
-    14b-128gb  14B QLoRA on 128GB rig. Total ~10-12K pairs, ~5-7 hr.
-    31b-128gb  31B QLoRA on 128GB rig. Total ~12-15K pairs, ~6-8 hr.
-    full       No cap, use all 16,982 pairs. ~12-16 hr on 128GB rig.
+    3b-16gb            3B QLoRA on 16GB card. ~7-9K pairs, ~2-3 hr.
+    7b-16gb            7B QLoRA on 16GB card. ~7-9K pairs, ~3-4 hr.
+    7b-128gb           7B QLoRA on 128GB rig. ~10-12K pairs, ~4-6 hr.
+    14b-128gb          14B QLoRA on 128GB rig. ~10-12K pairs, ~5-7 hr.
+    31b-128gb          31B QLoRA on 128GB rig. ~12-15K pairs, ~6-8 hr.
+    3b-16gb-balanced   3B balanced across 12 categories. ~10K pairs.
+    7b-32gb-balanced   7B balanced across 12 categories. ~15K pairs.
+    7b-128gb-balanced  7B balanced across 12 categories. ~25K pairs.
+    full               No cap, use all pairs. ~12-16 hr on 128GB rig.
 
 These are sensible defaults; tune with --per-bucket-cap or
 --target-total for your own use case.
@@ -116,13 +136,14 @@ from bucket_loader import (
 # arbitrary; if you want per-bucket tuning, use --per-bucket-cap.
 #
 # Cap reasoning:
-#   - The smallest non-trivial buckets (infection_monkey=36,
-#     jailbreaking=56, rta=76, command_and_control=105) sit well
-#     below 800, so a 800 cap on a 16GB card doesn't affect them.
+#   - The smallest non-trivial buckets (wireless, physical, ics) sit
+#     well below 800, so a 800 cap on a 16GB card doesn't affect them.
 #   - The largest bucket (metasploit=8349) gets cut by 90%+ on the
 #     small profiles, which is the whole point.
 #   - 128GB rigs benefit from slightly higher caps because the
 #     larger models have more capacity to learn from the data.
+#   - Balanced profiles (3b-16gb-balanced, etc.) use lower caps per
+#     bucket but draw from all 12 categories for broader coverage.
 # ---------------------------------------------------------------------------
 
 PROFILES: dict[str, dict] = {
@@ -151,10 +172,34 @@ PROFILES: dict[str, dict] = {
         "min_per_bucket": 100,
         "description": "31B QLoRA on 128GB rig. ~12-15K total pairs, 6-8 hr.",
     },
+    "3b-16gb-balanced": {
+        "per_bucket_cap": 600,
+        "min_per_bucket": 50,
+        "description": (
+            "3B balanced across 12 categories. ~10K total pairs, "
+            "uses --target-total with category-balanced shares."
+        ),
+    },
+    "7b-32gb-balanced": {
+        "per_bucket_cap": 1000,
+        "min_per_bucket": 75,
+        "description": (
+            "7B balanced across 12 categories. ~15K total pairs, "
+            "uses --target-total with category-balanced shares."
+        ),
+    },
+    "7b-128gb-balanced": {
+        "per_bucket_cap": 2000,
+        "min_per_bucket": 100,
+        "description": (
+            "7B balanced across 12 categories on 128GB rig. ~25K total pairs, "
+            "uses --target-total with category-balanced shares."
+        ),
+    },
     "full": {
         "per_bucket_cap": 1_000_000,  # effectively unlimited
         "min_per_bucket": 0,
-        "description": "No cap. Use all 16,982 pairs. ~12-16 hr on 128GB rig.",
+        "description": "No cap. Use all available pairs. ~12-16 hr on 128GB rig.",
     },
     "custom": {
         # --per-bucket-cap or --target-total required
@@ -384,10 +429,9 @@ def _resolve_caps(
 def _caps_for_target_total(target_total: int, buckets: list[dict]) -> dict[str, int]:
     """Distribute a target total across buckets, **balanced by category**.
 
-    Strategy: first assign each of the 4 parent categories (base/,
-    tools/, ai/, orchestrator) a target share of the total, then
-    distribute that share across the buckets within each category,
-    capped at each bucket's own size.
+    Strategy: first assign each of the 12 parent categories a target
+    share of the total, then distribute that share across the buckets
+    within each category, capped at each bucket's own size.
 
     Why category-balanced, not size-balanced?
         A naive "proportional to log(size)" allocation still gives
@@ -397,10 +441,19 @@ def _caps_for_target_total(target_total: int, buckets: list[dict]) -> dict[str, 
         doesn't overfit to one data source."
 
     Target category shares (configurable via --category-shares):
-        base/         : 50%  (largest category, 10 buckets, 7,398 pairs)
-        tools/        : 25%  (3 buckets, 8,461 pairs — 1 bucket dominates)
-        ai/           : 15%  (2 buckets, 743 pairs)
-        orchestrator/ : 10%  (1 bucket, 380 pairs)
+        tactic              : 15%  (reduced from 50% — most tactic data
+                                  is metasploit-heavy)
+        tools               : 10%  (reduced from 25%)
+        web_app             : 15%  (SQLi, XSS, CSRF, IDOR, SSRF, cmd inj)
+        identity            : 10%  (cred stuffing, MFA bypass, Kerberoasting)
+        cloud               : 10%  (AWS/GCP/Azure, K8s escapes, IAM privesc)
+        social_engineering  :  8%  (phishing, vishing, pretexting)
+        supply_chain        :  6%  (dep confusion, typosquatting, CI/CD)
+        wireless            :  4%  (WPA attacks, deauth, rogue AP)
+        physical            :  4%  (tailgating, badge cloning, USB drops)
+        ics                 :  5%  (Modbus, PLC exploitation, industrial ransomware)
+        ai_specific         :  8%  (prompt injection, jailbreaks, model extraction)
+        meta                :  5%  (orchestrator / meta-level instruction pairs)
 
     Within a category, share is distributed by log(1 + size) so
     larger buckets get more (but not proportionally so). Tiny
@@ -413,13 +466,22 @@ def _caps_for_target_total(target_total: int, buckets: list[dict]) -> dict[str, 
     Returns:
         {bucket_path: cap} dict
     """
-    # Default category targets (sums to 1.0). Tuned by hand based on
-    # the current bucket distribution. Override via --category-shares.
+    # Default category targets (sums to 1.00). Tuned by hand based on
+    # the expanded 12-category bucket distribution. Override via
+    # --category-shares.
     default_shares = {
-        "tactic": 0.50,
-        "tools": 0.25,
-        "ai_redteam": 0.15,
-        "meta": 0.10,
+        "tactic": 0.15,
+        "tools": 0.10,
+        "web_app": 0.15,
+        "identity": 0.10,
+        "cloud": 0.10,
+        "social_engineering": 0.08,
+        "supply_chain": 0.06,
+        "wireless": 0.04,
+        "physical": 0.04,
+        "ics": 0.05,
+        "ai_specific": 0.08,
+        "meta": 0.05,
     }
 
     # If a custom profile was selected, the user may have passed
@@ -752,7 +814,10 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help=(
             "JSON string overriding default category target shares. "
-            'Example: \'{"tactic": 0.4, "tools": 0.3, "ai_redteam": 0.2, "meta": 0.1}\'. '
+            'Example: \'{"tactic": 0.15, "tools": 0.10, "web_app": 0.15, '
+            '"identity": 0.10, "cloud": 0.10, "social_engineering": 0.08, '
+            '"supply_chain": 0.06, "wireless": 0.04, "physical": 0.04, '
+            '"ics": 0.05, "ai_specific": 0.08, "meta": 0.05}\'. '
             "Shares must sum to 1.0. Only used with --profile custom "
             "+ --target-total."
         ),

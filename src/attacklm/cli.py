@@ -148,10 +148,16 @@ def main_balance(argv: Sequence[str] | None = None) -> int:
     )
 
 
+def main_build(argv: Sequence[str] | None = None) -> int:
+    """One-shot: merge LoRA → GGUF → install: attacklm-build"""
+    return _run_python_script("build.py", argv if argv is not None else sys.argv[1:])
+
+
 if __name__ == "__main__":
     # Allow ``python -m attacklm.cli`` to show a help message
     print("AttackLM CLI dispatchers. Use the installed console scripts:")
     print("  attacklm-train, attacklm-train-all, attacklm-hpo, attacklm-infer,")
     print("  attacklm-merge, attacklm-gguf, attacklm-demo, attacklm-extract,")
-    print("  attacklm-buckets, attacklm-attribute, attacklm-clone, attacklm-balance")
+    print("  attacklm-buckets, attacklm-attribute, attacklm-clone, attacklm-balance,")
+    print("  attacklm-build")
     sys.exit(0)
