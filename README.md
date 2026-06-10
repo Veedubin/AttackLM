@@ -1,7 +1,7 @@
 # AttackLM
 
 > A QLoRA fine-tuning pipeline for a MITRE ATT&CK-grounded red-team AI assistant.
-> 16,982 training pairs · 3B / 7B Qwen base · coordinate-descent HPO · 16GB VRAM-friendly.
+> 16,982 training pairs · 3B–70B Qwen base · 16GB–128GB VRAM.
 
 [![License: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
 [![Training data: mixed](https://img.shields.io/badge/data-mixed%20%28see%20ATTRIBUTION%29-orange.svg)](ATTRIBUTION.md)
@@ -25,11 +25,10 @@ QLoRA LoRA adapter you can drop on top of `Qwen2.5-Coder-3B-Instruct`.
 What makes it different:
 - **No LLM in the data pipeline.** Every training pair is deterministically
   extracted from upstream sources — no hallucinated content, no API costs.
-- **Coordinate-descent HPO** built in. Run `--hpo` and the pipeline sweeps
-  `lora_r` and `lora_dropout`, escalates each axis until metrics degrade,
-  backs off, and trains a final model with the winners.
-- **16GB VRAM friendly.** 3B QLoRA + `--max-length 2048` fits a 4080 SUPER
-  comfortably. 7B works with `--max-length 1024`.
+- **Coordinate-descent HPO** built in. Sweeps `lora_r` (8→512) and
+  `lora_dropout` (0→0.5) and picks the winner before final training.
+- **16GB → 128GB VRAM friendly.** 3B QLoRA at `--max-length 2048` fits
+  a 4080 SUPER. 70B+ on a 128GB card with packing.
 
 ---
 
@@ -97,10 +96,12 @@ attacklm-attribute
 # 7. Organize into 16 MITRE/AI/tools buckets
 attacklm-buckets
 
-# 8. Train! (3B QLoRA, fits 16GB VRAM)
+# 8. Train! (3B QLoRA fits 16GB; 70B+ works on 128GB)
 attacklm-train-all --single-model \
   --base-model unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit \
   --epochs 5 --max-length 2048
+
+# Optional: add --hpo for automatic lora_r / lora_dropout sweep
 ```
 
 The trained LoRA adapter lands in `models/attacklm-single/`. See
@@ -237,22 +238,12 @@ per_device_eval_batch_size=1, chunked_nll loss, post-eval cache clear,
 paged_adamw_8bit, etc.) — see the `# OOM fix #N:` comments in
 `train_template.py` for the full list.
 
-### HPO (Hyperparameter Optimization)
+### HPO
 
-```bash
-attacklm-train-all --hpo --single-model \
-  --base-model unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit \
-  --epochs 5 --max-length 2048
-```
-
-This runs an 8-trial coordinate-descent sweep (4 values × 2 axes —
-`lora_r` and `lora_dropout`), escalates each axis until metrics degrade,
-then runs a final training with the winners. Results land in
-`hpo_runs/hpo_state.json` and can be re-run later with
+Add `--hpo` to the training command. The sweep explores `lora_r` (8→512)
+and `lora_dropout` (0→0.5) and runs a final training with the winners.
+Results land in `hpo_runs/hpo_state.json`; re-analyze later with
 `attacklm-hpo --analyze-only`.
-
-Tuning knobs: `--hpo-trials-per-axis` (default 4), `--hpo-trial-steps`
-(default 200), `--hpo-dataset` (default: capped 5,000-pair slice).
 
 ---
 

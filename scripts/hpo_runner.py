@@ -22,9 +22,9 @@ Coordinate descent is NOT optimal, but it's:
 
 For a 3B QLoRA on RTX 4080, with --hpo-trial-steps=100:
   - Each trial = ~2-3 min
-  - 4 axes × 4 trials/axis = 16 trials × 2.5 min = ~40 min for the sweep
+  - 2 axes × ~7 trials/axis (max) = ~14 trials × 2.5 min = ~35 min for the sweep
   - Plus 1 full training at the end with winners
-  - Total: roughly 1 hour to do a 4-axis sweep + final train
+  - Total: roughly 1 hour to do a 2-axis sweep + final train
 
 Invoke via train_all.py:
     uv run python scripts/train_all.py --hpo --single-model \\
@@ -76,6 +76,9 @@ class HPAxis:
     escalation_factor: float = 2.0
     is_int: bool = True
     trial_budget_override: Optional[int] = None
+    initial_step: Optional[float] = (
+        None  # step from 0.0 (e.g. 8 for lora_r, 0.05 for dropout)
+    )
 
     def clip(self, v: float) -> float:
         """Cap v at max_value. Used by the dry-run printer to bound the
@@ -85,35 +88,40 @@ class HPAxis:
 
     def next_value(self, prev: float) -> float:
         # Handle the zero case: if prev is 0 and factor is 2.0,
-        # we need a non-zero "next step" to escape zero. For dropout
-        # (default_low=0.0), we add a constant increment of 0.05.
-        if prev == 0.0:
-            return 0.05  # first non-zero step
+        # we need a non-zero "next step" to escape zero. For axes
+        # that start at default_low=0 (like dropout), the first
+        # non-zero step needs a constant, not a multiplication.
+        if prev == 0.0 or (prev == self.default_low and self.default_low == 0.0):
+            step = self.initial_step if self.initial_step is not None else 0.05
+            return step
         nxt = prev * self.escalation_factor
         # Cap at max_value so the loop knows when to stop without
         # needing an explicit `if v > max: break` check.
         return min(nxt, self.max_value)
 
 
-# Priority-ordered axes. Lower index = swept first.
-# Note: lora_alpha is tied to lora_r (alpha = 2×r) so we don't sweep it
-# separately — changing r automatically scales alpha.
+# HPO search-space ceilings are tuned for high-VRAM cards (>=48GB).
+# Lower-VRAM cards should pass --lora-r 32 --lora-dropout 0.1 explicitly
+# to skip the larger trials. The sweep escalates each axis by 2x until
+# metrics degrade, then backs off to the winner before final training.
+# Total budget at defaults: ~7 trials × 200 steps + final train.
 HPO_AXES = [
     HPAxis(
         name="lora_r",
         arg_dest="lora_r",
         default_low=8,
-        max_value=64,
-        escalation_factor=2.0,
+        max_value=512,  # was 64; 128GB VRAM can do r=512 on 70B
+        escalation_factor=2.0,  # 8, 16, 32, 64, 128, 256, 512 → 7 trials
         is_int=True,
     ),
     HPAxis(
         name="lora_dropout",
         arg_dest="lora_dropout",
         default_low=0.0,
-        max_value=0.3,
-        escalation_factor=2.0,  # 0.0, 0.05, 0.1, 0.2, 0.3 (clipped)
+        max_value=0.5,  # was 0.3; regularization matters at 70B scale
+        escalation_factor=2.0,  # 0.0, 0.05, 0.1, 0.2, 0.4, 0.5 → 6 trials
         is_int=False,
+        initial_step=0.05,  # explicit first step from zero
     ),
     # lora_alpha is intentionally NOT swept by default. Convention is
     # alpha = 2*r, and sweeping it independently mostly just rescales
