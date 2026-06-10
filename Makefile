@@ -2,9 +2,13 @@
 # ==================
 # Convenience targets for the most common workflows. Each target
 # documents itself when you run `make help` or `make <target>`.
+#
+# Requires: `uv pip install -e ".[all]"` (or `make install`)
+# All commands can also be run as `uv run python scripts/...` if you
+# prefer not to install the package.
 
 .PHONY: help install clone extract buckets train hpo merge demo clean \
-        audit test all
+        audit test all build publish
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -46,32 +50,26 @@ help:  ## Show this help message
 # Setup
 # ---------------------------------------------------------------------------
 
-install:  ## Install Python dependencies (uv sync)
-	uv sync
+install:  ## Install as editable package with all optional deps (uv pip install -e ".[all]")
+	uv pip install -e ".[all]"
 
 clone:  ## Clone upstream data source repos (~1.5GB)
-	uv run python scripts/clone_repos.sh
+	attacklm-clone
 
 # ---------------------------------------------------------------------------
 # Data pipeline
 # ---------------------------------------------------------------------------
 
 extract:  ## Run all data extractors
-	uv run python scripts/extract_atomic_red_team_to_jsonl.py
-	uv run python scripts/extract_caldera_plugins_to_jsonl.py
-	uv run python scripts/parse_metasploit_to_jsonl.py
-	uv run python scripts/extract_rta_to_jsonl.py
-	uv run python scripts/extract_infection_monkey_to_jsonl.py
-	uv run python scripts/extract_ai_tools_to_jsonl.py
+	attacklm-extract
 	@echo ""
 	@echo "  All extractors complete. Next: make buckets"
 
 attribution:  ## Add per-pair source/license attribution to JSONLs
-	uv run python scripts/augment_attribution.py
+	attacklm-attribute
 
 buckets:  ## Organize extracted data into 16 MITRE/AI/tools buckets
-	uv run python scripts/setup_buckets.py
-	uv run python scripts/reorganize_buckets.py
+	attacklm-buckets
 
 data: clone extract attribution buckets  ## Full data pipeline: clone → extract → attribute → bucket
 
@@ -80,7 +78,7 @@ data: clone extract attribution buckets  ## Full data pipeline: clone → extrac
 # ---------------------------------------------------------------------------
 
 train:  ## Train single model on combined dataset
-	uv run python scripts/train_all.py --single-model \
+	attacklm-train-all --single-model \
 	  --base-model $(MODEL) \
 	  --epochs $(EPOCHS) --max-length $(MAX_LENGTH) \
 	  --batch-size $(BATCH_SIZE) \
@@ -89,29 +87,39 @@ train:  ## Train single model on combined dataset
 	  --output-name $$(basename $(OUTPUT_DIR))
 
 train-multi:  ## Train one model per bucket (multi-model MoE mode)
-	uv run python scripts/train_all.py \
+	attacklm-train-all \
 	  --base-model $(MODEL) \
 	  --epochs $(EPOCHS) --max-length $(MAX_LENGTH) \
 	  --batch-size $(BATCH_SIZE) \
 	  --lora-r $(LORA_R) --lora-alpha $(LORA_ALPHA) --lora-dropout $(LORA_DROPOUT)
 
 hpo:  ## Run coordinate-descent HPO + final training
-	uv run python scripts/train_all.py --hpo --single-model \
+	attacklm-train-all --hpo --single-model \
 	  --base-model $(MODEL) \
 	  --epochs $(EPOCHS) --max-length $(MAX_LENGTH) \
 	  --hpo-output-dir $(HPO_DIR)
 
 hpo-analyze:  ## Show results from a prior HPO run
-	uv run python scripts/hpo_runner.py --hpo-dir $(HPO_DIR) --analyze-only
+	attacklm-hpo --hpo-dir $(HPO_DIR) --analyze-only
 
 merge:  ## Merge LoRA adapter into base model for deployment
-	uv run python scripts/merge_adapter.py \
+	attacklm-merge \
 	  --base-model $(MODEL) \
 	  --adapter $(OUTPUT_DIR) \
 	  --output $$(echo $(OUTPUT_DIR) | sed 's/-single/-merged/')
 
 demo:  ## Run inference demo with the trained adapter
-	uv run python scripts/demo.py --adapter $(OUTPUT_DIR)
+	attacklm-demo --adapter $(OUTPUT_DIR)
+
+# ---------------------------------------------------------------------------
+# Packaging
+# ---------------------------------------------------------------------------
+
+build:  ## Build sdist + wheel into dist/
+	uv run python -m build --sdist --wheel --outdir dist/
+
+publish: build  ## Upload to PyPI (set TWINE_USERNAME/PASSWORD or use 'uv publish')
+	uv publish dist/*
 
 # ---------------------------------------------------------------------------
 # Maintenance

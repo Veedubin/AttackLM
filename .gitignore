@@ -25,6 +25,11 @@ wheels/
 .installed.cfg
 *.egg
 
+# src/attacklm package — keep tracked, ignore build artifacts only
+!src/attacklm/__init__.py
+!src/attacklm/__version__.py
+!src/attacklm/cli.py
+
 # ----- Virtual environments -----
 .venv/
 venv/

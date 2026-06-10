@@ -72,38 +72,115 @@ See [ATTRIBUTION.md §8](ATTRIBUTION.md) for the full analysis.
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 2. Clone this repo
-git clone https://github.com/YOUR_ORG/AttackLM.git
+git clone https://github.com/Veedubin/AttackLM.git
 cd AttackLM
 
-# 3. Install dependencies (PyTorch + HuggingFace stack)
-uv sync
+# 3a. Install as a Python package (gets you 11 `attacklm-*` commands)
+#    — use `[all]` to get every optional dependency
+uv pip install -e ".[all]"
 
-# 4. Clone upstream data sources (~1.5GB total)
-uv run python scripts/clone_repos.sh
+#    Or, if you just want the bare CLI dispatchers (no ML stack):
+# uv pip install -e .
+
+# 3b. Alternative: classic uv-managed venv with all deps in pyproject.toml
+# uv sync
+
+# 4. Clone upstream data sources (~1.5GB total, optional — data is in the repo)
+attacklm-clone
 
 # 5. Extract training data from each source
-uv run python scripts/extract_atomic_red_team_to_jsonl.py
-uv run python scripts/extract_caldera_plugins_to_jsonl.py
-uv run python scripts/parse_metasploit_to_jsonl.py
-uv run python scripts/extract_rta_to_jsonl.py
-uv run python scripts/extract_infection_monkey_to_jsonl.py
-uv run python scripts/extract_ai_tools_to_jsonl.py
+attacklm-extract
 
 # 6. Augment each JSONL with per-pair source/license attribution
-uv run python scripts/augment_attribution.py
+attacklm-attribute
 
 # 7. Organize into 16 MITRE/AI/tools buckets
-uv run python scripts/setup_buckets.py
-uv run python scripts/reorganize_buckets.py
+attacklm-buckets
 
 # 8. Train! (3B QLoRA, fits 16GB VRAM)
-uv run python scripts/train_all.py --single-model \
+attacklm-train-all --single-model \
   --base-model unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit \
   --epochs 5 --max-length 2048
 ```
 
 The trained LoRA adapter lands in `models/attacklm-single/`. See
 [**Inference**](#inference) below for how to use it.
+
+> **Don't want to install?** The `scripts/` directory is the source of truth.
+> Every `attacklm-*` command is a thin wrapper around a script. You can run
+> `uv run python scripts/train_all.py --help` directly — same behavior,
+> same flags, no install required.
+
+---
+
+## Install
+
+The project ships as a **proper Python package** (`pyproject.toml`,
+`src/attacklm/` layout, hatchling build backend) so users don't have to
+build anything by hand.
+
+### Option A — Editable install (recommended for development)
+
+```bash
+git clone https://github.com/Veedubin/AttackLM.git
+cd AttackLM
+uv pip install -e ".[all]"          # gets all optional dependencies
+```
+
+This installs 11 console-script entry points into your environment:
+
+| Command                  | Dispatches to                          | What it does                           |
+|--------------------------|----------------------------------------|----------------------------------------|
+| `attacklm-train`         | `scripts/train_template.py`            | Train one QLoRA adapter                |
+| `attacklm-train-all`     | `scripts/train_all.py`                 | Train all buckets / HPO                |
+| `attacklm-hpo`           | `scripts/hpo_runner.py`                | Coordinate-descent HPO sweep           |
+| `attacklm-infer`         | `scripts/infer.py`                     | Smoke-test inference                   |
+| `attacklm-merge`         | `scripts/merge_adapter.py`             | Merge LoRA → base model                |
+| `attacklm-gguf`          | `scripts/convert_to_gguf.py`           | Convert to GGUF (llama.cpp)            |
+| `attacklm-demo`          | `scripts/demo.py`                      | Multi-agent orchestrator demo          |
+| `attacklm-extract`       | all 6 extractors                       | Extract data from cloned repos         |
+| `attacklm-buckets`       | `setup_buckets.py` + `reorganize_buckets.py` | Organize data into 16 buckets  |
+| `attacklm-attribute`     | `scripts/augment_attribution.py`       | Add source/license to each JSONL row   |
+| `attacklm-clone`         | `scripts/clone_repos.sh`               | Clone upstream data repos              |
+
+The CLI dispatchers are thin wrappers — they use `runpy.run_path()` to
+invoke the canonical script in `scripts/`. So `scripts/` stays the
+source of truth and you can still run `uv run python scripts/foo.py`
+directly if you prefer.
+
+### Optional-dependency groups
+
+```bash
+uv pip install -e ".[train]"        # training only (peft, trl, accelerate, bitsandbytes)
+uv pip install -e ".[extract]"      # data extractors (pyyaml, requests, gitpython)
+uv pip install -e ".[convert]"      # GGUF conversion (gguf-python, llama-cpp-python)
+uv pip install -e ".[infer]"        # inference (transformers, peft)
+uv pip install -e ".[all]"          # everything
+uv pip install -e ".[dev]"          # pytest, ruff, mypy
+```
+
+### Option B — Just use uv (no install)
+
+If you'd rather not install into your environment:
+
+```bash
+git clone https://github.com/Veedubin/AttackLM.git
+cd AttackLM
+uv sync                              # creates .venv with all deps
+uv run python scripts/train_all.py --single-model --epochs 5
+```
+
+### Option C — pip install from GitHub (no clone)
+
+```bash
+uv pip install "git+https://github.com/Veedubin/AttackLM.git#[all]"
+attacklm-train --help
+```
+
+This works because the entry points in `pyproject.toml` resolve `scripts/`
+relative to the installed package — but the data files won't be present
+(this method is best for `attacklm-infer` and `attacklm-demo` against an
+existing adapter you've trained elsewhere).
 
 ---
 
@@ -163,7 +240,7 @@ paged_adamw_8bit, etc.) — see the `# OOM fix #N:` comments in
 ### HPO (Hyperparameter Optimization)
 
 ```bash
-uv run python scripts/train_all.py --hpo --single-model \
+attacklm-train-all --hpo --single-model \
   --base-model unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit \
   --epochs 5 --max-length 2048
 ```
@@ -172,7 +249,7 @@ This runs an 8-trial coordinate-descent sweep (4 values × 2 axes —
 `lora_r` and `lora_dropout`), escalates each axis until metrics degrade,
 then runs a final training with the winners. Results land in
 `hpo_runs/hpo_state.json` and can be re-run later with
-`uv run python scripts/hpo_runner.py --analyze-only`.
+`attacklm-hpo --analyze-only`.
 
 Tuning knobs: `--hpo-trials-per-axis` (default 4), `--hpo-trial-steps`
 (default 200), `--hpo-dataset` (default: capped 5,000-pair slice).
@@ -187,7 +264,7 @@ Three ways to use it:
 ### Option A: Quick smoke test with `infer.py`
 
 ```bash
-uv run python scripts/infer.py --adapter models/attacklm-single
+attacklm-infer --adapter models/attacklm-single
 ```
 
 This runs 4 example prompts (MITRE tactics, orchestrator routing,
@@ -198,7 +275,7 @@ and generation parameters.
 ### Option B: Merge into the base model (simplest)
 
 ```bash
-uv run python scripts/merge_adapter.py \
+attacklm-merge \
   --base-model unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit \
   --adapter models/attacklm-single \
   --output models/attacklm-merged
@@ -210,7 +287,7 @@ Then load with `transformers.AutoModelForCausalLM.from_pretrained("models/attack
 
 ```bash
 # Requires llama.cpp checked out and built
-uv run python scripts/convert_to_gguf.py \
+attacklm-gguf \
   --model models/attacklm-merged \
   --output models/attacklm.gguf
 
