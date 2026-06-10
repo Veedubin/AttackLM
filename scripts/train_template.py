@@ -27,6 +27,7 @@ Dependencies:
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -1656,6 +1657,43 @@ def main() -> None:
     # --- Train ---
     # resume_from_checkpoint=True: HF auto-finds the last checkpoint-N/ in
     # args.output and reloads model + optimizer + scheduler + trainer state.
+    #
+    # Pre-flight check: if the user (or _run_with_retry's auto-retry path)
+    # asked us to resume from a checkpoint that's ALREADY at max_steps, the
+    # trainer will silently emit a 0.0029s TrainOutput with cached metrics
+    # and return without doing any work. The save block below will then run
+    # against a stale in-memory adapter. Detect this early and warn loudly.
+    if args.resume_from_checkpoint:
+        try:
+            _ckpt_dirs = sorted(
+                [
+                    d
+                    for d in Path(args.output).iterdir()
+                    if d.is_dir() and d.name.startswith("checkpoint-")
+                ],
+                key=lambda d: int(d.name.split("-")[-1]),
+            )
+            if _ckpt_dirs:
+                _latest = _ckpt_dirs[-1]
+                _state_path = _latest / "trainer_state.json"
+                if _state_path.exists():
+                    with open(_state_path) as _f:
+                        _state = json.load(_f)
+                    _cur = _state.get("global_step", 0)
+                    _max = _state.get("max_steps", 0)
+                    if _max > 0 and _cur >= _max:
+                        print(
+                            f"\nWARNING: checkpoint {_latest.name} is already "
+                            f"complete ({_cur}/{_max} steps). Resuming will "
+                            f"re-save the cached adapter but do no training. "
+                            f"To continue training beyond this point, use "
+                            f"--resume-from-checkpoint with a higher "
+                            f"--max-steps or a different --epochs."
+                        )
+        except Exception as _e:
+            # Pre-flight is best-effort; never block training on a parse error
+            print(f"  (Skipped checkpoint completeness check: {_e})")
+
     try:
         train_result = trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
     except Exception as e:
