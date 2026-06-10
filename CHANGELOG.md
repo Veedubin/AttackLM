@@ -4,6 +4,83 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
+## [0.2.1] — 2026-06-10
+
+**Bucket layout reorganized into 4 parents.** The v0.2.0 layout was asymmetric (10 flat tactic dirs + 1 flat orchestrator + 2 nested parents) which made the on-disk filesystem not match the user-facing spec syntax. v0.2.1 normalizes to 4 parent directories that all work the same way.
+
+### Changed
+
+- **Bucket layout reorganized** to 4 parents, all of them real directories on disk:
+
+  ```
+  data/datasets/buckets/
+    base/                      <- NEW: 10 tactic buckets move here
+      collection/                (634 pairs)
+      command_and_control/       (105 pairs)
+      credential_access/         (589 pairs)
+      defense_evasion/         (1,375 pairs)
+      discovery/               (1,846 pairs)
+      execution/                 (767 pairs)
+      exfiltration/              (173 pairs)
+      lateral_movement/          (252 pairs)
+      persistence/             (1,120 pairs)
+      privilege_escalation/      (537 pairs)
+    tools/                     <- unchanged
+      metasploit/              (8,349 pairs)
+      infection_monkey/           (36 pairs)
+      rta/                        (76 pairs)
+    ai/                        <- RENAMED from ai-models/
+      prompt-injection/         (687 pairs)
+      jailbreaking/              (56 pairs)
+    orchestrator/              <- unchanged
+      data.jsonl                 (380 pairs)
+    manifest.json              <- paths updated
+    ATTRIBUTION.md             <- unchanged
+  ```
+
+  The `--dataset` spec syntax is unchanged: `--dataset base/`, `--dataset tools/`, `--dataset ai/`, `--dataset orchestrator`, `--dataset all`. The 12 bucket paths in `manifest.json` are updated to reflect the new on-disk locations. The `category` field (used to filter by `get_tactic_buckets()`) is preserved.
+
+- **`--dataset ai-models/` is still accepted** as a backward-compat alias for `--dataset ai/`. The internal `_CATEGORY_RESOLVERS` map has both keys pointing to `get_ai_model_buckets()`. Old v0.2.0 user scripts keep working.
+
+### Added
+
+- **`scripts/migrate_buckets_to_v021.py`** (one-shot migration):
+  - `--dry-run`: shows what would happen without making changes
+  - Default: backs up the current layout to `data/.bucket_layout_backup/buckets_<ts>/`, moves 12 buckets, updates `manifest.json` paths atomically
+  - `--rollback <snapshot_name>`: restore from a backup
+  - `--list-backups`: show available rollback snapshots
+  - Empty parent dirs (e.g. `ai-models/` after its children move into `ai/`) are removed as part of the move pass
+  - The `data/.bucket_layout_backup/` directory is gitignored
+
+### Migration from v0.2.0
+
+If you already pulled v0.2.0, run the migration script once:
+
+```bash
+# Dry-run first to see what will happen
+python scripts/migrate_buckets_to_v021.py --dry-run
+
+# Then do it for real
+python scripts/migrate_buckets_to_v021.py
+```
+
+The script backs up the current layout to `data/.bucket_layout_backup/buckets_<ts>/` before moving anything. To undo:
+
+```bash
+python scripts/migrate_buckets_to_v021.py --list-backups
+python scripts/migrate_buckets_to_v021.py --rollback buckets_20260610_053407
+```
+
+### Verified
+
+- 12 buckets moved, 0 errors
+- `manifest.json` paths updated atomically (write to `.tmp`, rename)
+- All 12 spec resolver cases pass: 4 parents (`base/`, `tools/`, `ai/`, `orchestrator`), 3 aliases (`all`, `tactics`, `tools-all`), 3 subpaths (`tools/metasploit/`, `ai/jailbreaking/`, `base/collection/`), 1 backward-compat (`ai-models/` → 2 buckets), 1 default set (tactics + orchestrator = 11 buckets)
+- `build_combined` reads from new paths (`base/collection/data.jsonl`, `ai/jailbreaking/data.jsonl`, etc.) cleanly
+- `--dataset all` → 16,982 pairs across 4 parents, cache key `3ecf6ee42505`
+
+---
+
 ## [0.2.0] — 2026-06-10
 
 **Multi-round SFT, run provenance, and dataset spec DSL.** This is a major version bump because the training loop architecture changed: runs are now self-describing (state.json), can be layered on top of each other (round-2 SFT), and the user-facing dataset selection was redesigned for clarity.

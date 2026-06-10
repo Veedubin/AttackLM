@@ -154,7 +154,7 @@ AGPLv3 terms.
 | Field | Value |
 |---|---|
 | **Pairs** | (varies; AI security category) |
-| **Buckets** | `ai-models/prompt-injection` |
+| **Buckets** | `ai/prompt-injection` |
 | **Repository** | <https://github.com/promptfoo/promptfoo> |
 | **License** | MIT License |
 | **Used for** | Red-team TypeScript plugin definitions |
@@ -164,7 +164,7 @@ AGPLv3 terms.
 | Field | Value |
 |---|---|
 | **Pairs** | (varies; AI security category) |
-| **Buckets** | `ai-models/jailbreaking` |
+| **Buckets** | `ai/jailbreaking` |
 | **Repository** | <https://github.com/NVIDIA/garak> |
 | **License** | Apache License 2.0 |
 | **Used for** | DAN/probe JSON & TXT resources |
@@ -174,7 +174,7 @@ AGPLv3 terms.
 | Field | Value |
 |---|---|
 | **Pairs** | (varies; AI security category) |
-| **Buckets** | `ai-models/jailbreaking` |
+| **Buckets** | `ai/jailbreaking` |
 | **Repository** | <https://github.com/Resident-Falker/TheBigPromptLibrary> |
 | **License** | Mixed (per-file; mostly MIT or MPL-2.0) |
 | **Used for** | Jailbreak prompts, system prompts, security-focused markdown |
@@ -184,7 +184,7 @@ AGPLv3 terms.
 | Field | Value |
 |---|---|
 | **Pairs** | (varies; AI security category) |
-| **Buckets** | `ai-models/prompt-injection` |
+| **Buckets** | `ai/prompt-injection` |
 | **Repository** | <https://github.com/utkusen/promptmap> |
 | **License** | MIT License |
 | **Used for** | Prompt injection YAML rule files |
@@ -194,7 +194,7 @@ AGPLv3 terms.
 | Field | Value |
 |---|---|
 | **Pairs** | (varies; AI security category) |
-| **Buckets** | `ai-models/jailbreaking` |
+| **Buckets** | `ai/jailbreaking` |
 | **Repository** | <https://github.com/Azure/PyRIT> |
 | **License** | MIT License |
 | **Used for** | Jailbreak template definitions |
@@ -204,7 +204,7 @@ AGPLv3 terms.
 | Field | Value |
 |---|---|
 | **Pairs** | (varies; AI security category) |
-| **Buckets** | `ai-models/jailbreaking` |
+| **Buckets** | `ai/jailbreaking` |
 | **Repository** | <https://github.com/cyberark/FuzzyAI> |
 | **License** | Apache License 2.0 |
 | **Used for** | Adversarial prompt resources, suffixes, harmful-behaviors CSV |
@@ -228,7 +228,7 @@ AGPLv3 terms.
 | Field | Value |
 |---|---|
 | **Pairs** | 687 |
-| **Buckets** | `ai-models/prompt-injection` |
+| **Buckets** | `ai/prompt-injection` |
 | **Source** | Generated procedurally by `scripts/generate_prompt_injection.py` |
 | **License** | Same as this repository (MIT) |
 | **Used for** | Augmenting upstream promptfoo/promptmap data |
@@ -254,8 +254,8 @@ It records which pairs come from which upstream source (via the
 | persistence | 1,120 | atomic, caldera, infection_monkey, metasploit, RTA |
 | privilege_escalation | 537 | atomic, caldera, metasploit |
 | orchestrator | 380 | synthetic |
-| ai-models/jailbreaking | 56 | garak, PyRIT, FuzzyAI, TheBigPromptLibrary |
-| ai-models/prompt-injection | 687 | promptfoo, promptmap, synthetic |
+| ai/jailbreaking | 56 | garak, PyRIT, FuzzyAI, TheBigPromptLibrary |
+| ai/prompt-injection | 687 | promptfoo, promptmap, synthetic |
 | tools/infection_monkey | 36 | guardicore/monkey |
 | tools/metasploit | 8,349 | rapid7/metasploit-framework |
 | tools/rta | 76 | endgameinc/RTA (AGPLv3) |

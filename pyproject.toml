@@ -10,7 +10,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "attacklm"
-version = "0.2.0"
+version = "0.2.1"
 description = "QLoRA-fine-tuned Qwen2.5-Coder for offensive security and AI red-teaming"
 readme = "README.md"
 license = "MIT"

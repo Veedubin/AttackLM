@@ -285,17 +285,23 @@ thin dispatcher layer.
 
 The training data is organized into **16 buckets**:
 
-- **10 MITRE tactic buckets** — `collection`, `command_and_control`,
-  `credential_access`, `defense_evasion`, `discovery`, `execution`,
-  `exfiltration`, `lateral_movement`, `persistence`, `privilege_escalation`
+- **10 MITRE tactic buckets** — under `base/`: `base/collection`,
+  `base/command_and_control`, `base/credential_access`, `base/defense_evasion`,
+  `base/discovery`, `base/execution`, `base/exfiltration`,
+  `base/lateral_movement`, `base/persistence`, `base/privilege_escalation`
   (TA0009, TA0011, TA0006, TA0005, TA0007, TA0002, TA0010, TA0008,
   TA0003, TA0004 respectively)
 - **1 orchestrator bucket** — routing decisions across 6 sub-agents
-- **2 AI-model attack buckets** — `ai-models/prompt-injection` and
-  `ai-models/jailbreaking` (TA0040 — Adversarial ML)
-- **3 security-tool buckets** — `tools/infection_monkey`, `tools/metasploit`,
-  `tools/rta` (consolidated tool-specific data, re-routed to MITRE tactics
-  where applicable)
+- **2 AI-model attack buckets** — under `ai/`: `ai/prompt-injection` and
+  `ai/jailbreaking` (TA0040 — Adversarial ML)
+- **3 security-tool buckets** — under `tools/`: `tools/infection_monkey`,
+  `tools/metasploit`, `tools/rta` (consolidated tool-specific data, re-routed
+  to MITRE tactics where applicable)
+
+> **v0.2.1 layout change:** the 10 tactic buckets moved from top-level
+> into a new `base/` parent directory, and `ai-models/` was renamed to
+> `ai/`. See the [CHANGELOG](CHANGELOG.md#021--2026-06-10) for the
+> migration script and details.
 
 The bucket layout lets you train:
 - **One model on everything** (default — single MoE-style assistant)
