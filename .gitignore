@@ -72,6 +72,9 @@ hpo_runs/*.dataset_stats.json
 
 # ----- Trained models (large, regenerable) -----
 models/
+# Backups of previous runs (v0.1.6+ round-2 SFT backup tarballs)
+# Lives at models/.backups/{name}.tar.gz; 4-5 GB each, never commit.
+models/.backups/
 # Heretic / abliteration output (also large, regenerable, may appear at any path)
 n/
 uncensored/
@@ -167,7 +170,8 @@ data/sigma/
 # (no rule needed; nothing to ignore)
 # data/datasets/buckets/*/data.jsonl     ← included
 # data/datasets/buckets/manifest.json    ← included
-# data/datasets/combined/*.jsonl         ← included (cached combined datasets)
+# data/datasets/combined/*.jsonl         ← excluded (regenerable, ~15-17MB each)
+data/datasets/combined/*.jsonl
 # data/ATTRIBUTION.md                     ← included
 # data/.gitkeep                           ← included (preserves the directory)
 
