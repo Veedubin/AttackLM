@@ -129,6 +129,16 @@ dmypy.json
 notes.md
 
 # ============================================================================
+# GENERATED / REGENERABLE DATA — excluded (users generate these themselves)
+# ============================================================================
+data/datasets/synthetic/
+data/datasets/hybrid/
+data/datasets/balanced/
+data/datasets/combined/*.jsonl
+data/*.json
+
+
+# ============================================================================
 # DATA DIRECTORY — explicit per-source rules
 # ============================================================================
 #

@@ -1,0 +1,166 @@
+{
+  "version": "0.3.0",
+  "total_records": 17616,
+  "train_records": 15846,
+  "test_records": 1770,
+  "train_ratio": 0.9,
+  "seed": 42,
+  "num_buckets": 23,
+  "num_mitre_techniques": 286,
+  "buckets": {
+    "tools/metasploit": {
+      "train": 7514,
+      "test": 835,
+      "total": 8349
+    },
+    "base/discovery": {
+      "train": 1661,
+      "test": 185,
+      "total": 1846
+    },
+    "base/persistence": {
+      "train": 1008,
+      "test": 112,
+      "total": 1120
+    },
+    "base/defense_evasion": {
+      "train": 1237,
+      "test": 138,
+      "total": 1375
+    },
+    "attack_tactics/red_team_tactics": {
+      "train": 127,
+      "test": 15,
+      "total": 142
+    },
+    "base/privilege_escalation": {
+      "train": 483,
+      "test": 54,
+      "total": 537
+    },
+    "base/credential_access": {
+      "train": 530,
+      "test": 59,
+      "total": 589
+    },
+    "base/exfiltration": {
+      "train": 155,
+      "test": 18,
+      "total": 173
+    },
+    "orchestrator": {
+      "train": 342,
+      "test": 38,
+      "total": 380
+    },
+    "web_app/attacks": {
+      "train": 69,
+      "test": 8,
+      "total": 77
+    },
+    "base/lateral_movement": {
+      "train": 226,
+      "test": 26,
+      "total": 252
+    },
+    "base/collection": {
+      "train": 570,
+      "test": 64,
+      "total": 634
+    },
+    "tools/infection_monkey": {
+      "train": 32,
+      "test": 4,
+      "total": 36
+    },
+    "base/execution": {
+      "train": 690,
+      "test": 77,
+      "total": 767
+    },
+    "ai/prompt-injection": {
+      "train": 618,
+      "test": 69,
+      "total": 687
+    },
+    "base/command_and_control": {
+      "train": 94,
+      "test": 11,
+      "total": 105
+    },
+    "supply_chain/attacks": {
+      "train": 72,
+      "test": 8,
+      "total": 80
+    },
+    "cloud/attacks": {
+      "train": 84,
+      "test": 10,
+      "total": 94
+    },
+    "social_engineering/phishing": {
+      "train": 69,
+      "test": 8,
+      "total": 77
+    },
+    "tools/rta": {
+      "train": 68,
+      "test": 8,
+      "total": 76
+    },
+    "ics/attacks": {
+      "train": 72,
+      "test": 8,
+      "total": 80
+    },
+    "ai/jailbreaking": {
+      "train": 50,
+      "test": 6,
+      "total": 56
+    },
+    "wireless/attacks": {
+      "train": 75,
+      "test": 9,
+      "total": 84
+    }
+  },
+  "sources": {
+    "metasploit": 8349,
+    "atomic-red-team": 5873,
+    "red_team_tactics": 142,
+    "mitre/stockpile": 390,
+    "synthetic": 380,
+    "web_attack_synthetic": 77,
+    "redcanaryco/atomic-red-team": 1115,
+    "guardicore/infection_monkey": 36,
+    "promptfoo": 687,
+    "supply_chain_synthetic": 80,
+    "cloud_attack_synthetic": 94,
+    "phishing_synthetic": 77,
+    "endgameinc/RTA": 76,
+    "ics_synthetic": 80,
+    "mitre-atlas/arsenal": 20,
+    "garak": 56,
+    "wireless_synthetic": 84
+  },
+  "licenses": {
+    "BSD-3-Clause": 8349,
+    "MIT": 9099,
+    "GPL-3.0": 36,
+    "AGPL-3.0": 76,
+    "Apache-2.0": 56
+  },
+  "categories": {
+    "tools": 8461,
+    "tactic": 7398,
+    "attack_tactics": 142,
+    "meta": 380,
+    "web_app": 77,
+    "ai_redteam": 743,
+    "supply_chain": 80,
+    "cloud": 94,
+    "social_engineering": 77,
+    "ics": 80,
+    "wireless": 84
+  }
+}

@@ -1,0 +1,10 @@
+# HuggingFace LFS tracking for AttackLM dataset
+# JSONL data files should be tracked by Git LFS to avoid bloating the repo
+
+*.jsonl filter=lfs diff=lfs merge=lfs -text
+data/*.jsonl filter=lfs diff=lfs merge=lfs -text
+data/attacklm-train.jsonl filter=lfs diff=lfs merge=lfs -text
+data/attacklm-test.jsonl filter=lfs diff=lfs merge=lfs -text
+
+# Large metadata files
+*.json filter=lfs diff=lfs merge=lfs -text
