@@ -1,0 +1,228 @@
+{
+  "attacklm": {
+    "description": "AttackLM — Balanced Red-Team Training Dataset. A MITRE ATT&CK-grounded instruction-following dataset for training red-team cybersecurity LLMs. 17,616 conversation triples across 23 buckets covering 12+ attack categories.",
+    "citation": "@misc{attacklm2026,\n  title={AttackLM: A Balanced Red-Team Training Dataset Grounded in MITRE ATT&CK},\n  author={jcharles},\n  year={2026},\n  url={https://github.com/Veedubin/AttackLM},\n  note={Dataset available at https://huggingface.co/datasets/neuralgentics/attacklm}\n}",
+    "homepage": "https://github.com/Veedubin/AttackLM",
+    "license": "gpl-3.0",
+    "tags": [
+      "cybersecurity",
+      "red-team",
+      "mitre-attck",
+      "instruction-following",
+      "adversarial-ml",
+      "penetration-testing",
+      "security",
+      "synthetic"
+    ],
+    "version": "0.3.0",
+    "splits": {
+      "train": {
+        "name": "train",
+        "num_examples": 15846,
+        "num_bytes": null,
+        "dataset_name": "attacklm"
+      },
+      "test": {
+        "name": "test",
+        "num_examples": 1770,
+        "num_bytes": null,
+        "dataset_name": "attacklm"
+      }
+    },
+    "features": {
+      "messages": {
+        "_type": "Sequence",
+        "feature": {
+          "role": {
+            "_type": "Value",
+            "dtype": "string"
+          },
+          "content": {
+            "_type": "Value",
+            "dtype": "string"
+          }
+        }
+      },
+      "mitre_ids": {
+        "_type": "Sequence",
+        "feature": {
+          "_type": "Value",
+          "dtype": "string"
+        }
+      },
+      "source": {
+        "_type": "Value",
+        "dtype": "string"
+      },
+      "license": {
+        "_type": "Value",
+        "dtype": "string"
+      },
+      "bucket": {
+        "_type": "Value",
+        "dtype": "string"
+      },
+      "category": {
+        "_type": "Value",
+        "dtype": "string"
+      }
+    },
+    "task_templates": [
+      {
+        "task": "text-generation",
+        "text_column": "messages"
+      }
+    ],
+    "builder_name": "attacklm",
+    "config_name": "default",
+    "version": {
+      "version_str": "0.3.0",
+      "major": 0,
+      "minor": 3,
+      "patch": 0
+    },
+    "multi_modal": false,
+    "size_categories": ["10K<n<100K"],
+    "language": ["en"],
+    "bucket_summary": {
+      "base/collection": {
+        "count": 634,
+        "mitre_tactic": "TA0009",
+        "category": "tactic",
+        "upstream_sources": ["atomic-red-team", "caldera", "metasploit"]
+      },
+      "base/command_and_control": {
+        "count": 105,
+        "mitre_tactic": "TA0011",
+        "category": "tactic",
+        "upstream_sources": ["atomic-red-team", "caldera", "metasploit"]
+      },
+      "base/credential_access": {
+        "count": 589,
+        "mitre_tactic": "TA0006",
+        "category": "tactic",
+        "upstream_sources": ["atomic-red-team", "caldera", "infection_monkey", "metasploit"]
+      },
+      "base/defense_evasion": {
+        "count": 1375,
+        "mitre_tactic": "TA0005",
+        "category": "tactic",
+        "upstream_sources": ["atomic-red-team", "caldera", "metasploit", "rta"]
+      },
+      "base/discovery": {
+        "count": 1846,
+        "mitre_tactic": "TA0007",
+        "category": "tactic",
+        "upstream_sources": ["atomic-red-team", "caldera", "infection_monkey", "metasploit", "rta"]
+      },
+      "base/execution": {
+        "count": 767,
+        "mitre_tactic": "TA0002",
+        "category": "tactic",
+        "upstream_sources": ["atomic-red-team", "caldera", "infection_monkey", "metasploit", "rta"]
+      },
+      "base/exfiltration": {
+        "count": 173,
+        "mitre_tactic": "TA0010",
+        "category": "tactic",
+        "upstream_sources": ["atomic-red-team", "caldera", "metasploit"]
+      },
+      "base/lateral_movement": {
+        "count": 252,
+        "mitre_tactic": "TA0008",
+        "category": "tactic",
+        "upstream_sources": ["atomic-red-team", "caldera", "infection_monkey", "metasploit"]
+      },
+      "base/persistence": {
+        "count": 1120,
+        "mitre_tactic": "TA0003",
+        "category": "tactic",
+        "upstream_sources": ["atomic-red-team", "caldera", "infection_monkey", "metasploit", "rta"]
+      },
+      "base/privilege_escalation": {
+        "count": 537,
+        "mitre_tactic": "TA0004",
+        "category": "tactic",
+        "upstream_sources": ["atomic-red-team", "caldera", "metasploit"]
+      },
+      "orchestrator": {
+        "count": 380,
+        "mitre_tactic": "n/a",
+        "category": "meta",
+        "upstream_sources": ["synthetic"]
+      },
+      "ai/jailbreaking": {
+        "count": 56,
+        "mitre_tactic": "TA0040",
+        "category": "ai_redteam",
+        "upstream_sources": ["garak", "pyrit", "fuzzyai", "thebigpromptlibrary"]
+      },
+      "ai/prompt-injection": {
+        "count": 687,
+        "mitre_tactic": "TA0040",
+        "category": "ai_redteam",
+        "upstream_sources": ["promptfoo", "promptmap", "synthetic"]
+      },
+      "tools/infection_monkey": {
+        "count": 36,
+        "mitre_tactic": "various",
+        "category": "tools",
+        "upstream_sources": ["infection_monkey"]
+      },
+      "tools/metasploit": {
+        "count": 8349,
+        "mitre_tactic": "various",
+        "category": "tools",
+        "upstream_sources": ["metasploit"]
+      },
+      "tools/rta": {
+        "count": 76,
+        "mitre_tactic": "various",
+        "category": "tools",
+        "upstream_sources": ["rta"]
+      },
+      "attack_tactics/red_team_tactics": {
+        "count": 142,
+        "mitre_tactic": "TA0000",
+        "category": "attack_tactics",
+        "upstream_sources": ["synthetic", "huggingface"]
+      },
+      "cloud/attacks": {
+        "count": 94,
+        "mitre_tactic": "TA0008",
+        "category": "cloud",
+        "upstream_sources": ["synthetic"]
+      },
+      "ics/attacks": {
+        "count": 80,
+        "mitre_tactic": "TA0010",
+        "category": "ics",
+        "upstream_sources": ["synthetic"]
+      },
+      "wireless/attacks": {
+        "count": 84,
+        "mitre_tactic": "TA0006",
+        "category": "wireless",
+        "upstream_sources": ["synthetic"]
+      },
+      "supply_chain/attacks": {
+        "count": 80,
+        "mitre_tactic": "TA0042",
+        "category": "supply_chain",
+        "upstream_sources": ["synthetic"]
+      },
+      "web_app/attacks": {
+        "count": 77,
+        "mitre_tactic": "TA0001",
+        "category": "web_app",
+        "upstream_sources": ["synthetic"]
+      },
+      "social_engineering/phishing": {
+        "count": 77,
+        "mitre_tactic": "TA0001",
+        "category": "social_engineering",
+        "upstream_sources": ["synthetic"]
+      }
+    }
+  }
+}

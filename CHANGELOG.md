@@ -4,6 +4,37 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
+## [0.2.3] — 2026-06-11
+
+### Added
+
+- **`scripts/generate_synthetic_scarce.py` — live metrics + cleaner console output.**
+  - `call_llm()` now returns `{content, usage, latency_ms}` — tracks prompt / completion / total tokens from both OpenAI-compatible (LMStudio) and Ollama responses.
+  - Per-batch backend/model/temp spam eliminated. Backend info prints **once per category** instead of once per batch.
+  - Live progress bar with real metrics: **tokens/sec**, **pairs/sec**, and **latency (ms)** per batch.
+  - Optional `rich` library progress bar; plain-text ASCII fallback if `rich` is not installed.
+  - Final summary line: `Wrote N pairs | X tok/s avg | Y pair/s avg | Z.s total | filename`.
+  - Metrics persisted to `{category}_llm_meta.json` under `"metrics"`.
+
+- **`scripts/llm_generate_wrapper.py` — complete rewrite.**
+  - Named count overrides: `--web-app`, `--cloud`, `--social-engineering`, `--supply-chain`, `--ics-scada`, `--wireless`.
+  - Single-category mode: `--only web_app`.
+  - Backend / model / temperature as CLI flags (`--backend`, `--model`, `--temperature`) — **no env var syntax needed**.
+  - `--sleep` flag (default OFF) for inter-batch pauses.
+  - Wrapper is now the **sole entry point**; `generate_synthetic_scarce.py` accepts `--category`/`--count` only. Passing positional counts directly to it produces `unrecognized arguments` (by design).
+  - Env vars passed explicitly via `subprocess.run(env=...)` instead of relying on shell inheritance.
+
+- **`scripts/train_template.py` — tokens/sec progress replaces useless `it/s`.**
+  - New `LiveProgressCallback` prints: step count, loss, **tok/s**, **pair/s**, and VRAM usage every 10 steps.
+  - HF Trainer's default tqdm disabled via `disable_tqdm=True`.
+  - `it/s` was meaningless because it conflates batch size, gradient accumulation, and packing into a single opaque number. `tok/s` and `pair/s` reflect actual data throughput.
+
+### Fixed
+
+- **Fish shell / bash multi-line env var syntax no longer required.** All backend configuration is via CLI flags in the wrapper. Eliminates `fish: Unknown command: ' '` errors when breaking lines inside `BACKEND=lmstudio \` assignments.
+
+---
+
 ## [0.2.2] — 2026-06-10
 
 ### Fixed

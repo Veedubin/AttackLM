@@ -1746,6 +1746,7 @@ def main() -> None:
         # Other
         gradient_checkpointing=True,
         logging_steps=10,
+        disable_tqdm=True,
         report_to="none",
         remove_unused_columns=False,
         # OOM fix #6: Set eval batch size to 1, not the default 8!
@@ -1856,6 +1857,128 @@ def main() -> None:
                     f"  [GCEpochCallback] Step {state.global_step} emergency "
                     f"cache clear: {free_gb:.2f}GB free"
                 )
+            return control
+
+    class LiveProgressCallback(TrainerCallback):
+        """Real-time throughput monitor: replaces HF's useless `it/s` with tokens/sec.
+
+        HF's default tqdm bar shows `it/s` — an "it" is one optimizer step, which
+        bundles gradient accumulation × batch_size × (packed or padded) tokens.
+        The value is meaningless for comparing configs: doubling batch_size halves
+        it/s but tokens/sec stays flat. Packing increases it/s but the metric still
+        doesn't tell you raw data throughput.
+
+        This callback tracks **tokens/second** and **pairs/second** from the
+        cumulative `num_tokens` in the HF log stream (available in TRL >= 0.12).
+        It prints a single live-updated line so the terminal never floods.
+
+        Format:
+            Step  420/1200 | loss 1.234 |  8,192 tok/s |  42.0 pair/s | VRAM 12.3/16.0 GB
+
+        If `num_tokens` is unavailable (very old TRL), it falls back to
+        estimating tokens from steps × batch_size × max_length, which is
+        less accurate but still more useful than raw it/s.
+        """
+
+        PRINT_EVERY = 10
+
+        def __init__(self):
+            self._start_time = None
+            self._last_time = None
+            self._last_step = 0
+            self._last_tokens = 0
+            self._max_steps = 0
+            self._pairs_per_step = 1
+
+        def on_train_begin(self, args, state, control, **kwargs):
+            self._start_time = time.time()
+            self._last_time = self._start_time
+            self._last_step = 0
+            self._last_tokens = 0
+            self._max_steps = getattr(args, "max_steps", 0) or 0
+            bs = getattr(args, "per_device_train_batch_size", 1) or 1
+            ga = getattr(args, "gradient_accumulation_steps", 1) or 1
+            self._pairs_per_step = bs * ga
+
+        def on_log(self, args, state, control, logs=None, **kwargs):
+            """Update live progress bar every logging interval."""
+            if not logs:
+                return control
+
+            step = state.global_step
+            if step % self.PRINT_EVERY != 0 and step != self._max_steps and step > 0:
+                return control
+
+            now = time.time()
+            elapsed = now - self._start_time
+            window = max(1e-6, now - self._last_time)
+            step_delta = max(1, step - self._last_step)
+
+            # --- Tokens / second ---
+            num_tokens = logs.get("num_tokens", 0)
+            tok_delta = max(0, float(num_tokens) - self._last_tokens)
+            tok_per_sec = tok_delta / window if window > 0 else 0
+
+            # If num_tokens isn't present (old TRL), estimate from step count
+            if tok_per_sec == 0 and step_delta > 0:
+                max_len = getattr(args, "max_length", 1024) or 1024
+                est_tok = step_delta * self._pairs_per_step * max_len
+                tok_per_sec = est_tok / window
+
+            # --- Pairs / second ---
+            pairs_in_window = step_delta * self._pairs_per_step
+            pair_per_sec = pairs_in_window / window if window > 0 else 0
+
+            # --- Loss ---
+            loss = logs.get("loss", 0.0)
+            try:
+                loss_val = float(loss)
+            except (TypeError, ValueError):
+                loss_val = 0.0
+
+            # --- VRAM ---
+            vram_str = ""
+            if is_cuda():
+                try:
+                    free_b, total_b = gpu_mem_info_bytes()
+                    vram_str = (
+                        f"VRAM {free_b / (1024**3):.1f}/{total_b / (1024**3):.1f} GB"
+                    )
+                except Exception:
+                    pass
+
+            # --- Progress bar line ---
+            if self._max_steps > 0:
+                pct = 100.0 * step / self._max_steps
+                bar_len = 20
+                filled = int(bar_len * step / self._max_steps)
+                bar = "█" * filled + "░" * (bar_len - filled)
+                line = (
+                    f"\rStep {step:>6}/{self._max_steps} | {bar} | "
+                    f"loss {loss_val:.4f} | {tok_per_sec:,.0f} tok/s | "
+                    f"{pair_per_sec:,.1f} pair/s | {vram_str}"
+                )
+            else:
+                line = (
+                    f"\rStep {step:>6} | loss {loss_val:.4f} | "
+                    f"{tok_per_sec:,.0f} tok/s | {pair_per_sec:,.1f} pair/s | {vram_str}"
+                )
+
+            # Pad with spaces to clear any trailing junk from previous prints
+            print(line.ljust(100), end="", flush=True)
+
+            # Update anchors
+            self._last_time = now
+            self._last_step = step
+            self._last_tokens = float(num_tokens)
+            return control
+
+        def on_train_end(self, args, state, control, **kwargs):
+            # Final newline so the shell prompt doesn't overwrite the bar
+            total_s = time.time() - self._start_time
+            print(
+                f"\n  Total time: {total_s:.1f}s | Avg tok/s: {self._last_tokens / max(1, total_s):,.0f}"
+            )
             return control
 
     class HPOMetricsCSVCallback(TrainerCallback):
@@ -2057,6 +2180,7 @@ def main() -> None:
         callbacks=[
             EarlyStoppingCallback(early_stopping_patience=args.early_stopping_patience),
             GCEpochCallback(),
+            LiveProgressCallback(),
             *hpo_callbacks,
         ],
     )

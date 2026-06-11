@@ -1,170 +1,238 @@
 {
-  "version": 2,
-  "layout": "nested (ai-models/, tools/)",
-  "created": "2026-06-09T15:03:12.124259",
-  "total_buckets": 16,
-  "total_pairs": 16982,
+  "version": 4,
+  "layout": "nested (ai/, attack_tactics/, base/, cloud/, ics/, orchestrator/, social_engineering/, supply_chain/, tools/, web_app/, wireless/)",
+  "provenance": "three-tier (human/llm/synth)",
+  "created": "2026-06-11T02:05:49.301208+00:00",
+  "total_buckets": 23,
+  "total_pairs": 23437,
+  "tier_totals": {
+    "human": 0,
+    "llm": 0,
+    "synth": 23437
+  },
   "buckets": [
     {
       "name": "collection",
       "display_name": "Collection",
       "category": "tactic",
-      "mitre_tactic": "TA0009",
+      "count": 634,
       "description": "Data collection from target systems (T1005, T1213, T1114, T1119)",
+      "path": "base/collection",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 634
+      },
+      "mitre_tactic": "TA0009",
       "source_file": "collection_dataset.jsonl",
       "created": "2026-06-09T14:40:54.191524",
-      "count": 634,
-      "path": "base/collection"
+      "source_files": {
+        "synth": "data.jsonl"
+      }
     },
     {
       "name": "command_and_control",
       "display_name": "Command and Control",
       "category": "tactic",
-      "mitre_tactic": "TA0011",
+      "count": 105,
       "description": "C2 channel establishment (T1071, T1090, T1095, T1572, T1573)",
+      "path": "base/command_and_control",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 105
+      },
+      "mitre_tactic": "TA0011",
       "source_file": "command_and_control_dataset.jsonl",
       "created": "2026-06-09T14:40:54.191751",
-      "count": 105,
-      "path": "base/command_and_control"
+      "source_files": {
+        "synth": "data.jsonl"
+      }
     },
     {
       "name": "credential_access",
       "display_name": "Credential Access",
       "category": "tactic",
-      "mitre_tactic": "TA0006",
+      "count": 589,
       "description": "Credential theft and brute force (T1003, T1110, T1555, T1552)",
+      "path": "base/credential_access",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 589
+      },
+      "mitre_tactic": "TA0006",
       "source_file": "credential_access_dataset.jsonl",
       "created": "2026-06-09T14:40:54.192555",
-      "count": 589,
-      "path": "base/credential_access"
+      "source_files": {
+        "synth": "data.jsonl"
+      }
     },
     {
       "name": "defense_evasion",
       "display_name": "Defense Evasion",
       "category": "tactic",
-      "mitre_tactic": "TA0005",
+      "count": 1375,
       "description": "AV/EDR bypass, obfuscation, masquerading (T1027, T1055, T1562, T1070)",
+      "path": "base/defense_evasion",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 1375
+      },
+      "mitre_tactic": "TA0005",
       "source_file": "defense_evasion_dataset.jsonl",
       "created": "2026-06-09T14:40:54.193770",
-      "count": 1375,
-      "path": "base/defense_evasion"
+      "source_files": {
+        "synth": "data.jsonl"
+      }
     },
     {
       "name": "discovery",
       "display_name": "Discovery",
       "category": "tactic",
-      "mitre_tactic": "TA0007",
+      "count": 1846,
       "description": "System/network enumeration (T1057, T1082, T1087, T1018, T1049)",
+      "path": "base/discovery",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 1846
+      },
+      "mitre_tactic": "TA0007",
       "source_file": "discovery_dataset.jsonl",
       "created": "2026-06-09T14:40:54.194670",
-      "count": 1846,
-      "path": "base/discovery"
+      "source_files": {
+        "synth": "data.jsonl"
+      }
     },
     {
       "name": "execution",
       "display_name": "Execution",
       "category": "tactic",
-      "mitre_tactic": "TA0002",
+      "count": 767,
       "description": "Code execution techniques (T1059, T1106, T1204, T1047)",
+      "path": "base/execution",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 767
+      },
+      "mitre_tactic": "TA0002",
       "source_file": "execution_dataset.jsonl",
       "created": "2026-06-09T14:40:54.195414",
-      "count": 767,
-      "path": "base/execution"
+      "source_files": {
+        "synth": "data.jsonl"
+      }
     },
     {
       "name": "exfiltration",
       "display_name": "Exfiltration",
       "category": "tactic",
-      "mitre_tactic": "TA0010",
+      "count": 173,
       "description": "Data exfiltration over C2 (T1041, T1567, T1052, T1011)",
+      "path": "base/exfiltration",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 173
+      },
+      "mitre_tactic": "TA0010",
       "source_file": "exfiltration_dataset.jsonl",
       "created": "2026-06-09T14:40:54.195663",
-      "count": 173,
-      "path": "base/exfiltration"
+      "source_files": {
+        "synth": "data.jsonl"
+      }
     },
     {
       "name": "lateral_movement",
       "display_name": "Lateral Movement",
       "category": "tactic",
-      "mitre_tactic": "TA0008",
+      "count": 252,
       "description": "Remote service exploitation (T1021, T1570, T1080, T1559)",
+      "path": "base/lateral_movement",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 252
+      },
+      "mitre_tactic": "TA0008",
       "source_file": "lateral_movement_dataset.jsonl",
       "created": "2026-06-09T14:40:54.196022",
-      "count": 252,
-      "path": "base/lateral_movement"
+      "source_files": {
+        "synth": "data.jsonl"
+      }
     },
     {
       "name": "persistence",
       "display_name": "Persistence",
       "category": "tactic",
-      "mitre_tactic": "TA0003",
+      "count": 1120,
       "description": "Maintain foothold (T1543, T1547, T1136, T1098, T1197)",
+      "path": "base/persistence",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 1120
+      },
+      "mitre_tactic": "TA0003",
       "source_file": "persistence_dataset.jsonl",
       "created": "2026-06-09T14:40:54.197101",
-      "count": 1120,
-      "path": "base/persistence"
+      "source_files": {
+        "synth": "data.jsonl"
+      }
     },
     {
       "name": "privilege_escalation",
       "display_name": "Privilege Escalation",
       "category": "tactic",
-      "mitre_tactic": "TA0004",
+      "count": 537,
       "description": "Elevate privileges (T1068, T1548, T1134, T1543)",
+      "path": "base/privilege_escalation",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 537
+      },
+      "mitre_tactic": "TA0004",
       "source_file": "privilege_escalation_dataset.jsonl",
       "created": "2026-06-09T14:40:54.197791",
-      "count": 537,
-      "path": "base/privilege_escalation"
-    },
-    {
-      "name": "orchestrator",
-      "display_name": "Orchestrator Routing",
-      "category": "meta",
-      "mitre_tactic": "n/a",
-      "description": "Agent routing decisions \u2014 380 examples across 6 agents",
-      "source_file": "orchestrator_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.202603",
-      "count": 380,
-      "path": "orchestrator"
-    },
-    {
-      "name": "jailbreak",
-      "display_name": "Jailbreak",
-      "category": "ai_redteam",
-      "mitre_tactic": "TA0040",
-      "description": "AI jailbreak patterns (was jailbreak)",
-      "source_file": "jailbreak_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.201966",
-      "count": 56,
-      "path": "ai/jailbreaking"
-    },
-    {
-      "name": "prompt_injection",
-      "display_name": "Prompt Injection",
-      "category": "ai_redteam",
-      "mitre_tactic": "TA0040",
-      "description": "Prompt injection & AI exploit (was prompt_injection)",
-      "source_file": "prompt_injection_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.204089",
-      "count": 687,
-      "path": "ai/prompt-injection"
+      "source_files": {
+        "synth": "data.jsonl"
+      }
     },
     {
       "name": "infection_monkey",
       "display_name": "Infection Monkey",
       "category": "tools",
+      "count": 36,
+      "description": "guardicore/infection_monkey — 36 plugin manifests",
+      "path": "tools/infection_monkey",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 36
+      },
       "mitre_tactic": "various",
-      "description": "guardicore/infection_monkey \u2014 36 plugin manifests",
       "source_file": "infection_monkey_dataset.jsonl",
       "created": "2026-06-09T14:40:54.201669",
-      "count": 36,
-      "path": "tools/infection_monkey"
+      "source_files": {
+        "synth": "data.jsonl"
+      }
     },
     {
       "name": "metasploit",
       "display_name": "Metasploit Modules",
       "category": "tools",
+      "count": 8349,
+      "description": "Rapid7 Metasploit — 15 module categories consolidated",
+      "path": "tools/metasploit",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 8349
+      },
       "mitre_tactic": "various",
-      "description": "Rapid7 Metasploit \u2014 15 module categories consolidated",
       "source_files": [
         "metasploit_collection_dataset.jsonl",
         "metasploit_credential_access_dataset.jsonl",
@@ -182,20 +250,442 @@
         "metasploit_persistence_dataset.jsonl",
         "metasploit_privilege_escalation_dataset.jsonl"
       ],
-      "created": "2026-06-09T14:40:54.220557",
-      "count": 8349,
-      "path": "tools/metasploit"
+      "created": "2026-06-09T14:40:54.220557"
     },
     {
       "name": "rta",
       "display_name": "RTA",
       "category": "tools",
+      "count": 76,
+      "description": "endgameinc/RTA — 40 Python TTP scripts",
+      "path": "tools/rta",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 76
+      },
       "mitre_tactic": "various",
-      "description": "endgameinc/RTA \u2014 40 Python TTP scripts",
       "source_file": "rta_dataset.jsonl",
       "created": "2026-06-09T14:40:54.201316",
-      "count": 76,
-      "path": "tools/rta"
+      "source_files": {
+        "synth": "data.jsonl"
+      }
+    },
+    {
+      "name": "jailbreak",
+      "display_name": "Jailbreak",
+      "category": "ai_redteam",
+      "count": 56,
+      "description": "AI jailbreak patterns (was jailbreak)",
+      "path": "ai/jailbreaking",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 56
+      },
+      "mitre_tactic": "TA0040",
+      "source_file": "jailbreak_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.201966",
+      "source_files": {
+        "synth": "data.jsonl"
+      }
+    },
+    {
+      "name": "prompt_injection",
+      "display_name": "Prompt Injection",
+      "category": "ai_redteam",
+      "count": 687,
+      "description": "Prompt injection & AI exploit (was prompt_injection)",
+      "path": "ai/prompt-injection",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 687
+      },
+      "mitre_tactic": "TA0040",
+      "source_file": "prompt_injection_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.204089",
+      "source_files": {
+        "synth": "data.jsonl"
+      }
+    },
+    {
+      "name": "red_team_tactics",
+      "display_name": "Red Team Tactics",
+      "category": "attack_tactics",
+      "count": 300,
+      "description": "Red team tactics dataset covering 167 MITRE techniques across all tactics. Synthetic + HF source. Contextual variables: 10 environment types, 4 severity levels, 6 frameworks.",
+      "path": "attack_tactics/red_team_tactics",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 300
+      },
+      "mitre_tactic": "TA0000",
+      "mitre_ids": [
+        "T1003",
+        "T1003.001",
+        "T1003.002",
+        "T1003.003",
+        "T1005",
+        "T1016",
+        "T1020",
+        "T1020.001",
+        "T1021",
+        "T1021.001",
+        "T1021.002",
+        "T1021.003",
+        "T1021.004",
+        "T1021.005",
+        "T1027",
+        "T1027.001",
+        "T1027.002",
+        "T1027.005",
+        "T1036",
+        "T1036.001",
+        "T1036.002",
+        "T1036.003",
+        "T1036.004",
+        "T1040",
+        "T1041",
+        "T1046",
+        "T1047",
+        "T1048",
+        "T1048.001",
+        "T1048.002",
+        "T1048.003",
+        "T1052",
+        "T1052.001",
+        "T1053",
+        "T1053.001",
+        "T1053.005",
+        "T1055",
+        "T1055.001",
+        "T1055.003",
+        "T1055.012",
+        "T1057",
+        "T1059",
+        "T1059.001",
+        "T1059.002",
+        "T1059.003",
+        "T1059.005",
+        "T1059.006",
+        "T1062",
+        "T1068",
+        "T1068.001",
+        "T1070",
+        "T1070.001",
+        "T1070.002",
+        "T1070.004",
+        "T1071",
+        "T1071.001",
+        "T1071.004",
+        "T1082",
+        "T1083",
+        "T1087",
+        "T1087.001",
+        "T1087.002",
+        "T1090.003",
+        "T1091",
+        "T1102",
+        "T1102.001",
+        "T1102.002",
+        "T1105",
+        "T1106",
+        "T1110",
+        "T1110.001",
+        "T1110.002",
+        "T1110.003",
+        "T1110.004",
+        "T1113",
+        "T1114",
+        "T1114.001",
+        "T1114.002",
+        "T1114.003",
+        "T1125",
+        "T1133",
+        "T1134",
+        "T1134.001",
+        "T1134.002",
+        "T1134.003",
+        "T1136",
+        "T1136.001",
+        "T1136.002",
+        "T1176",
+        "T1190",
+        "T1190.001",
+        "T1195",
+        "T1195.001",
+        "T1195.002",
+        "T1195.003",
+        "T1197",
+        "T1199",
+        "T1200",
+        "T1204",
+        "T1204.001",
+        "T1204.002",
+        "T1485",
+        "T1486",
+        "T1489",
+        "T1490",
+        "T1496",
+        "T1499",
+        "T1499.001",
+        "T1499.002",
+        "T1499.003",
+        "T1543",
+        "T1543.001",
+        "T1543.003",
+        "T1547",
+        "T1547.001",
+        "T1547.004",
+        "T1547.009",
+        "T1548",
+        "T1548.001",
+        "T1548.002",
+        "T1548.003",
+        "T1550",
+        "T1550.001",
+        "T1550.002",
+        "T1550.003",
+        "T1558",
+        "T1558.001",
+        "T1558.003",
+        "T1560",
+        "T1560.001",
+        "T1560.002",
+        "T1561",
+        "T1561.001",
+        "T1561.002",
+        "T1562",
+        "T1562.001",
+        "T1562.002",
+        "T1566",
+        "T1566.001",
+        "T1566.002",
+        "T1566.003",
+        "T1567",
+        "T1567.001",
+        "T1567.002",
+        "T1569",
+        "T1569.001",
+        "T1569.002",
+        "T1570",
+        "T1573",
+        "T1573.001",
+        "T1573.002",
+        "T1574.001",
+        "T1574.002",
+        "T1580",
+        "T1589",
+        "T1589.001",
+        "T1590",
+        "T1590.001",
+        "T1590.002",
+        "T1592",
+        "T1592.001",
+        "T1592.002",
+        "T1593",
+        "T1594",
+        "T1595.002",
+        "T1598",
+        "T1598.001"
+      ],
+      "source_file": "data_synth.jsonl",
+      "created": "2026-06-11T02:05:49.263653+00:00",
+      "source_files": {
+        "synth": "data_synth.jsonl"
+      }
+    },
+    {
+      "name": "attacks",
+      "display_name": "Web Application Attacks",
+      "category": "web_app",
+      "count": 1311,
+      "description": "Web application attack dataset covering 7 categories: sql_injection, xss, idor, ssrf, csrf, command_injection, path_traversal. Includes SQL injection, XSS, CSRF, command injection, path traversal, IDOR, and SSRF.",
+      "path": "web_app/attacks",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 1311
+      },
+      "mitre_tactic": "TA0001",
+      "mitre_ids": [
+        "T1059.004",
+        "T1059.007",
+        "T1071.001",
+        "T1083",
+        "T1190.001",
+        "T1534"
+      ],
+      "source_file": "data_synth.jsonl",
+      "created": "2026-06-11T02:05:49.022787+00:00",
+      "source_files": {
+        "synth": "data_synth.jsonl"
+      }
+    },
+    {
+      "name": "attacks",
+      "display_name": "Cloud Security Attacks",
+      "category": "cloud",
+      "count": 1298,
+      "description": "Cloud security attack dataset covering 8 categories: AWS IAM, S3, container escapes, Kubernetes, serverless, IMDS, Azure AD, and GCP security exploitation. Aligned with MITRE ATT&CK Cloud Matrix.",
+      "path": "cloud/attacks",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 1298
+      },
+      "mitre_tactic": "TA0008",
+      "mitre_ids": [
+        "T1071.001",
+        "T1136.001",
+        "T1190",
+        "T1530",
+        "T1548.001",
+        "T1552.001",
+        "T1552.003",
+        "T1552.004",
+        "T1552.005",
+        "T1552.007",
+        "T1565.001",
+        "T1580",
+        "T1609",
+        "T1611"
+      ],
+      "source_file": "data_synth.jsonl",
+      "created": "2026-06-11T02:05:49.065649+00:00",
+      "source_files": {
+        "synth": "data_synth.jsonl"
+      }
+    },
+    {
+      "name": "phishing",
+      "display_name": "Phishing & Social Engineering",
+      "category": "social_engineering",
+      "count": 2820,
+      "description": "Phishing and social engineering dataset covering 6 categories: spear phishing, BEC, credential harvesting, vishing, pretexting, and deepfake SE. Generated with 30 variant expansions per scenario.",
+      "path": "social_engineering/phishing",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 2820
+      },
+      "mitre_tactic": "TA0001",
+      "mitre_ids": [
+        "T1110.001",
+        "T1111",
+        "T1200",
+        "T1566.001",
+        "T1566.002",
+        "T1598",
+        "T1598.001",
+        "T1598.002"
+      ],
+      "source_file": "data.jsonl",
+      "created": "2026-06-11T01:42:49.078694+00:00",
+      "source_files": {
+        "synth": "data.jsonl"
+      }
+    },
+    {
+      "name": "attacks",
+      "display_name": "Supply Chain Attacks",
+      "category": "supply_chain",
+      "count": 215,
+      "description": "Supply chain attack dataset covering 7 categories: Build Tool Compromise, Compromised Cicd, Dependency Confusion, Malicious Package, Package Manager Exploit, Sbom Manipulation, Typosquatting.",
+      "path": "supply_chain/attacks",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 215
+      },
+      "mitre_tactic": "TA0042",
+      "mitre_ids": [
+        "T1195.002",
+        "T1552"
+      ],
+      "source_file": "data_synth.jsonl",
+      "created": "2026-06-11T02:05:48.920101+00:00",
+      "source_files": {
+        "synth": "data_synth.jsonl"
+      }
+    },
+    {
+      "name": "attacks",
+      "display_name": "ICS/SCADA Attacks",
+      "category": "ics",
+      "count": 250,
+      "description": "ICS/SCADA attack dataset covering 7 categories: Modbus/TCP exploitation, PLC attacks, SCADA network intrusion, industrial ransomware, OT protocol analysis, HMI attacks, and engineering workstation compromise. Aligned with MITRE ATT&CK ICS, NIST SP 800-82, and IEC 62443.",
+      "path": "ics/attacks",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 250
+      },
+      "mitre_tactic": "TA010",
+      "mitre_ids": [
+        "T0799",
+        "T0802",
+        "T0814",
+        "T0817",
+        "T0830",
+        "T0831",
+        "T0832",
+        "T0846",
+        "T0856",
+        "T0857",
+        "T0859",
+        "T1486"
+      ],
+      "source_file": "data_synth.jsonl",
+      "created": "2026-06-11T02:05:48.949381+00:00",
+      "source_files": {
+        "synth": "data_synth.jsonl"
+      }
+    },
+    {
+      "name": "attacks",
+      "display_name": "Wireless Attacks",
+      "category": "wireless",
+      "count": 261,
+      "description": "Wireless attack dataset covering 6 categories: WPA2/WPA3 attacks, deauthentication, rogue AP/evil twin, Bluetooth attacks, wireless LAN attacks, and RF-based attacks.",
+      "path": "wireless/attacks",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 261
+      },
+      "mitre_tactic": "TA0006",
+      "mitre_ids": [
+        "T1566.001",
+        "T1590.002",
+        "T1602.001"
+      ],
+      "source_file": "data_synth.jsonl",
+      "created": "2026-06-11T02:05:48.978826+00:00",
+      "source_files": {
+        "synth": "data_synth.jsonl"
+      }
+    },
+    {
+      "name": "orchestrator",
+      "display_name": "Orchestrator Routing",
+      "category": "meta",
+      "count": 380,
+      "description": "Agent routing decisions — 380 examples across 6 agents",
+      "path": "orchestrator",
+      "sub_sources": {
+        "human": 0,
+        "llm": 0,
+        "synth": 380
+      },
+      "mitre_tactic": "n/a",
+      "source_file": "orchestrator_dataset.jsonl",
+      "created": "2026-06-09T14:40:54.202603",
+      "source_files": {
+        "synth": "data.jsonl"
+      }
     }
   ]
 }
