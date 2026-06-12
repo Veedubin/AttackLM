@@ -928,7 +928,11 @@ def main():
             args_stage2.lora_dropout = 0.0
             args_stage2.epochs = max(2, args.epochs // 2)
             args_stage2.resume_from_checkpoint = True
-            orch_path = BUCKETS_DIR / "orchestrator" / "data.jsonl"
+            # In the per-source layout, the orchestrator bucket is at
+            # `sources/attacklm-synthetic/orchestrator/data.jsonl` (or any
+            # other source that may have records). Use build_combined to
+            # aggregate across sources.
+            orch_path = build_combined(["orchestrator"], flags={"_stage": 2})
             cmd_s2 = build_train_cmd(
                 args_stage2, orch_path, output_path, lora_dropout=0.0
             )
@@ -1056,8 +1060,9 @@ def main():
         if idx < args.start_from:
             continue
 
-        # Data path lives in the bucket directory
-        dataset_path = BUCKETS_DIR / bucket_name / "data.jsonl"
+        # In the per-source layout (v0.3.0+), the bucket may be split across
+        # multiple sources. Use build_combined to aggregate and cache.
+        dataset_path = build_combined([bucket_name], flags={"_stage": 1})
         # v0.1.6: per-run timestamped output dir (no clobbering, easy rollback)
         output_path = _make_timestamped_output_dir(agent_name)
 

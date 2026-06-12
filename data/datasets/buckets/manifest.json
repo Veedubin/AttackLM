@@ -1,691 +1,691 @@
 {
-  "version": 4,
-  "layout": "nested (ai/, attack_tactics/, base/, cloud/, ics/, orchestrator/, social_engineering/, supply_chain/, tools/, web_app/, wireless/)",
-  "provenance": "three-tier (human/llm/synth)",
-  "created": "2026-06-11T02:05:49.301208+00:00",
-  "total_buckets": 23,
-  "total_pairs": 23437,
+  "version": 5,
+  "layout": "per-source (sources/<source>/<bucket>/<tactic>/data*.jsonl)",
+  "legacy_layout": "flat (data/datasets/buckets/<bucket>/data.jsonl) — kept for back-compat",
+  "provenance": "per-source + per-record fields (source, source_uri, license, license_uri, rights_contact, plus per-license attribution fields)",
+  "excluded_sources": [
+    "endgameinc/RTA (AGPL-3.0)",
+    "guardicore/infection_monkey (GPL-3.0)",
+    "TheBigPromptLibrary (mixed/unclear)"
+  ],
+  "created": "2026-06-12T02:49:52.749367+00:00",
+  "total_buckets": 20,
+  "total_pairs": 25601,
   "tier_totals": {
-    "human": 0,
-    "llm": 0,
-    "synth": 23437
+    "human": 15635,
+    "llm": 937,
+    "synth": 9029
+  },
+  "source_totals": {
+    "atomic-red-team": 1115,
+    "attacklm-synthetic": 9029,
+    "azure-pyrit": 0,
+    "cyberark-fuzzyai": 0,
+    "llm-generated": 937,
+    "metasploit-framework": 13997,
+    "mitre-atlas-arsenal": 20,
+    "mitre-stockpile": 390,
+    "nvidia-garak": 50,
+    "promptfoo": 33,
+    "promptmap": 30
+  },
+  "sources": {
+    "atomic-red-team": {
+      "name": "atomic-red-team",
+      "display": "Atomic Red Team (Red Canary)",
+      "license": "MIT",
+      "license_uri": "https://opensource.org/licenses/MIT",
+      "upstream_url": "https://github.com/redcanaryco/atomic-red-team",
+      "risk": "low",
+      "n_records": 1115,
+      "buckets": [
+        {
+          "bucket": "base/collection",
+          "file": "data.jsonl",
+          "records": 150
+        },
+        {
+          "bucket": "base/discovery",
+          "file": "data.jsonl",
+          "records": 532
+        },
+        {
+          "bucket": "base/execution",
+          "file": "data.jsonl",
+          "records": 174
+        },
+        {
+          "bucket": "base/exfiltration",
+          "file": "data.jsonl",
+          "records": 15
+        },
+        {
+          "bucket": "base/persistence",
+          "file": "data.jsonl",
+          "records": 244
+        }
+      ]
+    },
+    "attacklm-synthetic": {
+      "name": "attacklm-synthetic",
+      "display": "AttackLM Synthetic (deterministic templates + in-repo generation)",
+      "license": "MIT",
+      "license_uri": "https://opensource.org/licenses/MIT",
+      "upstream_url": "https://github.com/Veedubin/AttackLM",
+      "risk": "low",
+      "n_records": 9029,
+      "buckets": [
+        {
+          "bucket": "ai/prompt-injection",
+          "file": "data.jsonl",
+          "records": 624
+        },
+        {
+          "bucket": "attack_tactics/red_team_tactics",
+          "file": "data.jsonl",
+          "records": 1420
+        },
+        {
+          "bucket": "attack_tactics/red_team_tactics",
+          "file": "data_synth.jsonl",
+          "records": 300
+        },
+        {
+          "bucket": "cloud/attacks",
+          "file": "data.jsonl",
+          "records": 1298
+        },
+        {
+          "bucket": "ics/attacks",
+          "file": "data.jsonl",
+          "records": 50
+        },
+        {
+          "bucket": "ics/attacks",
+          "file": "data_synth.jsonl",
+          "records": 250
+        },
+        {
+          "bucket": "orchestrator",
+          "file": "data.jsonl",
+          "records": 380
+        },
+        {
+          "bucket": "social_engineering/phishing",
+          "file": "data.jsonl",
+          "records": 2820
+        },
+        {
+          "bucket": "supply_chain/attacks",
+          "file": "data.jsonl",
+          "records": 50
+        },
+        {
+          "bucket": "supply_chain/attacks",
+          "file": "data_synth.jsonl",
+          "records": 215
+        },
+        {
+          "bucket": "web_app/attacks",
+          "file": "data.jsonl",
+          "records": 1311
+        },
+        {
+          "bucket": "wireless/attacks",
+          "file": "data.jsonl",
+          "records": 50
+        },
+        {
+          "bucket": "wireless/attacks",
+          "file": "data_synth.jsonl",
+          "records": 261
+        }
+      ]
+    },
+    "azure-pyrit": {
+      "name": "azure-pyrit",
+      "display": "PyRIT (Azure)",
+      "license": "",
+      "license_uri": "",
+      "upstream_url": "https://github.com/Azure/PyRIT",
+      "risk": "low",
+      "n_records": 0,
+      "buckets": []
+    },
+    "cyberark-fuzzyai": {
+      "name": "cyberark-fuzzyai",
+      "display": "FuzzyAI (CyberArk)",
+      "license": "",
+      "license_uri": "",
+      "upstream_url": "https://github.com/cyberark/FuzzyAI",
+      "risk": "low",
+      "n_records": 0,
+      "buckets": []
+    },
+    "llm-generated": {
+      "name": "llm-generated",
+      "display": "LLM-generated (qwen2.5-coder-14b-instruct via LMStudio)",
+      "license": "GPL-3.0",
+      "license_uri": "https://www.gnu.org/licenses/gpl-3.0.html",
+      "upstream_url": "https://github.com/QwenLM/Qwen2.5-Coder",
+      "risk": "low",
+      "n_records": 937,
+      "buckets": [
+        {
+          "bucket": "cloud/attacks",
+          "file": "data_llm.jsonl",
+          "records": 10
+        },
+        {
+          "bucket": "ics/attacks",
+          "file": "data_llm.jsonl",
+          "records": 290
+        },
+        {
+          "bucket": "social_engineering/phishing",
+          "file": "data_llm.jsonl",
+          "records": 440
+        },
+        {
+          "bucket": "wireless/attacks",
+          "file": "data_llm.jsonl",
+          "records": 197
+        }
+      ]
+    },
+    "metasploit-framework": {
+      "name": "metasploit-framework",
+      "display": "Metasploit Framework (Rapid7)",
+      "license": "BSD-3-Clause",
+      "license_uri": "https://opensource.org/licenses/BSD-3-Clause",
+      "upstream_url": "https://github.com/rapid7/metasploit-framework",
+      "risk": "medium",
+      "n_records": 13997,
+      "buckets": [
+        {
+          "bucket": "base/collection",
+          "file": "data.jsonl",
+          "records": 410
+        },
+        {
+          "bucket": "base/credential_access",
+          "file": "data.jsonl",
+          "records": 589
+        },
+        {
+          "bucket": "base/defense_evasion",
+          "file": "data.jsonl",
+          "records": 1375
+        },
+        {
+          "bucket": "base/discovery",
+          "file": "data.jsonl",
+          "records": 1050
+        },
+        {
+          "bucket": "base/execution",
+          "file": "data.jsonl",
+          "records": 579
+        },
+        {
+          "bucket": "base/lateral_movement",
+          "file": "data.jsonl",
+          "records": 252
+        },
+        {
+          "bucket": "base/persistence",
+          "file": "data.jsonl",
+          "records": 856
+        },
+        {
+          "bucket": "base/privilege_escalation",
+          "file": "data.jsonl",
+          "records": 537
+        },
+        {
+          "bucket": "tools/metasploit",
+          "file": "data.jsonl",
+          "records": 8349
+        }
+      ]
+    },
+    "mitre-atlas-arsenal": {
+      "name": "mitre-atlas-arsenal",
+      "display": "MITRE ATLAS Arsenal",
+      "license": "Apache-2.0",
+      "license_uri": "https://www.apache.org/licenses/LICENSE-2.0",
+      "upstream_url": "https://github.com/mitre-atlas/arsenal",
+      "risk": "low",
+      "n_records": 20,
+      "buckets": [
+        {
+          "bucket": "base/discovery",
+          "file": "data.jsonl",
+          "records": 20
+        }
+      ]
+    },
+    "mitre-stockpile": {
+      "name": "mitre-stockpile",
+      "display": "MITRE Caldera — Stockpile",
+      "license": "Apache-2.0",
+      "license_uri": "https://www.apache.org/licenses/LICENSE-2.0",
+      "upstream_url": "https://github.com/mitre/stockpile",
+      "risk": "low",
+      "n_records": 390,
+      "buckets": [
+        {
+          "bucket": "base/collection",
+          "file": "data.jsonl",
+          "records": 74
+        },
+        {
+          "bucket": "base/discovery",
+          "file": "data.jsonl",
+          "records": 244
+        },
+        {
+          "bucket": "base/execution",
+          "file": "data.jsonl",
+          "records": 14
+        },
+        {
+          "bucket": "base/exfiltration",
+          "file": "data.jsonl",
+          "records": 38
+        },
+        {
+          "bucket": "base/persistence",
+          "file": "data.jsonl",
+          "records": 20
+        }
+      ]
+    },
+    "nvidia-garak": {
+      "name": "nvidia-garak",
+      "display": "garak (NVIDIA)",
+      "license": "Apache-2.0",
+      "license_uri": "https://www.apache.org/licenses/LICENSE-2.0",
+      "upstream_url": "https://github.com/NVIDIA/garak",
+      "risk": "low",
+      "n_records": 50,
+      "buckets": [
+        {
+          "bucket": "ai/jailbreaking",
+          "file": "data.jsonl",
+          "records": 50
+        }
+      ]
+    },
+    "promptfoo": {
+      "name": "promptfoo",
+      "display": "promptfoo",
+      "license": "MIT",
+      "license_uri": "https://opensource.org/licenses/MIT",
+      "upstream_url": "https://github.com/promptfoo/promptfoo",
+      "risk": "low",
+      "n_records": 33,
+      "buckets": [
+        {
+          "bucket": "ai/prompt-injection",
+          "file": "data.jsonl",
+          "records": 33
+        }
+      ]
+    },
+    "promptmap": {
+      "name": "promptmap",
+      "display": "promptmap (utkusen)",
+      "license": "MIT",
+      "license_uri": "https://opensource.org/licenses/MIT",
+      "upstream_url": "https://github.com/utkusen/promptmap",
+      "risk": "low",
+      "n_records": 30,
+      "buckets": [
+        {
+          "bucket": "ai/prompt-injection",
+          "file": "data.jsonl",
+          "records": 30
+        }
+      ]
+    }
   },
   "buckets": [
     {
-      "name": "collection",
-      "display_name": "Collection",
+      "name": "base_collection",
+      "path": "base/collection",
       "category": "tactic",
       "count": 634,
-      "description": "Data collection from target systems (T1005, T1213, T1114, T1119)",
-      "path": "base/collection",
       "sub_sources": {
-        "human": 0,
+        "human": 634,
         "llm": 0,
-        "synth": 634
+        "synth": 0
       },
-      "mitre_tactic": "TA0009",
-      "source_file": "collection_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.191524",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
+      "sources": {
+        "atomic-red-team": 150,
+        "metasploit-framework": 410,
+        "mitre-stockpile": 74
+      },
+      "dominant_source": "metasploit-framework",
+      "license": "BSD-3-Clause"
     },
     {
-      "name": "command_and_control",
-      "display_name": "Command and Control",
-      "category": "tactic",
-      "count": 105,
-      "description": "C2 channel establishment (T1071, T1090, T1095, T1572, T1573)",
-      "path": "base/command_and_control",
-      "sub_sources": {
-        "human": 0,
-        "llm": 0,
-        "synth": 105
-      },
-      "mitre_tactic": "TA0011",
-      "source_file": "command_and_control_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.191751",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
-    },
-    {
-      "name": "credential_access",
-      "display_name": "Credential Access",
+      "name": "base_credential_access",
+      "path": "base/credential_access",
       "category": "tactic",
       "count": 589,
-      "description": "Credential theft and brute force (T1003, T1110, T1555, T1552)",
-      "path": "base/credential_access",
       "sub_sources": {
-        "human": 0,
+        "human": 589,
         "llm": 0,
-        "synth": 589
+        "synth": 0
       },
-      "mitre_tactic": "TA0006",
-      "source_file": "credential_access_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.192555",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
+      "sources": {
+        "metasploit-framework": 589
+      },
+      "dominant_source": "metasploit-framework",
+      "license": "BSD-3-Clause"
     },
     {
-      "name": "defense_evasion",
-      "display_name": "Defense Evasion",
+      "name": "base_defense_evasion",
+      "path": "base/defense_evasion",
       "category": "tactic",
       "count": 1375,
-      "description": "AV/EDR bypass, obfuscation, masquerading (T1027, T1055, T1562, T1070)",
-      "path": "base/defense_evasion",
       "sub_sources": {
-        "human": 0,
+        "human": 1375,
         "llm": 0,
-        "synth": 1375
+        "synth": 0
       },
-      "mitre_tactic": "TA0005",
-      "source_file": "defense_evasion_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.193770",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
+      "sources": {
+        "metasploit-framework": 1375
+      },
+      "dominant_source": "metasploit-framework",
+      "license": "BSD-3-Clause"
     },
     {
-      "name": "discovery",
-      "display_name": "Discovery",
+      "name": "base_discovery",
+      "path": "base/discovery",
       "category": "tactic",
       "count": 1846,
-      "description": "System/network enumeration (T1057, T1082, T1087, T1018, T1049)",
-      "path": "base/discovery",
       "sub_sources": {
-        "human": 0,
+        "human": 1846,
         "llm": 0,
-        "synth": 1846
+        "synth": 0
       },
-      "mitre_tactic": "TA0007",
-      "source_file": "discovery_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.194670",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
+      "sources": {
+        "atomic-red-team": 532,
+        "metasploit-framework": 1050,
+        "mitre-atlas-arsenal": 20,
+        "mitre-stockpile": 244
+      },
+      "dominant_source": "metasploit-framework",
+      "license": "BSD-3-Clause"
     },
     {
-      "name": "execution",
-      "display_name": "Execution",
+      "name": "base_execution",
+      "path": "base/execution",
       "category": "tactic",
       "count": 767,
-      "description": "Code execution techniques (T1059, T1106, T1204, T1047)",
-      "path": "base/execution",
       "sub_sources": {
-        "human": 0,
+        "human": 767,
         "llm": 0,
-        "synth": 767
+        "synth": 0
       },
-      "mitre_tactic": "TA0002",
-      "source_file": "execution_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.195414",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
+      "sources": {
+        "atomic-red-team": 174,
+        "metasploit-framework": 579,
+        "mitre-stockpile": 14
+      },
+      "dominant_source": "metasploit-framework",
+      "license": "BSD-3-Clause"
     },
     {
-      "name": "exfiltration",
-      "display_name": "Exfiltration",
-      "category": "tactic",
-      "count": 173,
-      "description": "Data exfiltration over C2 (T1041, T1567, T1052, T1011)",
+      "name": "base_exfiltration",
       "path": "base/exfiltration",
+      "category": "tactic",
+      "count": 53,
       "sub_sources": {
-        "human": 0,
+        "human": 53,
         "llm": 0,
-        "synth": 173
+        "synth": 0
       },
-      "mitre_tactic": "TA0010",
-      "source_file": "exfiltration_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.195663",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
+      "sources": {
+        "atomic-red-team": 15,
+        "mitre-stockpile": 38
+      },
+      "dominant_source": "mitre-stockpile",
+      "license": "Apache-2.0"
     },
     {
-      "name": "lateral_movement",
-      "display_name": "Lateral Movement",
+      "name": "base_lateral_movement",
+      "path": "base/lateral_movement",
       "category": "tactic",
       "count": 252,
-      "description": "Remote service exploitation (T1021, T1570, T1080, T1559)",
-      "path": "base/lateral_movement",
       "sub_sources": {
-        "human": 0,
+        "human": 252,
         "llm": 0,
-        "synth": 252
+        "synth": 0
       },
-      "mitre_tactic": "TA0008",
-      "source_file": "lateral_movement_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.196022",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
+      "sources": {
+        "metasploit-framework": 252
+      },
+      "dominant_source": "metasploit-framework",
+      "license": "BSD-3-Clause"
     },
     {
-      "name": "persistence",
-      "display_name": "Persistence",
+      "name": "base_persistence",
+      "path": "base/persistence",
       "category": "tactic",
       "count": 1120,
-      "description": "Maintain foothold (T1543, T1547, T1136, T1098, T1197)",
-      "path": "base/persistence",
       "sub_sources": {
-        "human": 0,
+        "human": 1120,
         "llm": 0,
-        "synth": 1120
+        "synth": 0
       },
-      "mitre_tactic": "TA0003",
-      "source_file": "persistence_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.197101",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
+      "sources": {
+        "atomic-red-team": 244,
+        "metasploit-framework": 856,
+        "mitre-stockpile": 20
+      },
+      "dominant_source": "metasploit-framework",
+      "license": "BSD-3-Clause"
     },
     {
-      "name": "privilege_escalation",
-      "display_name": "Privilege Escalation",
+      "name": "base_privilege_escalation",
+      "path": "base/privilege_escalation",
       "category": "tactic",
       "count": 537,
-      "description": "Elevate privileges (T1068, T1548, T1134, T1543)",
-      "path": "base/privilege_escalation",
       "sub_sources": {
-        "human": 0,
+        "human": 537,
         "llm": 0,
-        "synth": 537
+        "synth": 0
       },
-      "mitre_tactic": "TA0004",
-      "source_file": "privilege_escalation_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.197791",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
+      "sources": {
+        "metasploit-framework": 537
+      },
+      "dominant_source": "metasploit-framework",
+      "license": "BSD-3-Clause"
     },
     {
-      "name": "infection_monkey",
-      "display_name": "Infection Monkey",
-      "category": "tools",
-      "count": 36,
-      "description": "guardicore/infection_monkey — 36 plugin manifests",
-      "path": "tools/infection_monkey",
-      "sub_sources": {
-        "human": 0,
-        "llm": 0,
-        "synth": 36
-      },
-      "mitre_tactic": "various",
-      "source_file": "infection_monkey_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.201669",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
-    },
-    {
-      "name": "metasploit",
-      "display_name": "Metasploit Modules",
+      "name": "tools_metasploit",
+      "path": "tools/metasploit",
       "category": "tools",
       "count": 8349,
-      "description": "Rapid7 Metasploit — 15 module categories consolidated",
-      "path": "tools/metasploit",
       "sub_sources": {
-        "human": 0,
+        "human": 8349,
         "llm": 0,
-        "synth": 8349
+        "synth": 0
       },
-      "mitre_tactic": "various",
-      "source_files": [
-        "metasploit_collection_dataset.jsonl",
-        "metasploit_credential_access_dataset.jsonl",
-        "metasploit_defense_evasion_dataset.jsonl",
-        "metasploit_discovery_dataset.jsonl",
-        "metasploit_execution_dataset.jsonl",
-        "metasploit_lateral_movement_dataset.jsonl",
-        "metasploit_metasploit_auxiliary_dataset.jsonl",
-        "metasploit_metasploit_encoder_dataset.jsonl",
-        "metasploit_metasploit_evasion_dataset.jsonl",
-        "metasploit_metasploit_exploit_dataset.jsonl",
-        "metasploit_metasploit_nop_dataset.jsonl",
-        "metasploit_metasploit_payload_dataset.jsonl",
-        "metasploit_metasploit_post_dataset.jsonl",
-        "metasploit_persistence_dataset.jsonl",
-        "metasploit_privilege_escalation_dataset.jsonl"
-      ],
-      "created": "2026-06-09T14:40:54.220557"
+      "sources": {
+        "metasploit-framework": 8349
+      },
+      "dominant_source": "metasploit-framework",
+      "license": "BSD-3-Clause"
     },
     {
-      "name": "rta",
-      "display_name": "RTA",
-      "category": "tools",
-      "count": 76,
-      "description": "endgameinc/RTA — 40 Python TTP scripts",
-      "path": "tools/rta",
-      "sub_sources": {
-        "human": 0,
-        "llm": 0,
-        "synth": 76
-      },
-      "mitre_tactic": "various",
-      "source_file": "rta_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.201316",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
-    },
-    {
-      "name": "jailbreak",
-      "display_name": "Jailbreak",
-      "category": "ai_redteam",
-      "count": 56,
-      "description": "AI jailbreak patterns (was jailbreak)",
+      "name": "ai_jailbreaking",
       "path": "ai/jailbreaking",
+      "category": "ai_redteam",
+      "count": 50,
       "sub_sources": {
-        "human": 0,
+        "human": 50,
         "llm": 0,
-        "synth": 56
+        "synth": 0
       },
-      "mitre_tactic": "TA0040",
-      "source_file": "jailbreak_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.201966",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
+      "sources": {
+        "nvidia-garak": 50
+      },
+      "dominant_source": "nvidia-garak",
+      "license": "Apache-2.0"
     },
     {
-      "name": "prompt_injection",
-      "display_name": "Prompt Injection",
+      "name": "ai_prompt-injection",
+      "path": "ai/prompt-injection",
       "category": "ai_redteam",
       "count": 687,
-      "description": "Prompt injection & AI exploit (was prompt_injection)",
-      "path": "ai/prompt-injection",
       "sub_sources": {
-        "human": 0,
+        "human": 63,
         "llm": 0,
-        "synth": 687
+        "synth": 624
       },
-      "mitre_tactic": "TA0040",
-      "source_file": "prompt_injection_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.204089",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
+      "sources": {
+        "attacklm-synthetic": 624,
+        "promptfoo": 33,
+        "promptmap": 30
+      },
+      "dominant_source": "attacklm-synthetic",
+      "license": "MIT"
     },
     {
-      "name": "red_team_tactics",
-      "display_name": "Red Team Tactics",
-      "category": "attack_tactics",
-      "count": 300,
-      "description": "Red team tactics dataset covering 167 MITRE techniques across all tactics. Synthetic + HF source. Contextual variables: 10 environment types, 4 severity levels, 6 frameworks.",
+      "name": "attack_tactics_red_team_tactics",
       "path": "attack_tactics/red_team_tactics",
+      "category": "attack_tactics",
+      "count": 1720,
       "sub_sources": {
         "human": 0,
         "llm": 0,
-        "synth": 300
+        "synth": 1720
       },
-      "mitre_tactic": "TA0000",
-      "mitre_ids": [
-        "T1003",
-        "T1003.001",
-        "T1003.002",
-        "T1003.003",
-        "T1005",
-        "T1016",
-        "T1020",
-        "T1020.001",
-        "T1021",
-        "T1021.001",
-        "T1021.002",
-        "T1021.003",
-        "T1021.004",
-        "T1021.005",
-        "T1027",
-        "T1027.001",
-        "T1027.002",
-        "T1027.005",
-        "T1036",
-        "T1036.001",
-        "T1036.002",
-        "T1036.003",
-        "T1036.004",
-        "T1040",
-        "T1041",
-        "T1046",
-        "T1047",
-        "T1048",
-        "T1048.001",
-        "T1048.002",
-        "T1048.003",
-        "T1052",
-        "T1052.001",
-        "T1053",
-        "T1053.001",
-        "T1053.005",
-        "T1055",
-        "T1055.001",
-        "T1055.003",
-        "T1055.012",
-        "T1057",
-        "T1059",
-        "T1059.001",
-        "T1059.002",
-        "T1059.003",
-        "T1059.005",
-        "T1059.006",
-        "T1062",
-        "T1068",
-        "T1068.001",
-        "T1070",
-        "T1070.001",
-        "T1070.002",
-        "T1070.004",
-        "T1071",
-        "T1071.001",
-        "T1071.004",
-        "T1082",
-        "T1083",
-        "T1087",
-        "T1087.001",
-        "T1087.002",
-        "T1090.003",
-        "T1091",
-        "T1102",
-        "T1102.001",
-        "T1102.002",
-        "T1105",
-        "T1106",
-        "T1110",
-        "T1110.001",
-        "T1110.002",
-        "T1110.003",
-        "T1110.004",
-        "T1113",
-        "T1114",
-        "T1114.001",
-        "T1114.002",
-        "T1114.003",
-        "T1125",
-        "T1133",
-        "T1134",
-        "T1134.001",
-        "T1134.002",
-        "T1134.003",
-        "T1136",
-        "T1136.001",
-        "T1136.002",
-        "T1176",
-        "T1190",
-        "T1190.001",
-        "T1195",
-        "T1195.001",
-        "T1195.002",
-        "T1195.003",
-        "T1197",
-        "T1199",
-        "T1200",
-        "T1204",
-        "T1204.001",
-        "T1204.002",
-        "T1485",
-        "T1486",
-        "T1489",
-        "T1490",
-        "T1496",
-        "T1499",
-        "T1499.001",
-        "T1499.002",
-        "T1499.003",
-        "T1543",
-        "T1543.001",
-        "T1543.003",
-        "T1547",
-        "T1547.001",
-        "T1547.004",
-        "T1547.009",
-        "T1548",
-        "T1548.001",
-        "T1548.002",
-        "T1548.003",
-        "T1550",
-        "T1550.001",
-        "T1550.002",
-        "T1550.003",
-        "T1558",
-        "T1558.001",
-        "T1558.003",
-        "T1560",
-        "T1560.001",
-        "T1560.002",
-        "T1561",
-        "T1561.001",
-        "T1561.002",
-        "T1562",
-        "T1562.001",
-        "T1562.002",
-        "T1566",
-        "T1566.001",
-        "T1566.002",
-        "T1566.003",
-        "T1567",
-        "T1567.001",
-        "T1567.002",
-        "T1569",
-        "T1569.001",
-        "T1569.002",
-        "T1570",
-        "T1573",
-        "T1573.001",
-        "T1573.002",
-        "T1574.001",
-        "T1574.002",
-        "T1580",
-        "T1589",
-        "T1589.001",
-        "T1590",
-        "T1590.001",
-        "T1590.002",
-        "T1592",
-        "T1592.001",
-        "T1592.002",
-        "T1593",
-        "T1594",
-        "T1595.002",
-        "T1598",
-        "T1598.001"
-      ],
-      "source_file": "data_synth.jsonl",
-      "created": "2026-06-11T02:05:49.263653+00:00",
-      "source_files": {
-        "synth": "data_synth.jsonl"
-      }
+      "sources": {
+        "attacklm-synthetic": 1720
+      },
+      "dominant_source": "attacklm-synthetic",
+      "license": "MIT"
     },
     {
-      "name": "attacks",
-      "display_name": "Web Application Attacks",
+      "name": "web_app_attacks",
+      "path": "web_app/attacks",
       "category": "web_app",
       "count": 1311,
-      "description": "Web application attack dataset covering 7 categories: sql_injection, xss, idor, ssrf, csrf, command_injection, path_traversal. Includes SQL injection, XSS, CSRF, command injection, path traversal, IDOR, and SSRF.",
-      "path": "web_app/attacks",
       "sub_sources": {
         "human": 0,
         "llm": 0,
         "synth": 1311
       },
-      "mitre_tactic": "TA0001",
-      "mitre_ids": [
-        "T1059.004",
-        "T1059.007",
-        "T1071.001",
-        "T1083",
-        "T1190.001",
-        "T1534"
-      ],
-      "source_file": "data_synth.jsonl",
-      "created": "2026-06-11T02:05:49.022787+00:00",
-      "source_files": {
-        "synth": "data_synth.jsonl"
-      }
+      "sources": {
+        "attacklm-synthetic": 1311
+      },
+      "dominant_source": "attacklm-synthetic",
+      "license": "MIT"
     },
     {
-      "name": "attacks",
-      "display_name": "Cloud Security Attacks",
-      "category": "cloud",
-      "count": 1298,
-      "description": "Cloud security attack dataset covering 8 categories: AWS IAM, S3, container escapes, Kubernetes, serverless, IMDS, Azure AD, and GCP security exploitation. Aligned with MITRE ATT&CK Cloud Matrix.",
+      "name": "cloud_attacks",
       "path": "cloud/attacks",
+      "category": "cloud",
+      "count": 1308,
       "sub_sources": {
         "human": 0,
-        "llm": 0,
+        "llm": 10,
         "synth": 1298
       },
-      "mitre_tactic": "TA0008",
-      "mitre_ids": [
-        "T1071.001",
-        "T1136.001",
-        "T1190",
-        "T1530",
-        "T1548.001",
-        "T1552.001",
-        "T1552.003",
-        "T1552.004",
-        "T1552.005",
-        "T1552.007",
-        "T1565.001",
-        "T1580",
-        "T1609",
-        "T1611"
-      ],
-      "source_file": "data_synth.jsonl",
-      "created": "2026-06-11T02:05:49.065649+00:00",
-      "source_files": {
-        "synth": "data_synth.jsonl"
-      }
+      "sources": {
+        "attacklm-synthetic": 1298,
+        "llm-generated": 10
+      },
+      "dominant_source": "attacklm-synthetic",
+      "license": "MIT"
     },
     {
-      "name": "phishing",
-      "display_name": "Phishing & Social Engineering",
-      "category": "social_engineering",
-      "count": 2820,
-      "description": "Phishing and social engineering dataset covering 6 categories: spear phishing, BEC, credential harvesting, vishing, pretexting, and deepfake SE. Generated with 30 variant expansions per scenario.",
+      "name": "social_engineering_phishing",
       "path": "social_engineering/phishing",
+      "category": "social_engineering",
+      "count": 3260,
       "sub_sources": {
         "human": 0,
-        "llm": 0,
+        "llm": 440,
         "synth": 2820
       },
-      "mitre_tactic": "TA0001",
-      "mitre_ids": [
-        "T1110.001",
-        "T1111",
-        "T1200",
-        "T1566.001",
-        "T1566.002",
-        "T1598",
-        "T1598.001",
-        "T1598.002"
-      ],
-      "source_file": "data.jsonl",
-      "created": "2026-06-11T01:42:49.078694+00:00",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
+      "sources": {
+        "attacklm-synthetic": 2820,
+        "llm-generated": 440
+      },
+      "dominant_source": "attacklm-synthetic",
+      "license": "MIT"
     },
     {
-      "name": "attacks",
-      "display_name": "Supply Chain Attacks",
-      "category": "supply_chain",
-      "count": 215,
-      "description": "Supply chain attack dataset covering 7 categories: Build Tool Compromise, Compromised Cicd, Dependency Confusion, Malicious Package, Package Manager Exploit, Sbom Manipulation, Typosquatting.",
+      "name": "supply_chain_attacks",
       "path": "supply_chain/attacks",
+      "category": "supply_chain",
+      "count": 265,
       "sub_sources": {
         "human": 0,
         "llm": 0,
-        "synth": 215
+        "synth": 265
       },
-      "mitre_tactic": "TA0042",
-      "mitre_ids": [
-        "T1195.002",
-        "T1552"
-      ],
-      "source_file": "data_synth.jsonl",
-      "created": "2026-06-11T02:05:48.920101+00:00",
-      "source_files": {
-        "synth": "data_synth.jsonl"
-      }
+      "sources": {
+        "attacklm-synthetic": 265
+      },
+      "dominant_source": "attacklm-synthetic",
+      "license": "MIT"
     },
     {
-      "name": "attacks",
-      "display_name": "ICS/SCADA Attacks",
-      "category": "ics",
-      "count": 250,
-      "description": "ICS/SCADA attack dataset covering 7 categories: Modbus/TCP exploitation, PLC attacks, SCADA network intrusion, industrial ransomware, OT protocol analysis, HMI attacks, and engineering workstation compromise. Aligned with MITRE ATT&CK ICS, NIST SP 800-82, and IEC 62443.",
+      "name": "ics_attacks",
       "path": "ics/attacks",
+      "category": "ics",
+      "count": 590,
       "sub_sources": {
         "human": 0,
-        "llm": 0,
-        "synth": 250
+        "llm": 290,
+        "synth": 300
       },
-      "mitre_tactic": "TA010",
-      "mitre_ids": [
-        "T0799",
-        "T0802",
-        "T0814",
-        "T0817",
-        "T0830",
-        "T0831",
-        "T0832",
-        "T0846",
-        "T0856",
-        "T0857",
-        "T0859",
-        "T1486"
-      ],
-      "source_file": "data_synth.jsonl",
-      "created": "2026-06-11T02:05:48.949381+00:00",
-      "source_files": {
-        "synth": "data_synth.jsonl"
-      }
+      "sources": {
+        "attacklm-synthetic": 300,
+        "llm-generated": 290
+      },
+      "dominant_source": "attacklm-synthetic",
+      "license": "MIT"
     },
     {
-      "name": "attacks",
-      "display_name": "Wireless Attacks",
-      "category": "wireless",
-      "count": 261,
-      "description": "Wireless attack dataset covering 6 categories: WPA2/WPA3 attacks, deauthentication, rogue AP/evil twin, Bluetooth attacks, wireless LAN attacks, and RF-based attacks.",
+      "name": "wireless_attacks",
       "path": "wireless/attacks",
+      "category": "wireless",
+      "count": 508,
       "sub_sources": {
         "human": 0,
-        "llm": 0,
-        "synth": 261
+        "llm": 197,
+        "synth": 311
       },
-      "mitre_tactic": "TA0006",
-      "mitre_ids": [
-        "T1566.001",
-        "T1590.002",
-        "T1602.001"
-      ],
-      "source_file": "data_synth.jsonl",
-      "created": "2026-06-11T02:05:48.978826+00:00",
-      "source_files": {
-        "synth": "data_synth.jsonl"
-      }
+      "sources": {
+        "attacklm-synthetic": 311,
+        "llm-generated": 197
+      },
+      "dominant_source": "attacklm-synthetic",
+      "license": "MIT"
     },
     {
       "name": "orchestrator",
-      "display_name": "Orchestrator Routing",
+      "path": "orchestrator",
       "category": "meta",
       "count": 380,
-      "description": "Agent routing decisions — 380 examples across 6 agents",
-      "path": "orchestrator",
       "sub_sources": {
         "human": 0,
         "llm": 0,
         "synth": 380
       },
-      "mitre_tactic": "n/a",
-      "source_file": "orchestrator_dataset.jsonl",
-      "created": "2026-06-09T14:40:54.202603",
-      "source_files": {
-        "synth": "data.jsonl"
-      }
+      "sources": {
+        "attacklm-synthetic": 380
+      },
+      "dominant_source": "attacklm-synthetic",
+      "license": "MIT"
     }
   ]
 }

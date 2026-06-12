@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
 """Bucket loader for AttackLM.
 
-Buckets are organized as 4 parents (v0.2.1+):
+Buckets are organized as a **per-source** tree (v0.3.0+):
     data/datasets/buckets/
         manifest.json
-        base/                          # 10 MITRE tactic buckets
-            collection/
-            command_and_control/
+        sources/                       # Per-source layout (canonical)
+            atomic-red-team/<bucket>/<tactic>/data.jsonl
+            metasploit-framework/<bucket>/<tactic>/data.jsonl
+            attacklm-synthetic/<bucket>/<tactic>/data.jsonl
+            llm-generated/<bucket>/<tactic>/data_llm.jsonl
             ...
-        tools/                         # External tool data (3 sub-buckets)
-            metasploit/
-            infection_monkey/
-            rta/
-        ai/                            # AI/ML red team category (2 sub-buckets)
-            prompt-injection/
-            jailbreaking/
-        orchestrator/                  # Single bucket (top-level)
+        ATTRIBUTION.md
+
+The legacy flat layout (`data/datasets/buckets/<bucket>/data.jsonl`) has
+been moved to `archive/old-flat-layout/` and is NOT used at runtime.
 
 Bucket names are paths relative to BUCKETS_DIR using forward slashes:
     "base/collection", "ai/prompt-injection", "tools/metasploit"
@@ -24,7 +22,9 @@ This module provides:
     - list_buckets(category=None) — enumerate all buckets from manifest
     - get_bucket(name) — get metadata for a specific bucket (by path)
     - build_combined(bucket_names, flags, seed=42) — concatenate buckets
-      into a single shuffled JSONL with a content-hash for cache invalidation
+      into a single shuffled JSONL with a content-hash for cache invalidation.
+      Reads from the per-source layout and aggregates across all sources for
+      a given bucket.
     - cache_key(bucket_names, flags) — stable hash for the combined dataset
     - get_tactic_buckets() — MITRE tactic buckets (filtered by category)
     - get_ai_model_buckets() — ai/* buckets (prompt-injection, jailbreaking)
@@ -45,12 +45,12 @@ computed and a fresh file is built.
 import hashlib
 import json
 import random
-import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 BUCKETS_DIR = Path("data/datasets/buckets")
+SOURCES_DIR = BUCKETS_DIR / "sources"
 CACHE_DIR = Path("data/datasets/combined")
 
 
@@ -126,7 +126,7 @@ def build_combined(
         print(f"  [cache HIT] Reusing {cache_path.name} ({count:,} pairs, key={key})")
         return cache_path
 
-    # Build from source buckets
+    # Build from source buckets (per-source layout)
     print(f"  [cache MISS] Building combined dataset (key={key})...")
     all_pairs: list[dict] = []
     for name in bucket_names:
@@ -134,19 +134,39 @@ def build_combined(
         if not b:
             print(f"    WARNING: bucket '{name}' not found in manifest, skipping")
             continue
-        # data.jsonl lives at BUCKETS_DIR / <path> / data.jsonl
-        # For nested paths like "ai/prompt-injection" or "base/collection",
-        # the path component is preserved as a relative path.
-        data_path = BUCKETS_DIR / name / "data.jsonl"
-        if not data_path.exists():
-            print(f"    WARNING: bucket '{name}' has no data.jsonl, skipping")
+        # In the per-source layout, a bucket may be split across many
+        # sources. Aggregate from all sources/<source>/<bucket_path>/
+        # that contain jsonl files matching the bucket's tactic directory.
+        # The bucket path may be 1 or 2 levels deep (e.g. "orchestrator"
+        # vs "base/execution"). We try both shapes.
+        bucket_path = b["path"]
+        candidates: list[Path] = []
+        if SOURCES_DIR.exists():
+            for src_dir in SOURCES_DIR.iterdir():
+                if not src_dir.is_dir() or src_dir.name.startswith("_"):
+                    continue
+                # 2-level path: sources/<source>/<bucket>/<tactic>/
+                p2 = src_dir / bucket_path
+                if p2.is_dir():
+                    candidates.extend(p2.glob("*.jsonl"))
+                # 1-level path: sources/<source>/<bucket>/  (e.g. orchestrator)
+                p1 = src_dir / bucket_path.split("/")[-1]
+                if p1.is_dir() and p1 != p2:
+                    candidates.extend(p1.glob("*.jsonl"))
+        if not candidates:
+            print(f"    WARNING: bucket '{name}' has no jsonl files, skipping")
             continue
-        with open(data_path) as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    all_pairs.append(json.loads(line))
-        print(f"    + {name:40s} {b['count']:>6,d} pairs")
+        n_bucket = 0
+        for jsonl in sorted(set(candidates)):
+            with open(jsonl) as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        all_pairs.append(json.loads(line))
+                        n_bucket += 1
+        print(
+            f"    + {name:40s} {n_bucket:>6,d} pairs (from {len(set(candidates))} files)"
+        )
 
     if shuffle:
         rng = random.Random(seed)
@@ -259,16 +279,60 @@ _CATEGORY_RESOLVERS = {
 }
 
 # Map from top-level alias to a list of (resolver, subfilter)
+# Each "category" entry pulls all buckets with that category.
+# Per-domain attack categories (web_app, cloud, etc.) are added as their
+# own entries so `--dataset all` includes them.
 _ALIAS_RESOLVERS = {
     "all": [
         ("base", None),
         ("tools", None),
         ("ai", None),
         ("orchestrator", None),
+        ("attack_tactics", None),
+        ("web_app", None),
+        ("cloud", None),
+        ("social_engineering", None),
+        ("supply_chain", None),
+        ("ics", None),
+        ("wireless", None),
     ],
     "tactics": [("base", None)],
     "tools-all": [("tools", None)],
 }
+
+
+def _resolve_by_category(category: str, subfilter: Optional[str] = None) -> list[dict]:
+    """Generic resolver: find all buckets with `category` in their `category` field.
+
+    Used for per-domain attack categories (web_app, cloud, etc.) that
+    don't have a dedicated resolver function. Optionally filter by subpath.
+    """
+    out = []
+    for b in list_buckets():
+        if b.get("category") != category:
+            continue
+        if subfilter and b["path"] != f"{category}/{subfilter}":
+            continue
+        out.append(b)
+    return sorted(out, key=lambda b: b["path"])
+
+
+def _alias_resolver(category: str, subfilter: Optional[str] = None) -> list[dict]:
+    """Top-level alias resolver for per-domain attack categories."""
+    return _resolve_by_category(category, subfilter)
+
+
+# Extend category resolvers with per-domain attack categories
+for cat in (
+    "attack_tactics",
+    "web_app",
+    "cloud",
+    "social_engineering",
+    "supply_chain",
+    "ics",
+    "wireless",
+):
+    _CATEGORY_RESOLVERS[cat] = lambda c=cat: _resolve_by_category(c)
 
 
 def _normalize_spec(spec: str) -> str:

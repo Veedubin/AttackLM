@@ -171,6 +171,21 @@ def main() -> int:
         print(f"ERROR: buckets dir not found: {BUCKETS_DIR}", file=sys.stderr)
         return 1
 
+    # v0.3.0+ uses the per-source layout (data/datasets/buckets/sources/...).
+    # The flat layout at BUCKETS_DIR/<bucket>/data.jsonl no longer exists.
+    # Every record already carries `source`, `source_uri`, `license`,
+    # `license_uri`, `rights_contact` (added by scripts/stamp_and_reorg.py)
+    # plus per-license attribution fields (added by scripts/add_attribution.py).
+    # This script is therefore a no-op as of v0.3.0.
+    sources_dir = BUCKETS_DIR / "sources"
+    if sources_dir.exists():
+        print("NOTE: Per-source layout is in use (v0.3.0+).")
+        print("      Every record already has provenance fields from")
+        print("      scripts/stamp_and_reorg.py + scripts/add_attribution.py.")
+        print("      This script is a no-op and can be removed.")
+        print()
+        return 0
+
     total = 0
     for bucket_name, attr in BUCKET_ATTRIBUTION.items():
         if args.bucket and bucket_name != args.bucket:

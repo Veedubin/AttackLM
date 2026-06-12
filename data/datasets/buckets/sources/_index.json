@@ -1,0 +1,382 @@
+{
+  "generated_at": "2026-06-12T02:11:43.489032+00:00",
+  "total_sources": 11,
+  "total_records": 25601,
+  "sources": [
+    {
+      "name": "atomic-red-team",
+      "display": "Atomic Red Team (Red Canary)",
+      "license": "MIT",
+      "license_uri": "https://opensource.org/licenses/MIT",
+      "upstream_url": "https://github.com/redcanaryco/atomic-red-team",
+      "risk": "low",
+      "n_records": 1115,
+      "buckets": [
+        {
+          "bucket": "base/collection",
+          "files": {
+            "data.jsonl": 150
+          },
+          "total": 150
+        },
+        {
+          "bucket": "base/discovery",
+          "files": {
+            "data.jsonl": 532
+          },
+          "total": 532
+        },
+        {
+          "bucket": "base/execution",
+          "files": {
+            "data.jsonl": 174
+          },
+          "total": 174
+        },
+        {
+          "bucket": "base/exfiltration",
+          "files": {
+            "data.jsonl": 15
+          },
+          "total": 15
+        },
+        {
+          "bucket": "base/persistence",
+          "files": {
+            "data.jsonl": 244
+          },
+          "total": 244
+        }
+      ]
+    },
+    {
+      "name": "attacklm-synthetic",
+      "display": "AttackLM Synthetic (deterministic templates + in-repo generation)",
+      "license": "MIT",
+      "license_uri": "https://opensource.org/licenses/MIT",
+      "upstream_url": "https://github.com/Veedubin/AttackLM",
+      "risk": "low",
+      "n_records": 9029,
+      "buckets": [
+        {
+          "bucket": "ai/prompt-injection",
+          "files": {
+            "data.jsonl": 624
+          },
+          "total": 624
+        },
+        {
+          "bucket": "attack_tactics/red_team_tactics",
+          "files": {
+            "data.jsonl": 1420,
+            "data_synth.jsonl": 300
+          },
+          "total": 1720
+        },
+        {
+          "bucket": "cloud/attacks",
+          "files": {
+            "data.jsonl": 1298
+          },
+          "total": 1298
+        },
+        {
+          "bucket": "ics/attacks",
+          "files": {
+            "data.jsonl": 50,
+            "data_synth.jsonl": 250
+          },
+          "total": 300
+        },
+        {
+          "bucket": "orchestrator",
+          "files": {
+            "data.jsonl": 380
+          },
+          "total": 380
+        },
+        {
+          "bucket": "social_engineering/phishing",
+          "files": {
+            "data.jsonl": 2820
+          },
+          "total": 2820
+        },
+        {
+          "bucket": "supply_chain/attacks",
+          "files": {
+            "data.jsonl": 50,
+            "data_synth.jsonl": 215
+          },
+          "total": 265
+        },
+        {
+          "bucket": "web_app/attacks",
+          "files": {
+            "data.jsonl": 1311
+          },
+          "total": 1311
+        },
+        {
+          "bucket": "wireless/attacks",
+          "files": {
+            "data.jsonl": 50,
+            "data_synth.jsonl": 261
+          },
+          "total": 311
+        }
+      ]
+    },
+    {
+      "name": "azure-pyrit",
+      "display": "PyRIT (Azure)",
+      "license": "",
+      "license_uri": "",
+      "upstream_url": "https://github.com/Azure/PyRIT",
+      "risk": "low",
+      "n_records": 0,
+      "buckets": []
+    },
+    {
+      "name": "cyberark-fuzzyai",
+      "display": "FuzzyAI (CyberArk)",
+      "license": "",
+      "license_uri": "",
+      "upstream_url": "https://github.com/cyberark/FuzzyAI",
+      "risk": "low",
+      "n_records": 0,
+      "buckets": []
+    },
+    {
+      "name": "llm-generated",
+      "display": "LLM-generated (qwen2.5-coder-14b-instruct via LMStudio)",
+      "license": "GPL-3.0",
+      "license_uri": "https://www.gnu.org/licenses/gpl-3.0.html",
+      "upstream_url": "https://github.com/QwenLM/Qwen2.5-Coder",
+      "risk": "low",
+      "n_records": 937,
+      "buckets": [
+        {
+          "bucket": "cloud/attacks",
+          "files": {
+            "data_llm.jsonl": 10
+          },
+          "total": 10
+        },
+        {
+          "bucket": "ics/attacks",
+          "files": {
+            "data_llm.jsonl": 290
+          },
+          "total": 290
+        },
+        {
+          "bucket": "social_engineering/phishing",
+          "files": {
+            "data_llm.jsonl": 440
+          },
+          "total": 440
+        },
+        {
+          "bucket": "wireless/attacks",
+          "files": {
+            "data_llm.jsonl": 197
+          },
+          "total": 197
+        }
+      ]
+    },
+    {
+      "name": "metasploit-framework",
+      "display": "Metasploit Framework (Rapid7)",
+      "license": "BSD-3-Clause",
+      "license_uri": "https://opensource.org/licenses/BSD-3-Clause",
+      "upstream_url": "https://github.com/rapid7/metasploit-framework",
+      "risk": "medium",
+      "n_records": 13997,
+      "buckets": [
+        {
+          "bucket": "base/collection",
+          "files": {
+            "data.jsonl": 410
+          },
+          "total": 410
+        },
+        {
+          "bucket": "base/credential_access",
+          "files": {
+            "data.jsonl": 589
+          },
+          "total": 589
+        },
+        {
+          "bucket": "base/defense_evasion",
+          "files": {
+            "data.jsonl": 1375
+          },
+          "total": 1375
+        },
+        {
+          "bucket": "base/discovery",
+          "files": {
+            "data.jsonl": 1050
+          },
+          "total": 1050
+        },
+        {
+          "bucket": "base/execution",
+          "files": {
+            "data.jsonl": 579
+          },
+          "total": 579
+        },
+        {
+          "bucket": "base/lateral_movement",
+          "files": {
+            "data.jsonl": 252
+          },
+          "total": 252
+        },
+        {
+          "bucket": "base/persistence",
+          "files": {
+            "data.jsonl": 856
+          },
+          "total": 856
+        },
+        {
+          "bucket": "base/privilege_escalation",
+          "files": {
+            "data.jsonl": 537
+          },
+          "total": 537
+        },
+        {
+          "bucket": "tools/metasploit",
+          "files": {
+            "data.jsonl": 8349
+          },
+          "total": 8349
+        }
+      ]
+    },
+    {
+      "name": "mitre-atlas-arsenal",
+      "display": "MITRE ATLAS Arsenal",
+      "license": "Apache-2.0",
+      "license_uri": "https://www.apache.org/licenses/LICENSE-2.0",
+      "upstream_url": "https://github.com/mitre-atlas/arsenal",
+      "risk": "low",
+      "n_records": 20,
+      "buckets": [
+        {
+          "bucket": "base/discovery",
+          "files": {
+            "data.jsonl": 20
+          },
+          "total": 20
+        }
+      ]
+    },
+    {
+      "name": "mitre-stockpile",
+      "display": "MITRE Caldera \u2014 Stockpile",
+      "license": "Apache-2.0",
+      "license_uri": "https://www.apache.org/licenses/LICENSE-2.0",
+      "upstream_url": "https://github.com/mitre/stockpile",
+      "risk": "low",
+      "n_records": 390,
+      "buckets": [
+        {
+          "bucket": "base/collection",
+          "files": {
+            "data.jsonl": 74
+          },
+          "total": 74
+        },
+        {
+          "bucket": "base/discovery",
+          "files": {
+            "data.jsonl": 244
+          },
+          "total": 244
+        },
+        {
+          "bucket": "base/execution",
+          "files": {
+            "data.jsonl": 14
+          },
+          "total": 14
+        },
+        {
+          "bucket": "base/exfiltration",
+          "files": {
+            "data.jsonl": 38
+          },
+          "total": 38
+        },
+        {
+          "bucket": "base/persistence",
+          "files": {
+            "data.jsonl": 20
+          },
+          "total": 20
+        }
+      ]
+    },
+    {
+      "name": "nvidia-garak",
+      "display": "garak (NVIDIA)",
+      "license": "Apache-2.0",
+      "license_uri": "https://www.apache.org/licenses/LICENSE-2.0",
+      "upstream_url": "https://github.com/NVIDIA/garak",
+      "risk": "low",
+      "n_records": 50,
+      "buckets": [
+        {
+          "bucket": "ai/jailbreaking",
+          "files": {
+            "data.jsonl": 50
+          },
+          "total": 50
+        }
+      ]
+    },
+    {
+      "name": "promptfoo",
+      "display": "promptfoo",
+      "license": "MIT",
+      "license_uri": "https://opensource.org/licenses/MIT",
+      "upstream_url": "https://github.com/promptfoo/promptfoo",
+      "risk": "low",
+      "n_records": 33,
+      "buckets": [
+        {
+          "bucket": "ai/prompt-injection",
+          "files": {
+            "data.jsonl": 33
+          },
+          "total": 33
+        }
+      ]
+    },
+    {
+      "name": "promptmap",
+      "display": "promptmap (utkusen)",
+      "license": "MIT",
+      "license_uri": "https://opensource.org/licenses/MIT",
+      "upstream_url": "https://github.com/utkusen/promptmap",
+      "risk": "low",
+      "n_records": 30,
+      "buckets": [
+        {
+          "bucket": "ai/prompt-injection",
+          "files": {
+            "data.jsonl": 30
+          },
+          "total": 30
+        }
+      ]
+    }
+  ]
+}

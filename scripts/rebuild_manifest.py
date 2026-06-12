@@ -2,21 +2,25 @@
 """
 rebuild_manifest.py — Rebuild the AttackLM bucket manifest from disk.
 
-Walks data/datasets/buckets/ recursively, discovers all metadata.json files,
-validates and auto-populates missing fields, sorts buckets by category priority,
-and writes a new manifest.json with version 4.
+v5.0.0: Walks BOTH the new per-source layout
+(`data/datasets/buckets/sources/<source>/<bucket>/<tactic>/data*.jsonl`)
+and the legacy flat layout (`data/datasets/buckets/<bucket>/data*.jsonl`).
 
-Provenance-aware: discovers per-bucket sub-files (data_human.jsonl,
-data_llm.jsonl, data_synth.jsonl) and sums counts. Also supports legacy
-data.jsonl buckets (not yet migrated to three-tier provenance).
+The per-source layout is canonical. The flat layout is still present for
+backward compatibility with existing training/audit scripts but is no
+longer the source of truth.
+
+Buckets in `archive/restricted-sources/` are NEVER included in the
+public manifest.
 
 Usage:
     python scripts/rebuild_manifest.py
-    python scripts/rebuild_manifest.py --dry-run   # Preview without writing
+    python scripts/rebuild_manifest.py --dry-run
 """
 
 import json
 import sys
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -26,40 +30,17 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPT_DIR.parent
 BUCKETS_DIR = PROJECT_DIR / "data" / "datasets" / "buckets"
+SOURCES_DIR = BUCKETS_DIR / "sources"
 MANIFEST_PATH = BUCKETS_DIR / "manifest.json"
 
 # ---------------------------------------------------------------------------
-# Required metadata fields
+# Sub-file names for three-tier provenance
 # ---------------------------------------------------------------------------
-REQUIRED_FIELDS = [
-    "name",
-    "display_name",
-    "category",
-    "count",
-    "description",
-    "sub_sources",
-]
-
-# ---------------------------------------------------------------------------
-# Sort priority: tactics first, then tools, then ai, then new categories,
-# then orchestrator (meta) last
-# ---------------------------------------------------------------------------
-CATEGORY_ORDER = [
-    "tactic",
-    "tools",
-    "ai_redteam",
-    "attack_tactics",
-    "web_app",
-    "cloud",
-    "social_engineering",
-    "supply_chain",
-    "ics",
-    "wireless",
-    "meta",
-]
-
-# Map category to sort index (lower = earlier)
-CATEGORY_INDEX = {cat: i for i, cat in enumerate(CATEGORY_ORDER)}
+SUB_FILES = {
+    "human": "data_human.jsonl",
+    "llm": "data_llm.jsonl",
+    "synth": "data_synth.jsonl",
+}
 
 
 def count_jsonl_lines(path: Path) -> int:
@@ -74,373 +55,180 @@ def count_jsonl_lines(path: Path) -> int:
     return count
 
 
-def discover_buckets() -> list[dict]:
-    """Walk buckets dir, find all metadata.json files, and build bucket entries."""
-    buckets: list[dict] = []
+def discover_from_sources() -> tuple[list[dict], dict]:
+    """
+    Walk the new per-source layout. Returns (buckets, source_meta).
 
-    # Sub-file names for three-tier provenance
-    SUB_FILES = {
-        "human": "data_human.jsonl",
-        "llm": "data_llm.jsonl",
-        "synth": "data_synth.jsonl",
-    }
+    buckets: list of bucket entries (tactic-level), each carrying a
+             `sources` field with per-source record counts.
+    source_meta: per-source summary { name: {license, n_records, buckets: [...] } }
+    """
+    buckets_map: dict[str, dict] = {}  # bucket_path -> entry
+    source_meta: dict[str, dict] = {}
 
-    for metadata_path in sorted(BUCKETS_DIR.rglob("metadata.json")):
-        # Compute relative path from BUCKETS_DIR to the metadata's parent dir
-        bucket_dir = metadata_path.parent
-        rel_path = bucket_dir.relative_to(BUCKETS_DIR)
-        rel_path_str = str(rel_path)
+    if not SOURCES_DIR.exists():
+        return [], {}
 
-        # Skip if metadata is at the root (shouldn't happen)
-        if rel_path_str == ".":
-            print(f"  SKIP: metadata.json at root — {metadata_path}", file=sys.stderr)
-            continue
-
-        # Load metadata
+    # Load _index.json if present for license/display info
+    index_path = SOURCES_DIR / "_index.json"
+    index_data = {}
+    if index_path.exists():
         try:
-            with open(metadata_path, encoding="utf-8") as fh:
-                metadata = json.load(fh)
-        except json.JSONDecodeError as exc:
-            print(f"  ERROR: Invalid JSON in {metadata_path}: {exc}", file=sys.stderr)
+            with index_path.open() as f:
+                idx = json.load(f)
+            for s in idx.get("sources", []):
+                index_data[s["name"]] = s
+        except Exception:
+            pass
+
+    for src_dir in sorted(SOURCES_DIR.iterdir()):
+        if not src_dir.is_dir() or src_dir.name.startswith("_"):
             continue
-
-        # Validate and auto-populate missing fields
-        bucket_name = metadata.get("name", bucket_dir.name)
-        display_name = metadata.get(
-            "display_name", bucket_dir.name.replace("_", " ").title()
-        )
-
-        # Derive category from parent directory or metadata
-        category = metadata.get("category", "")
-        if not category:
-            # Derive from parent directory structure
-            parts = rel_path.parts
-            if len(parts) >= 2:
-                parent_dir = parts[0]
-                category_map = {
-                    "base": "tactic",
-                    "ai": "ai_redteam",
-                    "tools": "tools",
-                    "orchestrator": "meta",
-                    "attack_tactics": "attack_tactics",
-                    "web_app": "web_app",
-                    "cloud": "cloud",
-                    "social_engineering": "social_engineering",
-                    "supply_chain": "supply_chain",
-                    "ics": "ics",
-                    "wireless": "wireless",
-                }
-                category = category_map.get(parent_dir, parent_dir)
-
-        # Discover per-tier sub-files and count lines
-        sub_sources: dict[str, int] = {"human": 0, "llm": 0, "synth": 0}
-        source_files: dict[str, str] = {}
-        found_any_sub = False
-
-        for tier, filename in SUB_FILES.items():
-            tier_path = bucket_dir / filename
-            if tier_path.exists():
-                tier_count = count_jsonl_lines(tier_path)
-                sub_sources[tier] = tier_count
-                source_files[tier] = filename
-                if tier_count > 0:
-                    found_any_sub = True
-
-        # Also check for legacy data.jsonl (not yet migrated)
-        legacy_path = bucket_dir / "data.jsonl"
-        legacy_count = count_jsonl_lines(legacy_path) if legacy_path.exists() else 0
-
-        if found_any_sub:
-            # Use three-tier sub-files as source of truth
-            count = sum(sub_sources.values())
-            # Override metadata count with actual line count
-            metadata_count = metadata.get("count", 0)
-            if metadata_count != count:
-                print(
-                    f"  COUNT CORRECTED for {rel_path_str}: "
-                    f"metadata={metadata_count} -> actual(sub_files)={count}"
-                )
-        elif legacy_count > 0:
-            # Legacy bucket — treat all records as synth for now
-            # (migrate_legacy_buckets.py will classify them later)
-            count = legacy_count
-            sub_sources = {"human": 0, "llm": 0, "synth": legacy_count}
-            source_files = {"synth": "data.jsonl"}
-            metadata_count = metadata.get("count", 0)
-            if metadata_count != count:
-                print(
-                    f"  COUNT CORRECTED for {rel_path_str}: "
-                    f"metadata={metadata_count} -> actual(legacy)={count}"
-                )
-        else:
-            # No data files found
-            count = metadata.get("count", 0)
-            if count > 0:
-                print(
-                    f"  WARNING: No data files for {rel_path_str}, using metadata count",
-                    file=sys.stderr,
-                )
-
-        # Build bucket entry, preserving all existing metadata fields
-        entry: dict = {
-            "name": bucket_name,
-            "display_name": metadata.get("display_name", display_name),
-            "category": category,
-            "count": count,
-            "description": metadata.get("description", ""),
-            "path": rel_path_str,
-            "sub_sources": sub_sources,
+        source_name = src_dir.name
+        meta = index_data.get(source_name, {})
+        src_entry = {
+            "name": source_name,
+            "display": meta.get("display", source_name),
+            "license": meta.get("license", "unknown"),
+            "license_uri": meta.get("license_uri", ""),
+            "upstream_url": meta.get("upstream_url", ""),
+            "risk": meta.get("risk", "unknown"),
+            "n_records": 0,
+            "buckets": [],
         }
 
-        # Preserve optional fields
-        for key in (
-            "mitre_tactic",
-            "mitre_ids",
-            "source_file",
-            "source_files",
-            "created",
-        ):
-            if key in metadata:
-                entry[key] = metadata[key]
-
-        # Set source_files from discovered sub-files if not already set
-        if "source_files" not in entry and source_files:
-            entry["source_files"] = source_files
-
-        # Check for missing required fields and report
-        missing = [f for f in REQUIRED_FIELDS if not entry.get(f)]
-        if missing:
-            print(
-                f"  WARNING: {rel_path_str} missing required fields: {missing}",
-                file=sys.stderr,
+        for jsonl in sorted(src_dir.rglob("*.jsonl")):
+            parts = jsonl.relative_to(src_dir).parts
+            # Layout variants:
+            #   <bucket>/<tactic>/<file>.jsonl    (e.g. base/execution/data.jsonl)
+            #   <bucket>/<file>.jsonl              (e.g. orchestrator/data.jsonl)
+            if len(parts) == 3:
+                bucket_path = f"{parts[0]}/{parts[1]}"
+            elif len(parts) == 2:
+                bucket_path = parts[0]
+            else:
+                continue
+            n = count_jsonl_lines(jsonl)
+            src_entry["n_records"] += n
+            src_entry["buckets"].append(
+                {
+                    "bucket": bucket_path,
+                    "file": jsonl.name,
+                    "records": n,
+                }
             )
 
-        buckets.append(entry)
+            # Aggregate into tactic-level bucket
+            if bucket_path not in buckets_map:
+                buckets_map[bucket_path] = {
+                    "name": bucket_path.replace("/", "_"),
+                    "path": bucket_path,
+                    "sources": {},
+                    "files": {},
+                }
+            entry = buckets_map[bucket_path]
+            entry["sources"][source_name] = entry["sources"].get(source_name, 0) + n
+            entry["files"][f"{source_name}:{jsonl.name}"] = n
 
+        source_meta[source_name] = src_entry
+
+    buckets = []
+    for path, entry in buckets_map.items():
+        # Derive category from first path component
+        first = path.split("/")[0]
+        cat_map = {
+            "base": "tactic",
+            "ai": "ai_redteam",
+            "tools": "tools",
+            "orchestrator": "meta",
+            "attack_tactics": "attack_tactics",
+            "web_app": "web_app",
+            "cloud": "cloud",
+            "social_engineering": "social_engineering",
+            "supply_chain": "supply_chain",
+            "ics": "ics",
+            "wireless": "wireless",
+        }
+        category = cat_map.get(first, first)
+        # Determine dominant source for this bucket
+        dominant_source = max(entry["sources"], key=entry["sources"].get)
+        dom_meta = source_meta.get(dominant_source, {})
+
+        # Determine sub_sources tier for the bucket based on filename
+        sub_sources = {"human": 0, "llm": 0, "synth": 0}
+        for key, n in entry["files"].items():
+            src, fname = key.split(":", 1)
+            if fname == "data_llm.jsonl":
+                sub_sources["llm"] += n
+            elif fname == "data_synth.jsonl":
+                sub_sources["synth"] += n
+            else:
+                # data.jsonl is treated as "human" if it comes from a real
+                # upstream source, "synth" if from attacklm-synthetic.
+                if src == "attacklm-synthetic" or src == "llm-generated":
+                    sub_sources["synth"] += n
+                else:
+                    sub_sources["human"] += n
+
+        buckets.append(
+            {
+                "name": entry["name"],
+                "path": entry["path"],
+                "category": category,
+                "count": sum(entry["sources"].values()),
+                "sub_sources": sub_sources,
+                "sources": entry["sources"],
+                "dominant_source": dominant_source,
+                "license": dom_meta.get("license", "unknown"),
+            }
+        )
+
+    return buckets, source_meta
+
+
+def discover_from_flat() -> list[dict]:
+    """
+    Walk the legacy flat layout (data/datasets/buckets/<bucket>/data*.jsonl).
+    Used as a fallback / sanity check.
+    """
+    buckets: list[dict] = []
+    for metadata_path in sorted(BUCKETS_DIR.rglob("metadata.json")):
+        # Skip metadata under sources/ (handled by discover_from_sources)
+        if "sources/" in str(metadata_path.relative_to(BUCKETS_DIR)):
+            continue
+        bucket_dir = metadata_path.parent
+        rel_path = bucket_dir.relative_to(BUCKETS_DIR)
+        # Skip root
+        if str(rel_path) == ".":
+            continue
+        try:
+            with open(metadata_path, encoding="utf-8") as fh:
+                meta = json.load(fh)
+        except Exception:
+            continue
+        n = 0
+        for fname in SUB_FILES.values():
+            n += count_jsonl_lines(bucket_dir / fname)
+        if n == 0:
+            legacy = bucket_dir / "data.jsonl"
+            n = count_jsonl_lines(legacy)
+        if n == 0:
+            continue
+        buckets.append(
+            {
+                "name": meta.get("name", bucket_dir.name),
+                "path": str(rel_path),
+                "count": n,
+            }
+        )
     return buckets
 
 
 def sort_buckets(buckets: list[dict]) -> list[dict]:
-    """Sort buckets: tactics first, then tools, then ai, then new categories, then orchestrator."""
-
-    def sort_key(bucket: dict) -> tuple[int, str]:
-        category = bucket.get("category", "zzz")
-        cat_idx = CATEGORY_INDEX.get(category, len(CATEGORY_ORDER))
-        name = bucket.get("name", "")
-        return (cat_idx, name)
-
-    return sorted(buckets, key=sort_key)
-
-
-def compute_summary(buckets: list[dict]) -> dict:
-    """Compute summary statistics from bucket entries."""
-    total_buckets = len(buckets)
-    total_pairs = sum(b["count"] for b in buckets)
-
-    # Per-category counts
-    category_counts: dict[str, dict] = {}
-    for bucket in buckets:
-        cat = bucket.get("category", "unknown")
-        if cat not in category_counts:
-            category_counts[cat] = {"buckets": 0, "pairs": 0}
-        category_counts[cat]["buckets"] += 1
-        category_counts[cat]["pairs"] += bucket["count"]
-
-    # Per-tier counts (provenance summary)
-    tier_totals: dict[str, int] = {"human": 0, "llm": 0, "synth": 0}
-    for bucket in buckets:
-        sub = bucket.get("sub_sources", {})
-        for tier in tier_totals:
-            tier_totals[tier] += sub.get(tier, 0)
-
-    return {
-        "total_buckets": total_buckets,
-        "total_pairs": total_pairs,
-        "category_counts": category_counts,
-        "tier_totals": tier_totals,
-    }
-
-
-def build_manifest(buckets: list[dict]) -> dict:
-    """Build the full manifest structure."""
-    summary = compute_summary(buckets)
-
-    return {
-        "version": 4,
-        "layout": "nested (ai/, attack_tactics/, base/, cloud/, ics/, orchestrator/, social_engineering/, supply_chain/, tools/, web_app/, wireless/)",
-        "provenance": "three-tier (human/llm/synth)",
-        "created": datetime.now(timezone.utc).isoformat(),
-        "total_buckets": summary["total_buckets"],
-        "total_pairs": summary["total_pairs"],
-        "tier_totals": summary["tier_totals"],
-        "buckets": buckets,
-    }
-
-
-def main() -> None:
-    dry_run = "--dry-run" in sys.argv
-
-    print("=" * 72)
-    print("AttackLM Manifest Rebuilder")
-    print("=" * 72)
-    print(f"  Buckets dir: {BUCKETS_DIR}")
-    print(f"  Manifest:    {MANIFEST_PATH}")
-    print(f"  Dry run:     {dry_run}")
-    print()
-
-    # Step 1: Discover all buckets
-    print("Step 1: Discovering buckets...")
-    buckets = discover_buckets()
-    print(f"  Found {len(buckets)} buckets")
-    print()
-
-    # Step 2: Sort buckets
-    print("Step 2: Sorting buckets by category priority...")
-    buckets = sort_buckets(buckets)
-    print()
-
-    # Step 3: Compute summary
-    print("Step 3: Computing summary...")
-    summary = compute_summary(buckets)
-    print()
-
-    # Step 4: Print per-category breakdown
-    print("=" * 72)
-    print("BUCKET SUMMARY")
-    print("=" * 72)
-    print(f"{'Category':<22} {'Buckets':>8} {'Pairs':>10} {'% of Total':>12}")
-    print("-" * 72)
-
-    total_pairs = summary["total_pairs"]
-    for cat, info in sorted(
-        summary["category_counts"].items(), key=lambda x: -x[1]["pairs"]
-    ):
-        pct = (info["pairs"] / total_pairs * 100) if total_pairs > 0 else 0
-        print(f"{cat:<22} {info['buckets']:>8} {info['pairs']:>10} {pct:>11.1f}%")
-
-    print("-" * 72)
-    print(
-        f"{'TOTAL':<22} {summary['total_buckets']:>8} {summary['total_pairs']:>10} {'100.0%':>12}"
-    )
-    print()
-
-    # Step 5: Print bucket details
-    print("=" * 72)
-    print("BUCKET DETAILS")
-    print("=" * 72)
-    print(f"{'#':<4} {'Path':<38} {'Category':<18} {'Count':>7}")
-    print("-" * 72)
-    for i, bucket in enumerate(buckets, 1):
-        print(
-            f"{i:<4} {bucket['path']:<38} {bucket['category']:<18} {bucket['count']:>7}"
-        )
-    print()
-
-    # Step 6: Validation checks
-    print("=" * 72)
-    print("VALIDATION CHECKS")
-    print("=" * 72)
-
-    errors = []
-
-    # Check total buckets (v3 had 23, v4 may differ after migration)
-    print(f"  [INFO] Total buckets: {summary['total_buckets']}")
-
-    # Check total pairs
-    print(f"  [INFO] Total pairs: {summary['total_pairs']:,}")
-    print(
-        f"         human={summary['tier_totals']['human']:,}  "
-        f"llm={summary['tier_totals']['llm']:,}  "
-        f"synth={summary['tier_totals']['synth']:,}"
-    )
-
-    # Check no zero-count buckets
-    zero_count = [b for b in buckets if b["count"] == 0]
-    if zero_count:
-        for b in zero_count:
-            errors.append(f"Bucket '{b['path']}' has count=0")
-        print(f"  [FAIL] {len(zero_count)} buckets with count=0")
-    else:
-        print("  [OK] No buckets with count=0")
-
-    # Check each bucket has at least one data file and metadata.json on disk
-    missing_files = []
-    for bucket in buckets:
-        bucket_dir = BUCKETS_DIR / bucket["path"]
-        has_sub = any(
-            (bucket_dir / f"data_{tier}.jsonl").exists()
-            for tier in ("human", "llm", "synth")
-        )
-        has_legacy = (bucket_dir / "data.jsonl").exists()
-        if not has_sub and not has_legacy:
-            missing_files.append(f"{bucket['path']}/data_*.jsonl")
-        if not (bucket_dir / "metadata.json").exists():
-            missing_files.append(f"{bucket['path']}/metadata.json")
-
-    if missing_files:
-        for mf in missing_files:
-            errors.append(f"Missing file: {mf}")
-        print(f"  [FAIL] {len(missing_files)} missing files")
-    else:
-        print("  [OK] All buckets have data files and metadata.json")
-
-    # Check required fields
-    missing_fields = []
-    for bucket in buckets:
-        for field in REQUIRED_FIELDS:
-            if not bucket.get(field):
-                missing_fields.append(f"{bucket['path']}.{field}")
-
-    if missing_fields:
-        for mf in missing_fields:
-            errors.append(f"Missing required field: {mf}")
-        print(f"  [FAIL] {len(missing_fields)} missing required fields")
-    else:
-        print("  [OK] All required fields present")
-
-    print()
-
-    # Step 7: Write manifest
-    if errors:
-        print("ERRORS DETECTED:")
-        for error in errors:
-            print(f"  - {error}")
-        print()
-        if not dry_run:
-            print("Writing manifest anyway (with errors)...")
-        else:
-            print("Dry run — not writing manifest.")
-
-    if not dry_run:
-        manifest = build_manifest(buckets)
-        with open(MANIFEST_PATH, "w", encoding="utf-8") as fh:
-            json.dump(manifest, fh, indent=2, ensure_ascii=False)
-        print(f"Manifest written to: {MANIFEST_PATH}")
-        print(f"  Version: {manifest['version']}")
-        print(f"  Total buckets: {manifest['total_buckets']}")
-        print(f"  Total pairs: {manifest['total_pairs']:,}")
-    else:
-        print("Dry run — manifest NOT written.")
-
-    print()
-    print("=" * 72)
-    print("BEFORE vs AFTER BALANCE")
-    print("=" * 72)
-    print("  BEFORE: 16 buckets, 16,982 pairs")
-    print("          metasploit = 8,349 (49.2%)")
-    print()
-    print(
-        f"  AFTER:  {summary['total_buckets']} buckets, {summary['total_pairs']:,} pairs"
-    )
-    metasploit_count = next(
-        (b["count"] for b in buckets if b["name"] == "metasploit"), 0
-    )
-    if metasploit_count and total_pairs:
-        metasploit_pct = metasploit_count / total_pairs * 100
-        print(f"          metasploit = {metasploit_count:,} ({metasploit_pct:.1f}%)")
-    print()
-    print("  New categories added:")
-    for cat in [
+    CATEGORY_ORDER = [
+        "tactic",
+        "tools",
+        "ai_redteam",
         "attack_tactics",
         "web_app",
         "cloud",
@@ -448,19 +236,130 @@ def main() -> None:
         "supply_chain",
         "ics",
         "wireless",
-    ]:
-        info = summary["category_counts"].get(cat)
-        if info:
-            print(f"    {cat}: {info['pairs']} pairs in {info['buckets']} bucket(s)")
-        else:
-            print(f"    {cat}: NOT FOUND")
+        "meta",
+    ]
+    cat_index = {c: i for i, c in enumerate(CATEGORY_ORDER)}
+
+    def key(b: dict) -> tuple[int, str]:
+        return (
+            cat_index.get(b.get("category", "zzz"), len(CATEGORY_ORDER)),
+            b.get("name", ""),
+        )
+
+    return sorted(buckets, key=key)
+
+
+def main() -> None:
+    dry_run = "--dry-run" in sys.argv
+
+    print("=" * 72)
+    print("AttackLM Manifest Rebuilder v5 (per-source layout)")
+    print("=" * 72)
+    print(f"  Sources dir:   {SOURCES_DIR}")
+    print(f"  Manifest:      {MANIFEST_PATH}")
+    print(f"  Dry run:       {dry_run}")
     print()
 
-    if errors:
-        print("Completed with ERRORS. See above.")
-        sys.exit(1)
+    print("Step 1: Discovering buckets from per-source layout...")
+    buckets, source_meta = discover_from_sources()
+    print(
+        f"  Found {len(buckets)} tactic-level buckets across {len(source_meta)} sources"
+    )
+    print()
+
+    print("Step 2: Also scanning flat layout (sanity check)...")
+    flat_buckets = discover_from_flat()
+    print(f"  Found {len(flat_buckets)} flat-layout buckets (for back-compat)")
+    print()
+
+    print("Step 3: Sorting buckets by category priority...")
+    buckets = sort_buckets(buckets)
+    print()
+
+    # Summary
+    total_pairs = sum(b["count"] for b in buckets)
+    cat_counts: Counter = Counter()
+    for b in buckets:
+        cat_counts[b.get("category", "unknown")] += b["count"]
+
+    print("=" * 72)
+    print("CATEGORY SUMMARY (per-source layout)")
+    print("=" * 72)
+    print(f"{'Category':<22} {'Pairs':>10} {'%':>8}")
+    print("-" * 42)
+    for cat, n in sorted(cat_counts.items(), key=lambda x: -x[1]):
+        pct = n / total_pairs * 100 if total_pairs else 0
+        print(f"{cat:<22} {n:>10,} {pct:>7.1f}%")
+    print("-" * 42)
+    print(f"{'TOTAL':<22} {total_pairs:>10,} {'100.0%':>8}")
+    print()
+
+    print("=" * 72)
+    print("SOURCE SUMMARY")
+    print("=" * 72)
+    print(f"{'Source':<25} {'License':<14} {'Risk':<8} {'Records':>10} {'%':>6}")
+    print("-" * 70)
+    for src_name, meta in sorted(source_meta.items(), key=lambda x: -x[1]["n_records"]):
+        n = meta["n_records"]
+        pct = n / total_pairs * 100 if total_pairs else 0
+        print(
+            f"{src_name:<25} {meta['license']:<14} {meta['risk']:<8} {n:>10,} {pct:>5.1f}%"
+        )
+    print("-" * 70)
+    print(f"{'TOTAL':<25} {'':<14} {'':<8} {total_pairs:>10,} {'100.0%':>6}")
+    print()
+
+    print("=" * 72)
+    print("TIER TOTALS (provenance)")
+    print("=" * 72)
+    tier: Counter = Counter()
+    for b in buckets:
+        for k, v in b.get("sub_sources", {}).items():
+            tier[k] += v
+    for k in ("human", "llm", "synth"):
+        print(f"  {k:<8} {tier.get(k, 0):>10,}")
+    print()
+
+    # Validation
+    errors = []
+    zero_count = [b for b in buckets if b["count"] == 0]
+    if zero_count:
+        errors.append(f"{len(zero_count)} buckets with count=0")
+    if not errors:
+        print("Validation: OK")
     else:
-        print("Completed successfully.")
+        for e in errors:
+            print(f"Validation: FAIL — {e}")
+    print()
+
+    if not dry_run:
+        manifest = {
+            "version": 5,
+            "layout": "per-source (sources/<source>/<bucket>/<tactic>/data*.jsonl)",
+            "legacy_layout": "flat (data/datasets/buckets/<bucket>/data.jsonl) — kept for back-compat",
+            "provenance": "per-source + per-record fields (source, source_uri, license, license_uri, rights_contact, plus per-license attribution fields)",
+            "excluded_sources": [
+                "endgameinc/RTA (AGPL-3.0)",
+                "guardicore/infection_monkey (GPL-3.0)",
+                "TheBigPromptLibrary (mixed/unclear)",
+            ],
+            "created": datetime.now(timezone.utc).isoformat(),
+            "total_buckets": len(buckets),
+            "total_pairs": total_pairs,
+            "tier_totals": dict(tier),
+            "source_totals": {k: v["n_records"] for k, v in source_meta.items()},
+            "sources": source_meta,
+            "buckets": buckets,
+        }
+        with open(MANIFEST_PATH, "w", encoding="utf-8") as fh:
+            json.dump(manifest, fh, indent=2, ensure_ascii=False)
+        print(f"Manifest written: {MANIFEST_PATH}")
+        print(f"  Version: {manifest['version']}")
+        print(f"  Total buckets: {len(buckets)}")
+        print(f"  Total pairs: {total_pairs:,}")
+    else:
+        print("Dry run — manifest NOT written.")
+    print()
 
 
 if __name__ == "__main__":

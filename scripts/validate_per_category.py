@@ -317,8 +317,24 @@ def load_all_buckets() -> dict[str, list[dict]]:
         bucket_path = bucket["path"]
         category_key = BUCKET_TO_CATEGORY.get(bucket_path, "tactic")
 
-        data_path = BUCKETS_DIR / bucket_path / "data.jsonl"
-        entries = load_jsonl(data_path)
+        # In the per-source layout (v0.3.0+), aggregate from all sources
+        from pathlib import Path
+        from bucket_loader import SOURCES_DIR
+
+        candidates: list[Path] = []
+        if SOURCES_DIR.exists():
+            for src_dir in SOURCES_DIR.iterdir():
+                if not src_dir.is_dir() or src_dir.name.startswith("_"):
+                    continue
+                p2 = src_dir / bucket_path
+                if p2.is_dir():
+                    candidates.extend(p2.glob("*.jsonl"))
+                p1 = src_dir / bucket_path.split("/")[-1]
+                if p1.is_dir() and p1 != p2:
+                    candidates.extend(p1.glob("*.jsonl"))
+        entries: list[dict] = []
+        for jsonl in sorted(set(candidates)):
+            entries.extend(load_jsonl(jsonl))
 
         # Tag each entry with the bucket category for downstream grouping
         for entry in entries:

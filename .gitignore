@@ -189,5 +189,26 @@ data/datasets/combined/*.jsonl
 # data/ATTRIBUTION.md                     ← included
 # data/.gitkeep                           ← included (preserves the directory)
 
+# HuggingFace dataset exports — regenerable by hf/scripts/build_hf_dataset.py
+hf/data/*.jsonl
+hf/data/*.parquet
+
 # ----- LFS (don't accidentally commit big files) -----
 *.lfs
+
+# ============================================================================
+# ARCHIVE — kept locally for reference, not distributed
+# ============================================================================
+# 2026-06-11: archived the Textual-based TUI (attacklm-tui) and the legacy
+# flat bucket layout (data/datasets/buckets/<bucket>/...). The TUI was
+# archived after it caused a 12x slowdown and persistent layout issues; the
+# user reverted to the v0.2.3 CLI baseline. The flat layout was archived
+# after the per-source layout (data/datasets/buckets/sources/<source>/...)
+# became canonical in v0.3.0.
+# 2026-06-11: archived three high-risk source buckets (endgameinc/RTA,
+# guardicore/infection_monkey, TheBigPromptLibrary) under
+# archive/restricted-sources/ — they are NOT redistributed as part of
+# AttackLM. See data/LEGAL.md and data/REMOVAL.md.
+#
+# All archive contents are preserved locally but never pushed to remote.
+archive/
