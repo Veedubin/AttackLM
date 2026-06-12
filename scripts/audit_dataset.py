@@ -683,6 +683,11 @@ def classify_bucket(bucket_path: Path, root: Path) -> str:
     """Classify a bucket into a category: tactic, tools, ai_redteam, or meta."""
     rel = bucket_path.relative_to(root / "data" / "datasets" / "buckets")
     parts = rel.parts
+    # Skip past the per-source layout prefix `sources/<source>/`
+    if parts[0] == "sources" and len(parts) >= 2:
+        parts = parts[2:]
+    if not parts:
+        return "unknown"
     if parts[0] == "base":
         return "tactic"
     elif parts[0] == "tools":
@@ -691,6 +696,16 @@ def classify_bucket(bucket_path: Path, root: Path) -> str:
         return "ai_redteam"
     elif parts[0] == "orchestrator":
         return "meta"
+    elif parts[0] in (
+        "attack_tactics",
+        "web_app",
+        "cloud",
+        "social_engineering",
+        "supply_chain",
+        "ics",
+        "wireless",
+    ):
+        return parts[0]  # these are the per-domain attack categories
     return "unknown"
 
 
@@ -698,6 +713,11 @@ def bucket_display_name(bucket_path: Path, root: Path) -> str:
     """Get a human-readable display name for a bucket path."""
     rel = bucket_path.relative_to(root / "data" / "datasets" / "buckets")
     parts = rel.parts
+    # Skip past the per-source layout prefix `sources/<source>/`
+    if parts[0] == "sources" and len(parts) >= 2:
+        parts = parts[2:]
+    if not parts:
+        return rel.parts[0]
     if parts[0] == "base" and len(parts) >= 2:
         return parts[1]
     elif len(parts) >= 2:
@@ -737,10 +757,21 @@ def audit_dataset(root: Path) -> dict[str, Any]:
     """Run the full dataset audit and return the report dict."""
     buckets_dir = root / "data" / "datasets" / "buckets"
 
-    # Discover all data.jsonl files
-    jsonl_files = sorted(buckets_dir.rglob("data.jsonl"))
+    # Discover all data.jsonl files. We use the per-source layout
+    # (`buckets/sources/<source>/<bucket>/<tactic>/data.jsonl`) as the
+    # canonical source. The legacy flat layout (`buckets/<bucket>/data.jsonl`)
+    # is intentionally NOT scanned to avoid double-counting.
+    sources_dir = buckets_dir / "sources"
+    if sources_dir.exists():
+        jsonl_files = sorted(sources_dir.rglob("data*.jsonl"))
+        layout_used = "per-source"
+    else:
+        # Fall back to legacy flat layout
+        jsonl_files = sorted(buckets_dir.rglob("data.jsonl"))
+        layout_used = "legacy-flat"
+    print(f"Audit layout: {layout_used} ({len(jsonl_files)} jsonl files)")
     if not jsonl_files:
-        print(f"ERROR: No data.jsonl files found under {buckets_dir}", file=sys.stderr)
+        print(f"ERROR: No jsonl files found under {buckets_dir}", file=sys.stderr)
         sys.exit(1)
 
     # --- Per-bucket stats ---

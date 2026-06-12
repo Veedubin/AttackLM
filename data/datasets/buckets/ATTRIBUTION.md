@@ -1,43 +1,65 @@
 # Bucket Data — Per-Source Attribution
 
-Each bucket in this directory contains training pairs derived from
-upstream open-source security projects. Each row carries a `source`
-and `license` field (added by `scripts/augment_attribution.py`).
+**Last updated:** 2026-06-11 (post license audit & restructure)
 
-For the full per-source attribution, license analysis, and
-re-distribution guidance, see
-[**/ATTRIBUTION.md**](../../../ATTRIBUTION.md) at the repository root.
+The training data is now organized **per-source** rather than per-bucket.
+The canonical layout is:
+
+```
+data/datasets/buckets/sources/<source>/<bucket>/<tactic>/data*.jsonl
+```
+
+Each source directory contains a `LICENSE.md` and a `SOURCE.md`. The
+flat `data/datasets/buckets/<bucket>/data.jsonl` layout has been moved
+to `archive/old-flat-layout/` and is no longer the source of truth.
 
 ## Bucket manifest
 
-The full machine-readable manifest is `manifest.json` in this directory.
-It records each bucket's:
-- name and display name
-- MITRE tactic ID (TA0001-TA0011, TA0040 for AI)
-- pair count
-- source data file
+The full machine-readable manifest is `manifest.json` in this directory
+(version 5). It records each bucket's name, MITRE tactic ID (TA0001-
+TA0011, TA0040 for AI), record count, per-source breakdown, and
+dominant source license.
 
-## Per-bucket source mix
+## Per-source totals
 
-| Bucket | Pairs | Source mix (dominant) |
-|---|---:|---|
-| collection | 634 | atomic-red-team + caldera + metasploit |
-| command_and_control | 105 | atomic-red-team + caldera + metasploit |
-| credential_access | 589 | atomic-red-team + caldera + metasploit |
-| defense_evasion | 1,375 | atomic-red-team + caldera + metasploit |
-| discovery | 1,846 | atomic-red-team + caldera + metasploit |
-| execution | 767 | atomic-red-team + caldera + metasploit |
-| exfiltration | 173 | atomic-red-team + caldera + metasploit |
-| lateral_movement | 252 | atomic-red-team + caldera + metasploit |
-| persistence | 1,120 | atomic-red-team + caldera + metasploit |
-| privilege_escalation | 537 | atomic-red-team + caldera + metasploit |
-| orchestrator | 380 | synthetic (MIT) |
-| ai-models/jailbreaking | 56 | garak + pyrit + fuzzyai + bigpromptlib |
-| ai-models/prompt-injection | 687 | promptfoo + promptmap + synthetic |
-| tools/infection_monkey | 36 | guardicore/monkey (GPL-3.0) |
-| tools/metasploit | 8,349 | rapid7/metasploit-framework (BSD-3-Clause) |
-| tools/rta | 76 | endgameinc/RTA (AGPL-3.0) |
+| Source | License | Records | Risk |
+|---|---|---:|---|
+| metasploit-framework  | BSD-3-Clause       | 13,997 | medium |
+| attacklm-synthetic    | MIT                | 9,029  | low    |
+| atomic-red-team       | MIT                | 1,115  | low    |
+| llm-generated         | GPL-3.0            | 937    | low    |
+| mitre-stockpile       | Apache-2.0         | 390    | low    |
+| nvidia-garak          | Apache-2.0         | 50     | low    |
+| promptfoo             | MIT                | 33     | low    |
+| promptmap             | MIT                | 30     | low    |
+| mitre-atlas-arsenal   | Apache-2.0         | 20     | low    |
+| **TOTAL**             |                    | **25,601** |  |
 
-## Adding new buckets
+Reserved slots (no records currently): `azure-pyrit` (MIT),
+`cyberark-fuzzyai` (Apache-2.0).
 
-See [CONTRIBUTING.md](../../../CONTRIBUTING.md) §"Adding a new bucket".
+## Excluded (high-risk) sources
+
+| Source | License | Records | Reason |
+|---|---|---:|---|
+| endgameinc/RTA                  | AGPL-3.0        | 76  | Viral copyleft |
+| guardicore/infection_monkey     | GPL-3.0         | 36  | Viral copyleft |
+| TheBigPromptLibrary             | mixed/unclear   | 6   | Copyright laundering |
+
+The excluded data lives at `archive/restricted-sources/<source>/bucket/`
+(gitignored). See `archive/restricted-sources/README.md` for the full
+rationale and `data/REMOVAL.md` for the rights-holder contact process.
+
+## Adding new buckets / sources
+
+1. **New source** — create `data/datasets/buckets/sources/<source>/`
+   with a `LICENSE.md` and `SOURCE.md` following the existing
+   convention. Add a `PROVENANCE` entry to
+   `scripts/stamp_and_reorg.py` and re-run it. Update
+   `data/ATTRIBUTION.md` and this file.
+2. **New records to an existing source** — drop them into the
+   appropriate `sources/<source>/<bucket>/<tactic>/data.jsonl` file.
+   Re-run `scripts/stamp_and_reorg.py` to add provenance fields.
+3. **Re-distribution review** — every record carries
+   `source` / `source_uri` / `license` / `license_uri` /
+   `rights_contact`. Do not strip these fields when redistributing.

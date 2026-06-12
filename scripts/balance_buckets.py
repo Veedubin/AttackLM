@@ -372,16 +372,34 @@ def _sample_head(examples: list[dict], n: int, seed: int) -> list[dict]:
 
 
 def _load_bucket(bucket: dict) -> list[dict]:
-    """Load all examples from a bucket's data.jsonl."""
-    data_path = BUCKETS_DIR / bucket["path"] / "data.jsonl"
-    if not data_path.exists():
-        print(f"    WARNING: {data_path} missing, skipping", file=sys.stderr)
+    """Load all examples from a bucket. In the per-source layout (v0.3.0+),
+    a bucket may be split across multiple sources; this aggregates them all."""
+    from pathlib import Path
+    from bucket_loader import SOURCES_DIR
+    bucket_path = bucket["path"]
+    candidates: list[Path] = []
+    if SOURCES_DIR.exists():
+        for src_dir in SOURCES_DIR.iterdir():
+            if not src_dir.is_dir() or src_dir.name.startswith("_"):
+                continue
+            # 2-level: sources/<source>/<bucket>/<tactic>/
+            p2 = src_dir / bucket_path
+            if p2.is_dir():
+                candidates.extend(p2.glob("*.jsonl"))
+            # 1-level: sources/<source>/<bucket>/  (e.g. orchestrator)
+            p1 = src_dir / bucket_path.split("/")[-1]
+            if p1.is_dir() and p1 != p2:
+                candidates.extend(p1.glob("*.jsonl"))
+    if not candidates:
+        print(f"    WARNING: no jsonl files for bucket '{bucket_path}', skipping",
+              file=sys.stderr)
         return []
     examples: list[dict] = []
-    with open(data_path) as f:
-        for line in f:
-            line = line.strip()
-            if line:
+    for jsonl in sorted(set(candidates)):
+        with open(jsonl) as f:
+            for line in f:
+                line = line.strip()
+                if line:
                 examples.append(json.loads(line))
     return examples
 

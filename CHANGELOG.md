@@ -4,6 +4,142 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
+## [0.3.0] — 2026-06-11 — Dataset license audit & restructure
+
+### ⚠️ BREAKING — Dataset license cleanup
+
+Per a 2026-06-11 review of upstream source licenses (see
+`data/ATTRIBUTION.md` and `data/LEGAL.md`), **three sources have been
+removed from the public dataset** due to legal risk:
+
+| Source | License | Records | Reason |
+|---|---|---:|---|
+| `endgameinc/RTA`                  | AGPL-3.0      | 76  | Viral copyleft. Distributing a derivative dataset would force the entire AttackLM dataset under AGPL-3.0. |
+| `guardicore/infection_monkey`     | GPL-3.0       | 36  | Viral copyleft. Plugin manifests are derivative works of upstream code. |
+| `TheBigPromptLibrary`             | mixed/unclear | 6   | Copyright laundering. The repo hosts leaked and reverse-engineered proprietary system prompts. |
+
+The data is preserved locally at `archive/restricted-sources/` (gitignored)
+for the author's private research, training, and experimentation. It is
+**not** redistributed as part of AttackLM. See
+`archive/restricted-sources/README.md` for the full rationale.
+
+### Added
+
+- **`data/LEGAL.md`** — research-only scope statement, full source license
+  table, rights-holder contact pointer.
+- **`data/REMOVAL.md`** — explicit removal-request process for rights
+  holders. Acknowledgement within 48 hours, removal within 7 days of
+  verification, git-history scrub at next release.
+- **Per-source data layout** — `data/datasets/buckets/sources/<source>/<bucket>/<tactic>/data*.jsonl`
+  replaces the previous flat `data/datasets/buckets/<bucket>/data.jsonl`
+  layout. Each source directory contains `LICENSE.md` (license, license
+  URI, per-bucket record counts) and `SOURCE.md` (narrative description,
+  use case, risk note).
+- **Provenance stamp on every record** — `source`, `source_uri`, `license`,
+  `license_uri`, `rights_contact` fields added by
+  `scripts/stamp_and_reorg.py`. These fields are written by the ETL
+  pipeline and **must not be stripped** by downstream re-distributors.
+- **License-specific attribution on every record** — for sources with
+  attribution requirements beyond the base provenance, additional
+  per-license fields are added by `scripts/add_attribution.py`:
+  - **Metasploit Framework (BSD-3-Clause)** — 13,997 records. Each
+    record carries `upstream_copyright`, `upstream_license_uri`,
+    `attribution_required: true`, `bsd_3_clause_notice` (the full
+    BSD-3-Clause notice text), `derived_from`, and (where extractable)
+    `upstream_module_path` and `upstream_cve`. BSD-3 §1 requires the
+    copyright notice and license text to be preserved in derivative
+    works, so these fields are NOT optional.
+  - **SigmaHQ (DRL 1.1)** — 0 records in the current dataset, but the
+    field schema is ready for future use: `attribution_required: true`,
+    `drl_11_attribution`, `sigma_rule_id`, `sigma_rule_author`,
+    `sigma_rule_date`, `sigma_rule_title`.
+- **`scripts/stamp_and_reorg.py`** — idempotent script that classifies
+  every kept record by source, stamps provenance fields, and writes the
+  per-source layout.
+- **`scripts/add_attribution.py`** — idempotent script that stamps
+  license-specific attribution fields. Currently handles Metasploit
+  (BSD-3-Clause) and Sigma (DRL 1.1); trivially extensible for other
+  attribution-bearing licenses.
+- **`scripts/generate_source_layout.py`** — generates the
+  `sources/<source>/LICENSE.md` and `SOURCE.md` files plus
+  `sources/_index.json`.
+- **`scripts/scrub_bpl_callback.py`** — blob callback for git-filter-repo
+  that scrubs BigPromptLibrary records from any historical
+  `ai/jailbreaking/data.jsonl` blob.
+
+### Changed
+
+- **`data/datasets/buckets/manifest.json`** — version bumped to **v5**.
+  Reads from the per-source layout. Records per-source totals and
+  license info at the manifest level. Lists excluded sources explicitly.
+- **`scripts/rebuild_manifest.py`** — rewritten to walk the per-source
+  layout. Also scans the legacy flat layout for back-compat reporting.
+- **`scripts/bucket_loader.py`** — `build_combined()` now aggregates from
+  the per-source layout (multiple sources may contribute to a single
+  bucket). `_CATEGORY_RESOLVERS` and `_ALIAS_RESOLVERS` extended to
+  include per-domain attack categories (web_app, cloud, ics, wireless,
+  etc.) so `--dataset all` returns all 20 buckets.
+- **`scripts/balance_buckets.py`** — `_load_bucket()` now reads from
+  the per-source layout.
+- **`scripts/train_all.py`** — `tactic_combined_path` and
+  `dataset_path` now use `build_combined()` (per-source layout) instead
+  of the old `BUCKETS_DIR / <bucket> / data.jsonl` paths.
+- **`scripts/validate_per_category.py`** — `load_all_buckets()` now
+  aggregates from the per-source layout.
+- **`scripts/audit_dataset.py`** — reads from the per-source layout
+  (`sources/.../data*.jsonl`) instead of the flat layout. Category
+  classification extended to include per-domain attack categories.
+- **`scripts/augment_attribution.py`** — now a no-op (prints a notice
+  and exits 0) when the per-source layout is in use. The provenance
+  fields are added by `scripts/stamp_and_reorg.py` + `scripts/add_attribution.py`
+  instead.
+- **`data/ATTRIBUTION.md`** — updated to reflect the new per-source
+  layout. License table is sourced from the canonical LICENSE.md files
+  in each `sources/<source>/` directory.
+- **`archive/`** directory now contains `old-flat-layout/` (25,820
+  records) in addition to `restricted-sources/` and `tui-source/`.
+  All archive contents remain gitignored.
+
+### Removed
+
+- `data/datasets/buckets/tools/rta/` (76 records) — moved to
+  `archive/restricted-sources/rta/bucket/`.
+- `data/datasets/buckets/tools/infection_monkey/` (36 records) — moved
+  to `archive/restricted-sources/infection_monkey/bucket/`.
+- 6 BigPromptLibrary records from
+  `data/datasets/buckets/ai/jailbreaking/data.jsonl` — moved to
+  `archive/restricted-sources/bigpromptlibrary/bucket/`. The remaining 50
+  garak (Apache-2.0) records stay in the public dataset.
+- The entire **old flat layout** at `data/datasets/buckets/<bucket>/`
+  (25,820 records) — moved to `archive/old-flat-layout/`. The flat
+  layout is no longer the source of truth; everything reads from
+  `data/datasets/buckets/sources/<source>/...`.
+
+### Security / privacy
+
+- **Git history scrub**: ran `git-filter-repo` to remove the 3
+  high-risk paths and the 6 BPL records from ALL historical commits
+  (not just HEAD). The `.git` directory shrunk from 20 MB to 4.8 MB
+  after pruning. Old blobs are unrecoverable. **All commit hashes
+  changed** (HEAD is now `119cd61`, was `1ea35c2`); a force-push to
+  `origin/main` is required.
+
+### Records totals
+
+- **Before**: 23,981 records across 23 buckets, 64% "unknown" source
+  attribution per audit.
+- **After**: **25,601 records across 20 buckets, 11 sources, 100%
+  per-record attribution**. 11 sources fully credited:
+  atomic-red-team (MIT), mitre-stockpile (Apache-2.0),
+  mitre-atlas-arsenal (Apache-2.0), metasploit-framework (BSD-3-Clause,
+  attribution required), nvidia-garak (Apache-2.0), promptfoo (MIT),
+  promptmap (MIT), llm-generated (GPL-3.0), attacklm-synthetic (MIT).
+  Two reserved slots for future: azure-pyrit (MIT), cyberark-fuzzyai
+  (Apache-2.0). Metasploit-Framework records additionally carry the
+  full BSD-3-Clause notice and copyright text per BSD §1.
+
+---
+
 ## [0.2.3] — 2026-06-11
 
 ### Added
@@ -293,6 +429,10 @@ Initial public release. 11 console scripts (`attacklm-train`, `attacklm-train-al
 
 ---
 
+[0.3.0]: https://github.com/Veedubin/AttackLM/releases/tag/v0.3.0
+[0.2.3]: https://github.com/Veedubin/AttackLM/releases/tag/v0.2.3
+[0.2.2]: https://github.com/Veedubin/AttackLM/releases/tag/v0.2.2
+[0.2.1]: https://github.com/Veedubin/AttackLM/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Veedubin/AttackLM/releases/tag/v0.2.0
 [0.1.5]: https://github.com/Veedubin/AttackLM/releases/tag/v0.1.5
 [0.1.4]: https://github.com/Veedubin/AttackLM/releases/tag/v0.1.4
