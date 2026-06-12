@@ -10,7 +10,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "attacklm"
-version = "0.3.0"
+version = "0.3.1"
 description = "QLoRA-fine-tuned Qwen2.5-Coder for offensive security and AI red-teaming"
 readme = "README.md"
 license = "MIT"
@@ -210,6 +210,7 @@ attacklm-extract = "attacklm.cli:main_extract"
 attacklm-buckets = "attacklm.cli:main_buckets"
 attacklm-attribute = "attacklm.cli:main_attribute"
 attacklm-clone = "attacklm.cli:main_clone"
+attacklm-init = "attacklm.cli:main_init"
 attacklm-balance = "attacklm.cli:main_balance"
 attacklm-build = "attacklm.cli:main_build"
 

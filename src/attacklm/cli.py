@@ -141,6 +141,20 @@ def main_clone(argv: Sequence[str] | None = None) -> int:
     )
 
 
+def main_init(argv: Sequence[str] | None = None) -> int:
+    """One-shot dataset init: clone → extract → attribute → buckets.
+
+    Replaces the four-step manual sequence (``attacklm-clone`` →
+    ``attacklm-extract`` → ``attacklm-attribute`` → ``attacklm-buckets``)
+    with a single command.  Probes ``data/`` first; only fetches from
+    GitHub if a source is missing.  See ``scripts/init_pipeline.py`` for
+    full docs.
+    """
+    return _run_python_script(
+        "init_pipeline.py", argv if argv is not None else sys.argv[1:]
+    )
+
+
 def main_balance(argv: Sequence[str] | None = None) -> int:
     """Build a balanced subset of the buckets: attacklm-balance"""
     return _run_python_script(
@@ -158,6 +172,6 @@ if __name__ == "__main__":
     print("AttackLM CLI dispatchers. Use the installed console scripts:")
     print("  attacklm-train, attacklm-train-all, attacklm-hpo, attacklm-infer,")
     print("  attacklm-merge, attacklm-gguf, attacklm-demo, attacklm-extract,")
-    print("  attacklm-buckets, attacklm-attribute, attacklm-clone, attacklm-balance,")
-    print("  attacklm-build")
+    print("  attacklm-buckets, attacklm-attribute, attacklm-clone, attacklm-init,")
+    print("  attacklm-balance, attacklm-build")
     sys.exit(0)
