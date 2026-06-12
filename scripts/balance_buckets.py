@@ -376,6 +376,7 @@ def _load_bucket(bucket: dict) -> list[dict]:
     a bucket may be split across multiple sources; this aggregates them all."""
     from pathlib import Path
     from bucket_loader import SOURCES_DIR
+
     bucket_path = bucket["path"]
     candidates: list[Path] = []
     if SOURCES_DIR.exists():
@@ -391,8 +392,10 @@ def _load_bucket(bucket: dict) -> list[dict]:
             if p1.is_dir() and p1 != p2:
                 candidates.extend(p1.glob("*.jsonl"))
     if not candidates:
-        print(f"    WARNING: no jsonl files for bucket '{bucket_path}', skipping",
-              file=sys.stderr)
+        print(
+            f"    WARNING: no jsonl files for bucket '{bucket_path}', skipping",
+            file=sys.stderr,
+        )
         return []
     examples: list[dict] = []
     for jsonl in sorted(set(candidates)):
@@ -400,7 +403,7 @@ def _load_bucket(bucket: dict) -> list[dict]:
             for line in f:
                 line = line.strip()
                 if line:
-                examples.append(json.loads(line))
+                    examples.append(json.loads(line))
     return examples
 
 

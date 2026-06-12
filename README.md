@@ -84,17 +84,23 @@ uv pip install -e ".[all]"
 # 3b. Alternative: classic uv-managed venv with all deps in pyproject.toml
 # uv sync
 
+# 4. Initialize the dataset (probes local `data/` first; falls back to git clone)
+attacklm-init --yes
+
+#    The single command above replaces steps 4–7 below. If you'd rather
+#    run each step individually, the four commands are still available:
+#
 # 4. Clone upstream data sources (~1.5GB total, optional — data is in the repo)
-attacklm-clone
-
+# attacklm-clone
+#
 # 5. Extract training data from each source
-attacklm-extract
-
+# attacklm-extract
+#
 # 6. Augment each JSONL with per-pair source/license attribution
-attacklm-attribute
-
+# attacklm-attribute
+#
 # 7. Organize into 16 MITRE/AI/tools buckets
-attacklm-buckets
+# attacklm-buckets
 
 # 8. Pick a base model — use an uncensored/abliterated one (see "Pick a base model" below)
 #    Example: Qwen2.5-Coder-3B-Instruct with refusal direction removed
@@ -242,6 +248,7 @@ All install paths give you these:
 | `attacklm-buckets`       | `setup_buckets.py` + `reorganize_buckets.py` | Organize data into 16 buckets  |
 | `attacklm-attribute`     | `scripts/augment_attribution.py`       | Add source/license to each JSONL row   |
 | `attacklm-clone`         | `scripts/clone_repos.sh`               | Clone upstream data repos              |
+| `attacklm-init`          | `scripts/init_pipeline.py`             | **One-shot init: clone→extract→attribute→buckets** (probes local first) |
 | `attacklm-balance`       | `scripts/balance_buckets.py`           | Build a balanced subset of the buckets |
 
 The CLI dispatchers are thin wrappers — they use `runpy.run_path()` to

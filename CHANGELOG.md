@@ -4,6 +4,60 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
+## [0.3.1] — 2026-06-11 — `attacklm-init` one-shot setup
+
+### Added
+
+- **`attacklm-init`** — single-command replacement for the four-step
+  manual init sequence (`attacklm-clone` → `attacklm-extract` →
+  `attacklm-attribute` → `attacklm-buckets`).
+  - **Probes local `data/` first.** Walks the six upstream source
+    directories (atomic-red-team, stockpile, sigma,
+    metasploit-framework, infection_monkey, RTA) and skips the clone
+    step entirely if every source is present and has working-tree
+    content above a per-source size threshold. A bare `.git` directory
+    alone is **not** enough — the working tree must be checked out.
+  - **Prompts for network access** when sources are missing. The user
+    can decline (exit 2) or accept with `--yes` for non-interactive use.
+  - **Idempotent re-runs.** Each stage is skipped if its output already
+    exists; pass `--force-clone` / `--force-extract` to override.
+  - **`--dry-run`** prints the plan and exits without modifying
+    anything — useful for CI and for users to see what would happen.
+  - Honors `--skip-clone`, `--skip-attribute`, `--skip-buckets` for
+    partial runs.
+- **`scripts/init_pipeline.py`** (≈370 lines) — the orchestrator module
+  imported by `attacklm.cli:main_init`. Returns documented exit codes
+  for downstream tooling: `0` success, `2` user-declined, `3` network
+  failure, `4` `--skip-clone` with missing data.
+- **`tests/test_init_pipeline.py`** — 18 hermetic tests covering local
+  probe (all-present / missing / too-small), stage runners (skip-when-
+  missing), bucket-built detection, and full CLI dispatch via
+  `monkeypatch`. All pass.
+- **CLI help text** updated to list `attacklm-init` alongside the
+  existing entry points.
+
+### Changed
+
+- `src/attacklm/cli.py` — new `main_init()` dispatcher (sibling of
+  `main_clone`, `main_extract`, etc.) that wraps the new orchestrator.
+- `pyproject.toml` — new `attacklm-init = "attacklm.cli:main_init"`
+  entry point, version bumped 0.3.0 → 0.3.1.
+- `src/attacklm/__version__.py` — bumped to `0.3.1`.
+- The four individual commands (`attacklm-clone`, `attacklm-extract`,
+  `attacklm-attribute`, `attacklm-buckets`) are **unchanged** and
+  remain available for users who want fine-grained control.
+
+### Notes for PyPI users
+
+After `pip install attacklm`, a single `attacklm-init` brings a fresh
+install from zero to a fully populated `data/datasets/buckets/`
+layout. If the user already cloned the repo (e.g. `git clone
+https://github.com/Veedubin/AttackLM.git`) the orchestrator detects the
+local data and skips the network fallback. The `--yes` flag enables
+unattended first-run.
+
+---
+
 ## [0.3.0] — 2026-06-11 — Dataset license audit & restructure
 
 ### ⚠️ BREAKING — Dataset license cleanup
@@ -429,6 +483,7 @@ Initial public release. 11 console scripts (`attacklm-train`, `attacklm-train-al
 
 ---
 
+[0.3.1]: https://github.com/Veedubin/AttackLM/releases/tag/v0.3.1
 [0.3.0]: https://github.com/Veedubin/AttackLM/releases/tag/v0.3.0
 [0.2.3]: https://github.com/Veedubin/AttackLM/releases/tag/v0.2.3
 [0.2.2]: https://github.com/Veedubin/AttackLM/releases/tag/v0.2.2
