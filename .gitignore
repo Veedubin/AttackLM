@@ -127,6 +127,8 @@ dmypy.json
 # ----- Local notes (keep HANDOFF.md / TASKS.md tracked if you want) -----
 *.local.md
 notes.md
+HANDOFF.md
+TASKS.md
 
 # ============================================================================
 # GENERATED / REGENERABLE DATA — excluded (users generate these themselves)
