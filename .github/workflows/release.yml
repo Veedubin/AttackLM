@@ -1,0 +1,81 @@
+# AttackLM — Publish to PyPI
+#
+# Trigger: push a tag matching v* (e.g., git tag v0.3.1 && git push origin v0.3.1)
+#
+# Uses PyPI Trusted Publishing (OIDC). The repository is configured as a
+# trusted publisher on PyPI with environment name "pypi".
+# No API tokens or passwords are stored in GitHub secrets.
+
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build distribution 📦
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build hatchling
+
+      - name: Build distribution
+        run: python -m build
+
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  tests:
+    name: Run tests 🧪
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,extract]"
+
+      - name: Run pytest
+        run: pytest tests/test_init_pipeline.py -v
+
+  publish:
+    name: Publish to PyPI 🚀
+    needs:
+      - build
+      - tests
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/attacklm
+    permissions:
+      id-token: write  # Required for OIDC trusted publishing
+      contents: read
+    steps:
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
