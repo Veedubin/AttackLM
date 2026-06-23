@@ -4,6 +4,62 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
+## [0.4.0] — 2026-06-22 — MoE-safe training, retention eval, and experience replay
+
+### Added
+
+- **Experience-replay / mixed-corpus mixer** (`scripts/replay_mixer.py`).
+  - Stratified mixing of one or more replay sources into any fine-tuning batch.
+  - New CLI flags on `attacklm-train-all`:
+    `--replay-source`, `--replay-ratio`, `--replay-max-examples`,
+    `--replay-stratify` / `--no-replay-stratify`, `--replay-domain-ratios`.
+  - Caches combined datasets under `data/datasets/combined/replay_<hash>.jsonl`.
+  - Records replay source composition in `state.json`.
+  - New `replay-general` source skeleton with starter samples for code,
+    conversation, factual, and reasoning domains.
+  - New acquisition script: `scripts/acquire_replay_general.py`.
+- **`attacklm-eval` retention suite** (`scripts/eval_retention.py`).
+  - Measures target-task gain vs. pretraining-domain retention.
+  - CLI entry point and 30 hermetic tests.
+- **Advanced training options** in `scripts/train_template.py`:
+  - `--use-dora`, `--loftq-init`, `--bf16`, `--fp16`, `--fp32`.
+  - `--use-rslora` / `--no-use-rslora`.
+  - `--target-modules` for explicit LoRA target selection.
+  - `--moe-safe-target` for Mixture-of-Experts models: bf16 only, no 4-bit
+    quantization, router/lm_head excluded from LoRA targets.
+- **Auto bf16 default** on Ampere/Ada/Hopper/Blackwell GPUs (compute capability >= 8.0),
+  with `--fp16` override for backward compatibility.
+
+### Changed
+
+- `scripts/train_all.py` now wires all new LoRA/DoRA/LoftQ/bf16/MoE-safe flags
+  through `build_train_cmd()` and integrates the replay mixer.
+- `scripts/train_template.py` records replay provenance in `state.json`.
+- `src/attacklm/cli.py` adds `attacklm-train-lora` and `attacklm-eval` entry points.
+- `pyproject.toml` registers `attacklm-eval` and `attacklm-train-lora` console scripts.
+
+### Fixed
+
+- `tests/test_thinking_models.py` updated to match the deprecated/removed
+  thinking-model helpers; now tests only the surviving `strip_thinking()` logic.
+- `tests/test_balance_buckets.py` updated its data-dependent total assertion
+  to match the current manifest.
+
+---
+
+## [0.3.3] — 2026-06-11
+
+### Fixed
+
+- `pyproject.toml` dynamic version resolution.
+- Bad v0.3.2 publish artifact.
+
+## [0.3.2] — 2026-06-11
+
+### Added
+
+- PyPI trusted publishing workflow (`.github/workflows/release.yml`).
+
 ## [0.3.1] — 2026-06-11 — `attacklm-init` one-shot setup
 
 ### Added

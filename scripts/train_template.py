@@ -31,6 +31,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import torch
 
@@ -62,7 +63,6 @@ from device_utils import (  # noqa: E402  (import after sys.path tweak)
     gpu_mem_info,
     gpu_mem_info_bytes,
     suggest_attn_implementation,
-    is_flash_attn_available,
     print_hardware_banner,
 )
 
@@ -254,6 +254,108 @@ Examples:
         ),
     )
 
+    # ---- Advanced LoRA / QLoRA flags ----
+    parser.add_argument(
+        "--use-dora",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable DoRA (Weight-Decomposed Low-Rank Adaptation) via PEFT's "
+            "use_dora flag. When combined with 4-bit quantization, PEFT "
+            "automatically uses QDoRA. DoRA splits each LoRA adapter into "
+            "a magnitude and directional component, often improving quality "
+            "at the same rank. Default: OFF (standard QLoRA)."
+        ),
+    )
+    parser.add_argument(
+        "--loftq-init",
+        action="store_true",
+        default=False,
+        help=(
+            "Initialize LoRA weights with LoftQ (LoRA-fine-tuning-aware "
+            "Quantization). Sets init_lora_weights='loftq' in LoraConfig, "
+            "which replaces the default Kaiming initialization with a "
+            "quantization-aware init. Only meaningful when the base model "
+            "is UNQUANTIZED (will print a warning if the model is already "
+            "quantized and proceed without LoftQ). Default: OFF."
+        ),
+    )
+    _mp_group = parser.add_mutually_exclusive_group()
+    _mp_group.add_argument(
+        "--bf16",
+        action="store_true",
+        default=False,
+        help=(
+            "Force bfloat16 mixed precision. On Ampere+ GPUs (compute "
+            "capability >= 8.0), bf16 is now the AUTO-DEFAULT — you only "
+            "need this flag to override an explicit --fp16 on such a GPU. "
+            "On older GPUs, pass this flag to force bf16 (may cause NaN if "
+            "the GPU lacks bf16 hardware)."
+        ),
+    )
+    _mp_group.add_argument(
+        "--fp16",
+        action="store_true",
+        default=False,
+        help=(
+            "Force float16 mixed precision. This was the previous default "
+            "for all GPUs. On Ampere+ GPUs, bf16 is now auto-selected; "
+            "use --fp16 to override back to the old behavior."
+        ),
+    )
+    _mp_group.add_argument(
+        "--fp32",
+        action="store_true",
+        default=False,
+        help=(
+            "Force float32 (no mixed precision). Slow but numerically "
+            "exact. Useful for debugging NaN issues."
+        ),
+    )
+    parser.add_argument(
+        "--use-rslora",
+        dest="use_rslora",
+        action="store_true",
+        default=True,
+        help=(
+            "Enable Rank-Stabilized LoRA (use_rslora=True in LoraConfig). "
+            "RSLoRA scales adapters by alpha/sqrt(r) instead of alpha/r, "
+            "allowing lower ranks with equivalent training signal. "
+            "Default: ON (kept for backward compatibility)."
+        ),
+    )
+    parser.add_argument(
+        "--no-use-rslora",
+        dest="use_rslora",
+        action="store_false",
+        help=(
+            "Disable RSLoRA. Use classic LoRA scaling (alpha/r). "
+            "Only needed if you want the pre-RSLoRA behavior."
+        ),
+    )
+    parser.add_argument(
+        "--target-modules",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated list of LoRA target modules. "
+            "Default: q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj. "
+            "Example: --target-modules q_proj,v_proj,o_proj"
+        ),
+    )
+    parser.add_argument(
+        "--moe-safe-target",
+        action="store_true",
+        default=False,
+        help=(
+            "Automatically restrict target modules to attention + MLP "
+            "(exclude router/gate/lm_head layers) for Mixture-of-Experts "
+            "models. Also forces bf16 and disables 4-bit quantization, "
+            "since BitsAndBytes 4-bit does not support MoE expert weights "
+            "per Unsloth guidance. Default: OFF."
+        ),
+    )
+
     return parser.parse_args()
 
 
@@ -286,7 +388,6 @@ def _resolve_model_path(model_id_or_path: str) -> str:
     and contains a `/` that isn't a path separator) it's left alone
     as a HF Hub repo ID like `Qwen/Qwen2.5-Coder-3B-Instruct`.
     """
-    import os
     from pathlib import Path
 
     if not model_id_or_path:
@@ -586,19 +687,42 @@ def check_python_version() -> None:
         sys.exit(1)
 
 
-def check_gpu() -> str:
+def check_gpu(args: argparse.Namespace | None = None) -> str:
     """Check for CUDA / ROCm / MPS availability and return compute dtype string.
 
     Works on NVIDIA CUDA, AMD ROCm, Apple Silicon MPS, and CPU.
+
+    Priority:
+      1. Explicit --fp32 / --bf16 / --fp16 from args (mutually exclusive).
+      2. Auto-detect bf16 on Ampere+ (CUDA compute capability >= 8.0).
+      3. Fall back to fp16 for older GPUs and backward compatibility.
+
+    When --moe-safe-target is set, bf16 is forced regardless of GPU.
     """
     from device_utils import (
         is_cuda,
         is_mps,
         gpu_name_and_memory,
-        print_hardware_banner,
     )
 
     print_hardware_banner()
+
+    # --moe-safe-target forces bf16 (BnB 4-bit is incompatible with MoE
+    # expert weights per Unsloth guidance)
+    if args and getattr(args, "moe_safe_target", False):
+        print("Mixed precision: BF16 (forced by --moe-safe-target)")
+        return "bf16"
+
+    # Explicit overrides (mutually exclusive group in argparse)
+    if args and getattr(args, "fp32", False):
+        print("Mixed precision: FP32 (forced by --fp32)")
+        return "fp32"
+    if args and getattr(args, "bf16", False):
+        print("Mixed precision: BF16 (forced by --bf16)")
+        return "bf16"
+    if args and getattr(args, "fp16", False):
+        print("Mixed precision: FP16 (forced by --fp16)")
+        return "fp16"
 
     if not is_cuda():
         if is_mps():
@@ -619,10 +743,21 @@ def check_gpu() -> str:
         print(f"WARNING: GPU has only {gpu_mem:.1f} GB VRAM.")
         print("         If you hit OOM, try: --batch-size 1 --max-length 1024")
 
-    # Use FP16 for compatibility (BF16 + AMP scaler can conflict with
-    # some model weight formats, especially when the model stores BF16 weights)
-    print("Mixed precision: FP16 (forced for AMP compatibility)")
-    return "fp16"
+    # Auto-detect bf16 capability on Ampere+ GPUs (compute capability >= 8.0).
+    # Ampere (8.0), Ada (8.9), Hopper (9.0), Blackwell (10.0) all support bf16.
+    cc_major = 0
+    try:
+        if torch.cuda.is_available():
+            cc_major = torch.cuda.get_device_properties(0).major
+    except Exception:
+        pass
+
+    if cc_major >= 8:
+        print(f"Mixed precision: BF16 (auto-detected, compute capability {cc_major}.x)")
+        return "bf16"
+    else:
+        print("Mixed precision: FP16 (GPU lacks BF16 hardware)")
+        return "fp16"
 
 
 def validate_dataset(dataset_path: str) -> None:
@@ -705,7 +840,7 @@ def print_dataset_stats(dataset, tokenizer, hpo_stats_path: str = None) -> None:
     """
     num_examples = len(dataset)
     print(f"\n{'=' * 60}")
-    print(f" DATASET STATISTICS")
+    print(" DATASET STATISTICS")
     print(f"{'=' * 60}")
     print(f"  Examples:       {num_examples}")
 
@@ -779,30 +914,33 @@ def print_dataset_stats(dataset, tokenizer, hpo_stats_path: str = None) -> None:
 
 
 def get_qlora_config(
-    lora_r: int, lora_alpha: int, lora_dropout: float = 0.05
-) -> "LoraConfig":
-    """Build LoRA config targeting all linear modules."""
+    lora_r: int,
+    lora_alpha: int,
+    lora_dropout: float = 0.05,
+    use_rslora: bool = True,
+    target_modules: list[str] | None = None,
+    use_dora: bool = False,
+    init_lora_weights: str | bool = True,
+) -> Any:
+    """Build LoRA config targeting all linear modules.
+
+    Args:
+        lora_r: LoRA rank (default 16).
+        lora_alpha: LoRA alpha (default 32).
+        lora_dropout: LoRA dropout (default 0.05).
+        use_rslora: Enable Rank-Stabilized LoRA scaling (default True).
+        target_modules: List of target module names. Defaults to the
+            standard Qwen2.5 set if None.
+        use_dora: Enable DoRA (Weight-Decomposed LoRA). When combined
+            with 4-bit quantization, PEFT automatically uses QDoRA.
+        init_lora_weights: Initialization method. Default True (Kaiming).
+            Set to "loftq" for LoftQ initialization (LoRA-fine-tuning-aware
+            Quantization).
+    """
     from peft import LoraConfig, TaskType
 
-    return LoraConfig(
-        r=lora_r,
-        lora_alpha=lora_alpha,
-        lora_dropout=lora_dropout,
-        bias="none",
-        task_type=TaskType.CAUSAL_LM,
-        # OOM fix #9: Use Rank-Stabilized LoRA
-        # RSLoRA (https://huggingface.co/papers/2312.03732) sets the adapter
-        # scaling factor to `lora_alpha / sqrt(r)` instead of `lora_alpha / r`.
-        # This lets us halve the rank (r=16 → r=8) while keeping equivalent
-        # effective training signal — fewer trainable params means less
-        # optimizer state in 8-bit Adam, less gradient memory, less activation
-        # memory in the LoRA forward pass. With our current r=16 setup,
-        # enabling RSLoRA would let us drop to r=8 for ~50% LoRA param
-        # reduction with no loss in quality. To keep behavior identical for
-        # any in-flight training, we leave r unchanged but enable the flag
-        # so the next training run can use the lower rank.
-        use_rslora=True,
-        target_modules=[
+    if target_modules is None:
+        target_modules = [
             "q_proj",
             "k_proj",
             "v_proj",
@@ -810,11 +948,32 @@ def get_qlora_config(
             "gate_proj",
             "up_proj",
             "down_proj",
-        ],
-    )
+        ]
+
+    config_kwargs = {
+        "r": lora_r,
+        "lora_alpha": lora_alpha,
+        "lora_dropout": lora_dropout,
+        "bias": "none",
+        "task_type": TaskType.CAUSAL_LM,
+        "use_rslora": use_rslora,
+        "target_modules": target_modules,
+    }
+
+    # DoRA / QDoRA: when use_dora=True with a 4-bit base model, PEFT
+    # automatically applies QDoRA (quantization-aware DoRA).
+    if use_dora:
+        config_kwargs["use_dora"] = True
+
+    # LoftQ init: only applies when the base model is unquantized.
+    # The caller is responsible for printing a warning if the model is
+    # already quantized.
+    config_kwargs["init_lora_weights"] = init_lora_weights
+
+    return LoraConfig(**config_kwargs)
 
 
-def get_quantization_config() -> "BitsAndBytesConfig":
+def get_quantization_config() -> Any:
     """Build 4-bit NF4 quantization config — FP32 compute to avoid AMP conflicts."""
     from transformers import BitsAndBytesConfig
 
@@ -1026,6 +1185,38 @@ def main() -> None:
 
     is_dry_run = args.dry_run or not args.train
 
+    # --- Resolve LoRA target modules (before training plan display) ---
+    if args.moe_safe_target:
+        # MoE-safe: restrict to attention + MLP, exclude router/gate/lm_head.
+        # This prevents BnB 4-bit from trying to quantize MoE expert weights.
+        _DEFAULT_TARGETS = [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ]
+        _MOE_EXCLUDED_PATTERNS = {"gate", "router", "lm_head", "embed_tokens", "shared"}
+        target_modules_list = [
+            m
+            for m in _DEFAULT_TARGETS
+            if not any(pat in m for pat in _MOE_EXCLUDED_PATTERNS)
+        ]
+        excluded = [m for m in _DEFAULT_TARGETS if m not in target_modules_list]
+        print(f"  --moe-safe-target: excluded modules: {excluded}")
+        print(f"  --moe-safe-target: target modules: {target_modules_list}")
+    elif args.target_modules:
+        target_modules_list = [m.strip() for m in args.target_modules.split(",")]
+        print(f"  --target-modules: {target_modules_list}")
+    else:
+        target_modules_list = None  # use defaults in get_qlora_config
+
+    # LoftQ init: tentatively set based on args; will be overridden if
+    # the model is already quantized (checked after model load).
+    init_lora_weights = "loftq" if args.loftq_init else True
+
     print("\n" + "=" * 60)
     print(" AttackLM QLoRA Fine-Tuning Template")
     print("=" * 60)
@@ -1036,7 +1227,7 @@ def main() -> None:
     print(f" Output:      {args.output}")
     if args.no_timestamp:
         print(
-            f"              (no-timestamp mode: clobbers existing runs without --force)"
+            "              (no-timestamp mode: clobbers existing runs without --force)"
         )
     else:
         # If the output has a _YYYY-MM-DD_HH-MM suffix, note that we
@@ -1044,9 +1235,9 @@ def main() -> None:
         import re as _re
 
         if _re.search(r"_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}", args.output):
-            print(f"              (timestamp suffix preserved)")
+            print("              (timestamp suffix preserved)")
         else:
-            print(f"              (auto-timestamped: each run is preserved)")
+            print("              (auto-timestamped: each run is preserved)")
     print(f" Epochs:      {args.epochs}")
     print(f" Batch size:   {args.batch_size}")
     print(f" Max length:   {args.max_length}")
@@ -1060,7 +1251,7 @@ def main() -> None:
     validate_dataset(args.dataset)
 
     # --- Check GPU ---
-    compute_type = check_gpu()
+    compute_type = check_gpu(args)
 
     # --- Load dependencies (deferred so --dry-run can run without GPU) ---
     print("\nLoading libraries...")
@@ -1096,8 +1287,8 @@ def main() -> None:
             if has_incomplete_checkpoint(base_model_resolved):
                 if not args.resume_from_checkpoint:
                     print(
-                        f"  ↻ Detected started run (state.json: completed=false, "
-                        f"checkpoint-N/ present). Auto-resuming from latest checkpoint."
+                        "  ↻ Detected started run (state.json: completed=false, "
+                        "checkpoint-N/ present). Auto-resuming from latest checkpoint."
                     )
                     args.resume_from_checkpoint = True
             else:
@@ -1105,15 +1296,15 @@ def main() -> None:
                 # a fresh base. This happens when --dry-run is run twice
                 # on the same dir.
                 print(
-                    f"  ↻ Detected marked-started run but no checkpoint-N/ found. "
-                    f"Treating as base for a fresh training run."
+                    "  ↻ Detected marked-started run but no checkpoint-N/ found. "
+                    "Treating as base for a fresh training run."
                 )
 
         # Surface the round-2 SFT case clearly to the user
         if base_state is not None and base_state.get("completed", False):
             print(
-                f"  ✓ Detected completed run (state.json: completed=true). "
-                f"Round-2 SFT: training a fresh LoRA on top of the merged weights."
+                "  ✓ Detected completed run (state.json: completed=true). "
+                "Round-2 SFT: training a fresh LoRA on top of the merged weights."
             )
             prev_hp = base_state.get("hparams", {})
             if prev_hp:
@@ -1217,26 +1408,56 @@ def main() -> None:
     print_dataset_stats(dataset, tokenizer, hpo_stats_path=hpo_stats_path)
 
     # --- Show training plan ---
+    _tm_display = ", ".join(
+        target_modules_list
+        if target_modules_list
+        else [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ]
+    )
+    _rslora_display = (
+        "ON (alpha/sqrt(r))" if args.use_rslora else "OFF (classic alpha/r)"
+    )
+    _dora_display = "ON (QDoRA)" if args.use_dora else "OFF"
+    _loftq_display = "ON" if args.loftq_init else "OFF"
+    _moe_display = (
+        "ON (attention+MLP only, bf16 forced, no BnB 4-bit)"
+        if args.moe_safe_target
+        else "OFF"
+    )
+
     print("=" * 60)
     print(" TRAINING PLAN")
     print("=" * 60)
     print(f"  Model:              {args.base_model}")
-    print(f"  Quantization:       4-bit NF4 (double quant)")
+    if not args.moe_safe_target:
+        print("  Quantization:       4-bit NF4 (double quant)")
+    else:
+        print("  Quantization:       NONE (bf16 full-precision for MoE)")
     print(f"  LoRA rank:          {args.lora_r}")
     print(f"  LoRA alpha:         {args.lora_alpha}")
     print(f"  LoRA dropout:       {args.lora_dropout}")
-    print(f"  Target modules:     q_proj, k_proj, v_proj, o_proj,")
-    print(f"                       gate_proj, up_proj, down_proj")
+    print(f"  Target modules:     {_tm_display}")
+    print(f"  RSLoRA:             {_rslora_display}")
+    print(f"  DoRA:               {_dora_display}")
+    print(f"  LoftQ init:         {_loftq_display}")
+    print(f"  MoE-safe target:    {_moe_display}")
     print(f"  Epochs:             {args.epochs}")
     print(f"  Batch size:         {args.batch_size}")
     print(f"  Max seq length:     {args.max_length}")
-    print(f"  Gradient checkpoint: True")
+    print("  Gradient checkpoint: True")
     print(f"  Compute dtype:      {compute_type}")
     print(f"  Save steps:         {args.save_steps}")
     print(f"  Gradient accum:     {args.gradient_accumulation_steps}")
-    print(f"  Save strategy:      steps")
-    print(f"  Save total limit:   2")
-    print(f"  Logging steps:      10")
+    print("  Save strategy:      steps")
+    print("  Save total limit:   2")
+    print("  Logging steps:      10")
     print(f"  Output dir:         {args.output}")
     print(f"  Resume checkpoint:  {args.resume_from_checkpoint}")
     print(f"  Optimizer:          {args.optim}")
@@ -1304,6 +1525,15 @@ def main() -> None:
     # is run directly).
     env_specs = os.environ.get("ATTACKLM_DATASET_SPECS", "")
     specs_from_env = [s for s in env_specs.split(",") if s]
+    # v0.3.4+: replay source info for reproducibility in state.json
+    env_replay_sources = os.environ.get("ATTACKLM_REPLAY_SOURCES", "")
+    env_replay_composition = os.environ.get("ATTACKLM_REPLAY_COMPOSITION", "")
+    replay_sources_list = (
+        [s for s in env_replay_sources.split(",") if s] if env_replay_sources else None
+    )
+    replay_composition = (
+        json.loads(env_replay_composition) if env_replay_composition else None
+    )
     dataset_info = {
         "source": getattr(args, "dataset_source", "file"),
         "path": args.dataset,
@@ -1311,9 +1541,11 @@ def main() -> None:
         "buckets": getattr(args, "buckets", None),
         "include_tools": getattr(args, "include_tools", None),
         "include_ai": getattr(args, "include_ai", None),
+        "replay_sources": replay_sources_list,
+        "replay_composition": replay_composition,
         "examples_total": len(dataset),
-        "examples_train": len(train_dataset) if "train_dataset" in dir() else None,
-        "examples_eval": len(eval_dataset) if "eval_dataset" in dir() else None,
+        "examples_train": len(locals().get("train_dataset", [])),
+        "examples_eval": len(locals().get("eval_dataset", [])),
     }
     initial_state = _default_state_template(
         output_dir=args.output,
@@ -1381,31 +1613,62 @@ def main() -> None:
             sys.exit(1)
         print(f"Resuming from checkpoint: {last_ckpt}")
 
-    bnb_config = get_quantization_config()
+    # --moe-safe-target: disable 4-bit quantization and force bf16, since
+    # BitsAndBytes 4-bit does not support MoE expert weights per Unsloth
+    # guidance. For MoE models, we load in bf16 and only apply LoRA to the
+    # attention + MLP modules (excluding router/gate/lm_head).
+    skip_quantization = args.moe_safe_target
 
-    # Adjust compute dtype based on GPU capability
-    if compute_type == "bf16":
+    if skip_quantization:
+        bnb_config = None  # No quantization for MoE-safe mode
+        # Force bf16 for MoE models
+        if compute_type != "bf16":
+            print(
+                "  --moe-safe-target: overriding compute dtype to bf16 "
+                "(required for MoE models without 4-bit quantization)"
+            )
+            compute_type = "bf16"
         compute_dtype = torch.bfloat16
-    elif compute_type == "fp16":
-        compute_dtype = torch.float16
-        bnb_config.bnb_4bit_compute_dtype = torch.float16
     else:
-        compute_dtype = torch.float32
+        bnb_config = get_quantization_config()
 
-    # --- Load base model in 4-bit ---
+        # Adjust compute dtype based on GPU capability
+        if compute_type == "bf16":
+            compute_dtype = torch.bfloat16
+        elif compute_type == "fp16":
+            compute_dtype = torch.float16
+            bnb_config.bnb_4bit_compute_dtype = torch.float16
+        else:
+            compute_dtype = torch.float32
+            # FP32 path: no need to set bnb_config compute dtype (remains default)
+
+    # --- Load base model ---
     # Detect pre-existing quantization scheme (FP8, GPTQ, AWQ, BnB, ...) by
     # reading the model's config.json. Without this, we'd unconditionally
     # pass BitsAndBytesConfig to from_pretrained() and transformers would
     # raise: "The model is quantized with FineGrainedFP8Config but you are
     # passing a BitsAndBytesConfig config".
     quant_method = detect_quantization_scheme(args.base_model)
-    quant_label = (
-        _QUANT_SCHEMES.get(quant_method, quant_method)
-        if quant_method
-        else "unquantized (will NF4)"
-    )
+    if skip_quantization:
+        quant_label = "unquantized (MoE-safe: no BnB 4-bit)"
+    elif quant_method:
+        quant_label = _QUANT_SCHEMES.get(quant_method, quant_method)
+    else:
+        quant_label = "unquantized (will NF4)"
+
     print(f"Loading model: {args.base_model}")
     print(f"  Detected quantization: {quant_label}")
+
+    # LoftQ init: if the model is already quantized, LoftQ cannot apply.
+    # Print a warning and fall back to default init.
+    if args.loftq_init and quant_method is not None and not skip_quantization:
+        print(
+            f"  WARNING: --loftq-init ignored because base model is "
+            f"already quantized ({quant_label}). LoftQ only applies to "
+            f"unquantized base models. Proceeding with default init."
+        )
+        init_lora_weights = True  # override the earlier "loftq" assignment
+
     try:
         # Map compute type string to actual torch dtype
         dtype_map = {
@@ -1421,27 +1684,18 @@ def main() -> None:
             dtype=torch_dtype,
         )
         # OOM fix #13: FlashAttention 2 for varlen (padding-free) support
-        # Only required when --packing is enabled. Without it,
-        # `padding_free=True` + `packing=True` will SILENTLY
-        # cross-contaminate samples within a packed sequence —
-        # sample A attends to sample B's tokens, corrupting both
-        # loss signals. FlashAttention 2 (and 3) properly respect
-        # `cu_seqlens` to enforce attention boundaries between
-        # packed samples.
-        # RTX 4080 (Ada Lovelace, compute 8.9) supports FA2 perfectly.
-        # FA3 requires Hopper (H100) — not available on consumer cards.
-        # ROCm has no official flash-attn — suggest_attn_implementation()
-        # will fall back to sdpa with a warning.
-        # See: https://github.com/Dao-AILab/flash-attention
         attn_impl = suggest_attn_implementation(args.packing)
         load_kwargs["attn_implementation"] = attn_impl
 
         # Decide whether to pass a quantization_config:
-        #   - quant_method is None              → unquantized, apply NF4 ourselves
-        #   - quant_method in {bnb_4bit/8bit}   → pre-quantized BnB, let HF auto-detect
-        #   - quant_method in {fp8, gptq, ...}  → pre-quantized with other scheme,
-        #                                          MUST not pass a BnB config or HF errors
-        if quant_method is None:
+        #   - --moe-safe-target        → skip BnB, load in bf16
+        #   - quant_method is None      → unquantized, apply NF4 ourselves
+        #   - quant_method in {bnb_*}   → pre-quantized BnB, let HF auto-detect
+        #   - quant_method in {fp8,...} → pre-quantized with other scheme
+        if skip_quantization:
+            # MoE-safe: no quantization config, load in bf16
+            pass  # no quantization_config key added
+        elif quant_method is None:
             load_kwargs["quantization_config"] = bnb_config
         elif quant_method in ("bitsandbytes_4bit", "bitsandbytes_8bit", "bitsandbytes"):
             print(
@@ -1459,7 +1713,8 @@ def main() -> None:
             # Older versions may need: FineGrainedFP8Config(dequantize=True)
             if quant_method == "fp8":
                 try:
-                    import peft, trl  # noqa: F401
+                    import peft
+                    import trl  # noqa: F401
 
                     peft_ver = tuple(int(x) for x in peft.__version__.split(".")[:2])
                     trl_ver = tuple(int(x) for x in trl.__version__.split(".")[:2])
@@ -1535,7 +1790,6 @@ def main() -> None:
                     seen.add(id(cur))
                     chain.append(cur)
                     cur = cur.__cause__ or cur.__context__
-                root = chain[-1] if chain else e
                 chain_lines = [
                     f"    {i}. [{type(c).__name__}] {str(c)[:300]}"
                     for i, c in enumerate(chain)
@@ -1642,7 +1896,28 @@ def main() -> None:
 
     # --- Apply LoRA ---
     print("Applying LoRA adapter...")
-    lora_config = get_qlora_config(args.lora_r, args.lora_alpha, args.lora_dropout)
+
+    # Note: target_modules_list and init_lora_weights were resolved earlier
+    # (before training plan display) so they can appear in the plan output.
+    # The LoftQ warning for pre-quantized models was also printed earlier.
+
+    lora_config = get_qlora_config(
+        lora_r=args.lora_r,
+        lora_alpha=args.lora_alpha,
+        lora_dropout=args.lora_dropout,
+        use_rslora=args.use_rslora,
+        target_modules=target_modules_list,
+        use_dora=args.use_dora,
+        init_lora_weights=init_lora_weights,
+    )
+
+    if args.use_dora:
+        print("  DoRA/QDoRA enabled (use_dora=True)")
+    if args.use_rslora:
+        print("  RSLoRA enabled (use_rslora=True)")
+    else:
+        print("  RSLoRA disabled (classic LoRA scaling alpha/r)")
+
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
 
@@ -1740,9 +2015,9 @@ def main() -> None:
         save_total_limit=args.early_stopping_patience + 1,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
-        # Precision
-        fp16=False,
-        bf16=False,
+        # Precision — driven by compute_type determined from GPU / CLI flags
+        fp16=(compute_type == "fp16"),
+        bf16=(compute_type == "bf16"),
         # Other
         gradient_checkpointing=True,
         logging_steps=10,
@@ -1910,7 +2185,6 @@ def main() -> None:
                 return control
 
             now = time.time()
-            elapsed = now - self._start_time
             window = max(1e-6, now - self._last_time)
             step_delta = max(1, step - self._last_step)
 
@@ -1949,7 +2223,6 @@ def main() -> None:
 
             # --- Progress bar line ---
             if self._max_steps > 0:
-                pct = 100.0 * step / self._max_steps
                 bar_len = 20
                 filled = int(bar_len * step / self._max_steps)
                 bar = "█" * filled + "░" * (bar_len - filled)
@@ -2281,7 +2554,8 @@ def main() -> None:
         "lora_r": args.lora_r,
         "lora_alpha": args.lora_alpha,
         "lora_dropout": args.lora_dropout,
-        "target_modules": [
+        "target_modules": target_modules_list
+        or [
             "q_proj",
             "k_proj",
             "v_proj",
@@ -2290,7 +2564,13 @@ def main() -> None:
             "up_proj",
             "down_proj",
         ],
-        "quantization": "4-bit NF4 double-quantized",
+        "use_rslora": args.use_rslora,
+        "use_dora": args.use_dora,
+        "init_lora_weights": init_lora_weights,
+        "moe_safe_target": args.moe_safe_target,
+        "quantization": "4-bit NF4 double-quantized"
+        if not skip_quantization
+        else "none (bf16 full-precision for MoE)",
         "epochs": args.epochs,
         "batch_size": args.batch_size,
         "max_length": args.max_length,
