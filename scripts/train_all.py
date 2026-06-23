@@ -46,20 +46,53 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bucket_loader import (  # noqa: E402
     build_combined,
-    get_default_train_buckets,
     get_tactic_buckets,
-    get_tool_buckets,
-    get_ai_model_buckets,
     get_orchestrator_bucket,
     get_bucket,
-    list_buckets,
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATASETS_DIR = BASE_DIR / "data" / "datasets"
 BUCKETS_DIR = DATASETS_DIR / "buckets"
+SOURCES_DIR = BUCKETS_DIR / "sources"
 MODELS_DIR = BASE_DIR / "models"
 LOGS_DIR = BASE_DIR / "logs"
+
+
+def _resolve_replay_sources(replay_source_args: list[str] | None) -> list[Path]:
+    """Resolve --replay-source arguments to absolute paths.
+
+    Each arg can be:
+      - An absolute or relative path that exists as a directory.
+      - A bare name (e.g. "replay-general/") that refers to a source
+        directory under data/datasets/buckets/sources/.
+    """
+    if not replay_source_args:
+        return []
+    paths: list[Path] = []
+    for arg in replay_source_args:
+        p = Path(arg)
+        # If it's already an absolute path or resolves to an existing dir
+        if p.is_absolute() and p.is_dir():
+            paths.append(p)
+            continue
+        # Try as relative path from CWD
+        if p.is_dir():
+            paths.append(p.resolve())
+            continue
+        # Strip trailing slash and look under SOURCES_DIR
+        name = arg.rstrip("/")
+        candidate = SOURCES_DIR / name
+        if candidate.is_dir():
+            paths.append(candidate)
+            continue
+        # Last resort: try with trailing slash stripped + absolute resolve
+        p2 = Path(arg).resolve()
+        if p2.is_dir():
+            paths.append(p2)
+        else:
+            print(f"  WARNING: replay source '{arg}' not found, skipping")
+    return paths
 
 
 def get_default_models() -> list[tuple]:
@@ -368,6 +401,23 @@ def build_train_cmd(
     # HPO per-step CSV log
     if hpo_metrics_csv:
         cmd.extend(["--hpo-metrics-csv", str(hpo_metrics_csv)])
+    # Advanced LoRA / QLoRA / MoE flags — pass through when non-default
+    if getattr(args, "use_dora", False):
+        cmd.append("--use-dora")
+    if getattr(args, "loftq_init", False):
+        cmd.append("--loftq-init")
+    if getattr(args, "bf16", False):
+        cmd.append("--bf16")
+    if getattr(args, "fp16", False):
+        cmd.append("--fp16")
+    if getattr(args, "fp32", False):
+        cmd.append("--fp32")
+    if not getattr(args, "use_rslora", True):
+        cmd.append("--no-use-rslora")
+    if getattr(args, "target_modules", None):
+        cmd.extend(["--target-modules", args.target_modules])
+    if getattr(args, "moe_safe_target", False):
+        cmd.append("--moe-safe-target")
     # v0.1.6+: pass dataset specs so train_template can record them in
     # state.json[dataset.specs] (reproducibility).
     if dataset_specs:
@@ -375,6 +425,13 @@ def build_train_cmd(
         # because train_template.py uses argparse which is finicky with
         # repeated list args. Env vars are simpler.
         os.environ["ATTACKLM_DATASET_SPECS"] = ",".join(dataset_specs)
+    # v0.3.4+: Pass replay source info to train_template.py for state.json.
+    # The ATTACKLM_REPLAY_SOURCES env var is set by the caller if replay
+    # mixing is active. We also serialize the replay composition dict
+    # so train_template.py can record it in state.json.
+    replay_comp_env = getattr(args, "_replay_composition_json", None)
+    if replay_comp_env:
+        os.environ["ATTACKLM_REPLAY_COMPOSITION"] = replay_comp_env
     # Resume: only if user asked AND there's actually a checkpoint to resume
     if args.resume_from_checkpoint and output_path.exists():
         if any(
@@ -621,6 +678,107 @@ def main():
         help="Disable example packing (default). Each example padded to max_length "
         "individually. Slower but doesn't require flash-attn. Always works.",
     )
+    # ---- Advanced LoRA / QLoRA / MoE flags ----
+    parser.add_argument(
+        "--use-dora",
+        action="store_true",
+        default=False,
+        help="Enable DoRA/QDoRA in train_template.py (default: OFF).",
+    )
+    parser.add_argument(
+        "--loftq-init",
+        action="store_true",
+        default=False,
+        help="Use LoftQ initialization in train_template.py (default: OFF).",
+    )
+    _mp_group = parser.add_mutually_exclusive_group()
+    _mp_group.add_argument(
+        "--bf16",
+        action="store_true",
+        default=False,
+        help="Force bfloat16 mixed precision in train_template.py.",
+    )
+    _mp_group.add_argument(
+        "--fp16",
+        action="store_true",
+        default=False,
+        help="Force float16 mixed precision in train_template.py.",
+    )
+    _mp_group.add_argument(
+        "--fp32",
+        action="store_true",
+        default=False,
+        help="Force float32 (no mixed precision) in train_template.py.",
+    )
+    parser.add_argument(
+        "--use-rslora",
+        dest="use_rslora",
+        action="store_true",
+        default=True,
+        help="Enable Rank-Stabilized LoRA (default: ON).",
+    )
+    parser.add_argument(
+        "--no-use-rslora",
+        dest="use_rslora",
+        action="store_false",
+        help="Disable Rank-Stabilized LoRA.",
+    )
+    parser.add_argument(
+        "--target-modules",
+        type=str,
+        default=None,
+        help="Comma-separated LoRA target modules passed to train_template.py.",
+    )
+    parser.add_argument(
+        "--moe-safe-target",
+        action="store_true",
+        default=False,
+        help="Restrict LoRA to attention + MLP, force bf16, disable 4-bit quantization "
+        "for MoE models in train_template.py (default: OFF).",
+    )
+    # ---- Experience replay flags ----
+    parser.add_argument(
+        "--replay-source",
+        type=str,
+        nargs="*",
+        default=None,
+        help="One or more replay source dirs or aliases "
+        "(e.g. 'replay-general/'). Repeatable.",
+    )
+    parser.add_argument(
+        "--replay-ratio",
+        type=float,
+        default=0.0,
+        help="Fraction of each fine-tuning batch that should be replay examples "
+        "(default: 0.0 = no replay). Recommended: 0.05-0.10.",
+    )
+    parser.add_argument(
+        "--replay-max-examples",
+        type=int,
+        default=0,
+        help="Hard cap on total replay examples across all sources "
+        "(0 = ratio * target size).",
+    )
+    parser.add_argument(
+        "--replay-stratify",
+        dest="replay_stratify",
+        action="store_true",
+        default=True,
+        help="Stratified sampling across replay domains (default: True).",
+    )
+    parser.add_argument(
+        "--no-replay-stratify",
+        dest="replay_stratify",
+        action="store_false",
+        help="Disable stratified sampling (uniform instead).",
+    )
+    parser.add_argument(
+        "--replay-domain-ratios",
+        type=str,
+        default=None,
+        help='JSON dict of domain weights, e.g. \'{"code":0.3,"conversation":0.25}\'',
+    )
+    # ---- Curriculum ----
     parser.add_argument(
         "--curriculum",
         action="store_true",
@@ -741,7 +899,7 @@ def main():
         out("=" * 60)
         out(" AttackLM — Single Model Mode")
         out("=" * 60)
-        out(f"  Mode:           single (combines selected buckets)")
+        out("  Mode:           single (combines selected buckets)")
         out(f"  Output:         {MODELS_DIR / args.single_model_name}")
         if args.dataset:
             out(f"  Dataset spec:   {' '.join(args.dataset)}")
@@ -815,7 +973,7 @@ def main():
                         out(
                             f"  ↻ Round-2 SFT detected: previous completed run at {latest.name}"
                         )
-                        out(f"    Loading merged weights as base for this run.")
+                        out("    Loading merged weights as base for this run.")
                         # Backup the previous run BEFORE training starts.
                         # Default: --backup ON. Skip with --no-backup.
                         # The backup tar includes both the run dir and the
@@ -938,7 +1096,7 @@ def main():
             )
             out(f"  Command: {Path(cmd_s2[3]).name} {' '.join(cmd_s2[4:])}")
             out(f"  Epochs (stage 2): {args_stage2.epochs} (half of {args.epochs})")
-            out(f"  Dropout (stage 2): 0.0 (fine-tune, not learn-from-scratch)")
+            out("  Dropout (stage 2): 0.0 (fine-tune, not learn-from-scratch)")
             out(f"  Timeout: {args.timeout}s")
             out("")
             rc2 = _run_with_retry(
@@ -966,6 +1124,54 @@ def main():
         # The combined dataset (tactic_combined_path) was already built above
         # with the right buckets per --include-orchestrator / --model-attacks.
         combined_path = tactic_combined_path
+
+        # ---- Experience replay mixer ----
+        # If replay sources are configured, mix replay examples into the
+        # combined dataset before training. The mixer produces a new cached
+        # JSONL and returns its path + a composition dict.
+        replay_composition = None
+        if args.replay_source and args.replay_ratio > 0:
+            from replay_mixer import mix_replay as _mix_replay
+
+            replay_src_paths = _resolve_replay_sources(args.replay_source)
+            if replay_src_paths:
+                domain_ratios = None
+                if args.replay_domain_ratios:
+                    domain_ratios = json.loads(args.replay_domain_ratios)
+                combined_path, replay_composition = _mix_replay(
+                    target_path=combined_path,
+                    replay_sources=replay_src_paths,
+                    ratio=args.replay_ratio,
+                    max_examples=args.replay_max_examples,
+                    stratify=args.replay_stratify,
+                    domain_ratios=domain_ratios,
+                    seed=42,
+                )
+                out("")
+                out(
+                    f"  Replay: {replay_composition['replay_examples']:,} examples "
+                    f"({replay_composition['replay_ratio']:.1%} of target)"
+                )
+                out(f"    Sources: {replay_composition['replay_sources']}")
+                out(f"    Domains: {replay_composition['replay_domains']}")
+                out(f"  Combined + replay: {combined_path}")
+                out("")
+                # Include replay config in the cache key so it varies correctly
+                flags_used["replay"] = {
+                    "sources": sorted(str(s) for s in replay_src_paths),
+                    "ratio": args.replay_ratio,
+                    "max_examples": args.replay_max_examples,
+                    "stratify": args.replay_stratify,
+                    "domain_ratios": args.replay_domain_ratios,
+                }
+                # Stash composition for train_template.py state.json
+                args._replay_composition_json = json.dumps(replay_composition)
+            else:
+                out(
+                    "  WARNING: --replay-source specified but no valid source dirs found"
+                )
+                out("  Continuing without replay mixing")
+                out("")
 
         # ============================
         # HPO MODE: coordinate-descent sweep
@@ -1063,6 +1269,30 @@ def main():
         # In the per-source layout (v0.3.0+), the bucket may be split across
         # multiple sources. Use build_combined to aggregate and cache.
         dataset_path = build_combined([bucket_name], flags={"_stage": 1})
+
+        # ---- Experience replay mixer (per-bucket path) ----
+        if args.replay_source and args.replay_ratio > 0:
+            from replay_mixer import mix_replay as _mix_replay
+
+            replay_src_paths = _resolve_replay_sources(args.replay_source)
+            if replay_src_paths:
+                domain_ratios = None
+                if args.replay_domain_ratios:
+                    domain_ratios = json.loads(args.replay_domain_ratios)
+                dataset_path, replay_comp = _mix_replay(
+                    target_path=dataset_path,
+                    replay_sources=replay_src_paths,
+                    ratio=args.replay_ratio,
+                    max_examples=args.replay_max_examples,
+                    stratify=args.replay_stratify,
+                    domain_ratios=domain_ratios,
+                    seed=42,
+                )
+                out(
+                    f"  Replay: {replay_comp['replay_examples']:,} examples "
+                    f"({replay_comp['replay_ratio']:.1%} of target)"
+                )
+                args._replay_composition_json = json.dumps(replay_comp)
         # v0.1.6: per-run timestamped output dir (no clobbering, easy rollback)
         output_path = _make_timestamped_output_dir(agent_name)
 
@@ -1085,7 +1315,7 @@ def main():
 
         n_examples = sum(1 for _ in open(dataset_path))
         if n_examples == 0:
-            out(f"  SKIP — bucket is empty")
+            out("  SKIP — bucket is empty")
             total_skipped += 1
             skipped_agents.append(agent_name)
             out("")

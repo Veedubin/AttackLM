@@ -167,11 +167,25 @@ def main_build(argv: Sequence[str] | None = None) -> int:
     return _run_python_script("build.py", argv if argv is not None else sys.argv[1:])
 
 
+def main_eval(argv: Sequence[str] | None = None) -> int:
+    """Run retention evaluation: attacklm-eval [args]"""
+    return _run_python_script(
+        "eval_retention.py", argv if argv is not None else sys.argv[1:]
+    )
+
+
+def main_train_lora(argv: Sequence[str] | None = None) -> int:
+    """Train a single model with explicit LoRA focus: attacklm-train-lora [args]"""
+    return _run_python_script(
+        "train_template.py", argv if argv is not None else sys.argv[1:]
+    )
+
+
 if __name__ == "__main__":
     # Allow ``python -m attacklm.cli`` to show a help message
     print("AttackLM CLI dispatchers. Use the installed console scripts:")
-    print("  attacklm-train, attacklm-train-all, attacklm-hpo, attacklm-infer,")
-    print("  attacklm-merge, attacklm-gguf, attacklm-demo, attacklm-extract,")
-    print("  attacklm-buckets, attacklm-attribute, attacklm-clone, attacklm-init,")
-    print("  attacklm-balance, attacklm-build")
+    print("  attacklm-train, attacklm-train-lora, attacklm-train-all, attacklm-hpo,")
+    print("  attacklm-infer, attacklm-merge, attacklm-gguf, attacklm-demo,")
+    print("  attacklm-extract, attacklm-buckets, attacklm-attribute, attacklm-clone,")
+    print("  attacklm-init, attacklm-balance, attacklm-build, attacklm-eval")
     sys.exit(0)

@@ -213,6 +213,8 @@ attacklm-clone = "attacklm.cli:main_clone"
 attacklm-init = "attacklm.cli:main_init"
 attacklm-balance = "attacklm.cli:main_balance"
 attacklm-build = "attacklm.cli:main_build"
+attacklm-train-lora = "attacklm.cli:main_train_lora"
+attacklm-eval = "attacklm.cli:main_eval"
 
 # ── Hatch build configuration ─────────────────────────────────────────────────
 
