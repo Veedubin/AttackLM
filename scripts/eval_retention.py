@@ -76,6 +76,11 @@ from device_utils import (  # noqa: E402
     setup_allocator_env,
     print_hardware_banner,
 )
+from _eval_loader import (  # noqa: E402
+    resolve_model_path,
+    detect_compute_dtype,
+    load_model_and_tokenizer,
+)
 
 setup_allocator_env()
 
@@ -163,95 +168,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 # ---------------------------------------------------------------------------
-# Model loading
+# Model loading — imported from _eval_loader
 # ---------------------------------------------------------------------------
-
-
-def _resolve_model_path(model_id_or_path: str) -> str:
-    """Resolve a local path or HF Hub ID to something from_pretrained can load."""
-    if not model_id_or_path:
-        return model_id_or_path
-    p = model_id_or_path.rstrip("/")
-    is_path = (
-        p.startswith(("/", "./", "../", "~/"))
-        or Path(p).expanduser().is_absolute()
-        or Path(p).expanduser().exists()
-    )
-    if is_path:
-        resolved = str(Path(p).expanduser().resolve())
-        if not Path(resolved).exists():
-            raise FileNotFoundError(
-                f"--base-model points to a local path that doesn't exist: "
-                f"{resolved}\n  (originally passed: {model_id_or_path!r})"
-            )
-        return resolved
-    return p
-
-
-def _detect_compute_dtype(user_dtype: str | None) -> torch.dtype:
-    """Auto-detect compute dtype if not specified."""
-    if user_dtype is not None:
-        dtype_map = {
-            "bf16": torch.bfloat16,
-            "fp16": torch.float16,
-            "fp32": torch.float32,
-        }
-        if user_dtype.lower() not in dtype_map:
-            print(
-                f"  WARNING: unknown --compute-dtype '{user_dtype}', falling back to auto-detect",
-                file=sys.stderr,
-            )
-        else:
-            return dtype_map[user_dtype.lower()]
-
-    # Auto-detect
-    if is_cuda() and torch.cuda.is_bf16_supported():
-        return torch.bfloat16
-    return torch.float32
-
-
-def load_model_and_tokenizer(
-    base_model: str,
-    adapter_path: str | None,
-    compute_dtype: torch.dtype,
-) -> tuple[Any, Any]:
-    """Load the base model (and optionally apply a PEFT adapter) plus tokenizer.
-
-    Returns (model, tokenizer).
-    """
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-
-    resolved = _resolve_model_path(base_model)
-    print(f"  Loading base model: {resolved}", file=sys.stderr)
-
-    tokenizer = AutoTokenizer.from_pretrained(
-        resolved,
-        trust_remote_code=True,
-    )
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    model = AutoModelForCausalLM.from_pretrained(
-        resolved,
-        torch_dtype=compute_dtype,
-        device_map="auto",
-        trust_remote_code=True,
-    )
-    model.eval()
-
-    if adapter_path:
-        from peft import PeftModel
-
-        adapter_resolved = str(Path(adapter_path).expanduser().resolve())
-        print(f"  Applying adapter: {adapter_resolved}", file=sys.stderr)
-        if not Path(adapter_resolved).exists():
-            raise FileNotFoundError(
-                f"--adapter path does not exist: {adapter_resolved}"
-            )
-        model = PeftModel.from_pretrained(model, adapter_resolved)
-        model.eval()
-
-    return model, tokenizer
 
 
 # ---------------------------------------------------------------------------
@@ -480,7 +398,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # --- Hardware detection ---
     print_hardware_banner()
-    compute_dtype = _detect_compute_dtype(args.compute_dtype)
+    compute_dtype = detect_compute_dtype(args.compute_dtype)
     dtype_str = str(compute_dtype).split(".")[-1]
     print(f"  Compute dtype: {dtype_str}", file=sys.stderr)
 

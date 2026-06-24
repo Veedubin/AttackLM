@@ -181,11 +181,46 @@ def main_train_lora(argv: Sequence[str] | None = None) -> int:
     )
 
 
+def main_collect_ref(argv: Sequence[str] | None = None) -> int:
+    """Generate reference continuations: attacklm-collect-ref [args]"""
+    return _run_python_script(
+        "collect_reference.py", argv if argv is not None else sys.argv[1:]
+    )
+
+
+def main_score(argv: Sequence[str] | None = None) -> int:
+    """Score candidate model against references: attacklm-score [args]"""
+    return _run_python_script(
+        "score_candidates.py", argv if argv is not None else sys.argv[1:]
+    )
+
+
+def main_compare(argv: Sequence[str] | None = None) -> int:
+    """Compare two score TSV files: attacklm-compare [args]"""
+    return _run_python_script(
+        "compare_scores.py", argv if argv is not None else sys.argv[1:]
+    )
+
+
+def main_golden(argv: Sequence[str] | None = None) -> int:
+    """Golden vector generation/validation: attacklm-golden [args]"""
+    return _run_python_script(
+        "golden_vectors.py", argv if argv is not None else sys.argv[1:]
+    )
+
+
 if __name__ == "__main__":
     # Allow ``python -m attacklm.cli`` to show a help message
     print("AttackLM CLI dispatchers. Use the installed console scripts:")
-    print("  attacklm-train, attacklm-train-lora, attacklm-train-all, attacklm-hpo,")
-    print("  attacklm-infer, attacklm-merge, attacklm-gguf, attacklm-demo,")
-    print("  attacklm-extract, attacklm-buckets, attacklm-attribute, attacklm-clone,")
-    print("  attacklm-init, attacklm-balance, attacklm-build, attacklm-eval")
+    print(
+        "  Training:   attacklm-train, attacklm-train-lora, attacklm-train-all, attacklm-hpo"
+    )
+    print("  Inference:  attacklm-infer, attacklm-demo")
+    print(
+        "  Data:       attacklm-extract, attacklm-buckets, attacklm-attribute, attacklm-clone,"
+    )
+    print("              attacklm-init, attacklm-balance")
+    print("  Build:      attacklm-merge, attacklm-gguf, attacklm-build")
+    print("  Evaluation: attacklm-eval, attacklm-collect-ref, attacklm-score,")
+    print("              attacklm-compare, attacklm-golden")
     sys.exit(0)

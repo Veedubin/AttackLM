@@ -474,13 +474,13 @@ class TestAdapterPathResolution(unittest.TestCase):
             adapter_dir.mkdir()
             (adapter_dir / "adapter_config.json").write_text("{}")
 
-            resolved = er._resolve_model_path(str(adapter_dir))
+            resolved = er.resolve_model_path(str(adapter_dir))
             self.assertEqual(resolved, str(adapter_dir.resolve()))
 
     def test_adapter_nonexistent_raises(self):
         """Non-existent adapter path should raise FileNotFoundError."""
         with self.assertRaises(FileNotFoundError):
-            er._resolve_model_path("/nonexistent/path/to/adapter")
+            er.resolve_model_path("/nonexistent/path/to/adapter")
 
     def test_adapter_relative_path(self):
         """Relative adapter path should be resolved to absolute."""
@@ -492,7 +492,7 @@ class TestAdapterPathResolution(unittest.TestCase):
                 adapter_dir.mkdir()
                 (adapter_dir / "adapter_config.json").write_text("{}")
 
-                resolved = er._resolve_model_path("my_adapter")
+                resolved = er.resolve_model_path("my_adapter")
                 self.assertTrue(Path(resolved).is_absolute())
                 self.assertTrue(Path(resolved).exists())
             finally:
@@ -508,20 +508,20 @@ class TestComputeDtype(unittest.TestCase):
     """Verify compute dtype auto-detection."""
 
     def test_user_specified_bf16(self):
-        dtype = er._detect_compute_dtype("bf16")
+        dtype = er.detect_compute_dtype("bf16")
         self.assertEqual(dtype, torch.bfloat16)
 
     def test_user_specified_fp16(self):
-        dtype = er._detect_compute_dtype("fp16")
+        dtype = er.detect_compute_dtype("fp16")
         self.assertEqual(dtype, torch.float16)
 
     def test_user_specified_fp32(self):
-        dtype = er._detect_compute_dtype("fp32")
+        dtype = er.detect_compute_dtype("fp32")
         self.assertEqual(dtype, torch.float32)
 
     def test_user_specified_unknown_falls_back(self):
         """Unknown dtype string should fall back to auto-detect."""
-        dtype = er._detect_compute_dtype("unknown")
+        dtype = er.detect_compute_dtype("unknown")
         self.assertIn(dtype, (torch.bfloat16, torch.float32))
 
 

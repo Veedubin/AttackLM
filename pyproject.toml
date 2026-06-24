@@ -184,6 +184,10 @@ dev = [
     "ruff",
     "mypy",
     "ipython",
+    "scipy>=1.11",  # needed for eval tests (Spearman correlation)
+]
+eval = [
+    "scipy>=1.11",  # for Spearman correlation in golden_vectors.py
 ]
 # `all` defaults to CUDA. ROCm users should use `[all-rocm]` (see README).
 # We do NOT include all-rocm in `all` because the `torch==2.12.0+rocm6.2`
@@ -215,6 +219,10 @@ attacklm-balance = "attacklm.cli:main_balance"
 attacklm-build = "attacklm.cli:main_build"
 attacklm-train-lora = "attacklm.cli:main_train_lora"
 attacklm-eval = "attacklm.cli:main_eval"
+attacklm-collect-ref = "attacklm.cli:main_collect_ref"
+attacklm-score = "attacklm.cli:main_score"
+attacklm-compare = "attacklm.cli:main_compare"
+attacklm-golden = "attacklm.cli:main_golden"
 
 # ── Hatch build configuration ─────────────────────────────────────────────────
 

