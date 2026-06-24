@@ -10,18 +10,18 @@
   ],
   "created": "2026-06-12T02:49:52.749367+00:00",
   "total_buckets": 20,
-  "total_pairs": 25601,
+  "total_pairs": 16015,
   "tier_totals": {
     "human": 15635,
-    "llm": 937,
-    "synth": 9029
+    "llm": 0,
+    "synth": 380
   },
   "source_totals": {
     "atomic-red-team": 1115,
-    "attacklm-synthetic": 9029,
+    "attacklm-synthetic": 380,
     "azure-pyrit": 0,
     "cyberark-fuzzyai": 0,
-    "llm-generated": 937,
+    "llm-generated": 0,
     "metasploit-framework": 13997,
     "mitre-atlas-arsenal": 20,
     "mitre-stockpile": 390,
@@ -73,72 +73,12 @@
       "license_uri": "https://opensource.org/licenses/MIT",
       "upstream_url": "https://github.com/Veedubin/AttackLM",
       "risk": "low",
-      "n_records": 9029,
+      "n_records": 380,
       "buckets": [
-        {
-          "bucket": "ai/prompt-injection",
-          "file": "data.jsonl",
-          "records": 624
-        },
-        {
-          "bucket": "attack_tactics/red_team_tactics",
-          "file": "data.jsonl",
-          "records": 1420
-        },
-        {
-          "bucket": "attack_tactics/red_team_tactics",
-          "file": "data_synth.jsonl",
-          "records": 300
-        },
-        {
-          "bucket": "cloud/attacks",
-          "file": "data.jsonl",
-          "records": 1298
-        },
-        {
-          "bucket": "ics/attacks",
-          "file": "data.jsonl",
-          "records": 50
-        },
-        {
-          "bucket": "ics/attacks",
-          "file": "data_synth.jsonl",
-          "records": 250
-        },
         {
           "bucket": "orchestrator",
           "file": "data.jsonl",
           "records": 380
-        },
-        {
-          "bucket": "social_engineering/phishing",
-          "file": "data.jsonl",
-          "records": 2820
-        },
-        {
-          "bucket": "supply_chain/attacks",
-          "file": "data.jsonl",
-          "records": 50
-        },
-        {
-          "bucket": "supply_chain/attacks",
-          "file": "data_synth.jsonl",
-          "records": 215
-        },
-        {
-          "bucket": "web_app/attacks",
-          "file": "data.jsonl",
-          "records": 1311
-        },
-        {
-          "bucket": "wireless/attacks",
-          "file": "data.jsonl",
-          "records": 50
-        },
-        {
-          "bucket": "wireless/attacks",
-          "file": "data_synth.jsonl",
-          "records": 261
         }
       ]
     },
