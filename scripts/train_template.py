@@ -1599,22 +1599,11 @@ def main() -> None:
         # Non-fatal — we can still train, we just lose the resume signal
         print(f"  (Skipped state.json write: {e})")
 
-    try:
-        from transformers import AutoModelForCausalLM
-        from peft import get_peft_model
-        from trl import SFTTrainer, SFTConfig
-        from transformers.trainer_callback import EarlyStoppingCallback
-    except ImportError as e:
-        print(f"ERROR: Missing dependency for training: {e}")
-        print(
-            "Install with: pip install transformers datasets trl peft bitsandbytes accelerate"
-        )
-        sys.exit(1)
-
-    # --- Unsloth: import and verify availability ---
+    # --- Unsloth: import BEFORE transformers/peft/trl (required for optimizations) ---
     _unsloth_available = False
     if args.use_unsloth:
         try:
+            import unsloth  # noqa: F401 — must be first for monkey-patching
             from unsloth import FastLanguageModel, is_bfloat16_supported
 
             _unsloth_available = True
@@ -1626,6 +1615,18 @@ def main() -> None:
                 "  Or:      pip install unsloth"
             )
             sys.exit(1)
+
+    try:
+        from transformers import AutoModelForCausalLM
+        from peft import get_peft_model
+        from trl import SFTTrainer, SFTConfig
+        from transformers.trainer_callback import EarlyStoppingCallback
+    except ImportError as e:
+        print(f"ERROR: Missing dependency for training: {e}")
+        print(
+            "Install with: pip install transformers datasets trl peft bitsandbytes accelerate"
+        )
+        sys.exit(1)
 
     # --- Build quantization config ---
     import torch
