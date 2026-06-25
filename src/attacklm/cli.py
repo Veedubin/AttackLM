@@ -13,9 +13,13 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-# Locate the scripts/ directory relative to this package.
-# src/attacklm/cli.py → ../../scripts
-_SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
+# Locate the scripts/ directory.
+# When installed from PyPI:  site-packages/attacklm/scripts/
+# When running from source:  src/attacklm/../../scripts/
+_SCRIPTS_DIR = Path(__file__).resolve().parent / "scripts"
+if not _SCRIPTS_DIR.exists():
+    # Fallback: running from source (scripts/ is at repo root)
+    _SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
 
 
 def _run_python_script(script_name: str, argv: Sequence[str]) -> int:
