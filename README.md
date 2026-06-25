@@ -107,10 +107,13 @@ cd AttackLM
 # 3. Install as an editable Python package (gets you all `attacklm-*` commands)
 uv pip install -e ".[all]"
 
-# 4. Initialize the dataset
+# 4. (Optional) Install flash-attn for 2-3x faster training
+uv pip install -e ".[flash-attn]" --no-build-isolation
+
+# 5. Initialize the dataset
 attacklm-init --yes
 
-# 5. Train
+# 6. Train
 attacklm-train-all --single-model \
   --dataset base/ \
   --base-model huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated \
@@ -169,19 +172,26 @@ There are **two GPU stacks** — pick the one for your hardware.
 ```bash
 git clone https://github.com/Veedubin/AttackLM.git
 cd AttackLM
+
+# Full CUDA training stack (torch, bitsandbytes, trl, peft, transformers, etc.)
 uv pip install -e ".[all]"
+
+# Optional: flash-attn for 2-3x faster training (Qwen3-Next, packing mode)
+# --no-build-isolation is required because flash-attn needs torch at build time
+# but doesn't declare it in its build-system.requires
+uv pip install -e ".[flash-attn]" --no-build-isolation
 ```
 
 That installs everything: `torch` (CUDA wheel from PyPI), `bitsandbytes`,
-`transformers`, `peft`, `trl`, plus the C++ extensions `flash-attn`,
-`causal-conv1d`, and `flash-linear-attention` (for Qwen3-Next and similar
-hybrid linear-attention models).
+`transformers`, `peft`, `trl`. The C++ extensions `flash-attn`,
+`causal-conv1d`, and `flash-linear-attention` are in the separate
+`[flash-attn]` extra (they need torch at build time and can't be in `[all]`).
 
 | Component | Where it comes from |
 |---|---|
 | `torch`, `torchvision`        | PyPI (CUDA build, auto-selected) |
 | `bitsandbytes`                | PyPI (CUDA wheels) |
-| `flash-attn`                  | Built from source via pip (~5 min) |
+| `flash-attn`                  | Built from source via pip (~5 min, needs `--no-build-isolation`) |
 | `causal-conv1d`               | Pre-built wheel from PyPI |
 | `flash-linear-attention`      | Pre-built wheel from PyPI |
 
