@@ -72,17 +72,20 @@ The full per-source map:
 # 1. Install uv (Python package manager, ~10MB)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 2. Install AttackLM from PyPI with the full CUDA training stack
+# 2. Install PyTorch + Triton first (required by flash-attn and Unsloth)
+uv pip install torch==2.12.0 torchvision==0.27.0 triton
+
+# 3. Install AttackLM from PyPI with the full CUDA training stack
 uv pip install "attacklm[all]"
 
-# 3. Clone the repo for the training data (the PyPI package is code-only)
+# 4. Clone the repo for the training data (the PyPI package is code-only)
 git clone https://github.com/Veedubin/AttackLM.git
 cd AttackLM
 
-# 4. Initialize the dataset (probes local `data/` first; falls back to git clone)
+# 5. Initialize the dataset (probes local `data/` first; falls back to git clone)
 attacklm-init --yes
 
-# 5. Train
+# 6. Train
 attacklm-train-all --single-model \
   --dataset base/ \
   --base-model huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated \
@@ -132,6 +135,10 @@ build anything by hand.
 
 **Install from PyPI (recommended):**
 ```bash
+# PyTorch + Triton must be installed first (flash-attn and Unsloth need them)
+uv pip install torch==2.12.0 torchvision==0.27.0 triton
+
+# Then install AttackLM
 uv pip install "attacklm[all]"          # CUDA training stack
 uv pip install "attacklm[all-rocm]"     # ROCm training stack
 uv pip install "attacklm[infer]"        # CPU / Apple Silicon (inference only)
