@@ -2039,8 +2039,21 @@ def main() -> None:
     model.print_trainable_parameters()
 
     # --- Formatting function for chat template ---
-    def formatting_func(example):
-        return tokenizer.apply_chat_template(example["messages"], tokenize=False)
+    # Unsloth's SFTTrainer expects formatting_func to return a list of
+    # strings (one per example in the batch), while standard TRL accepts
+    # a single string. We wrap accordingly.
+    if args.use_unsloth and _unsloth_available:
+
+        def formatting_func(examples):
+            texts = [
+                tokenizer.apply_chat_template(msgs, tokenize=False)
+                for msgs in examples["messages"]
+            ]
+            return texts
+    else:
+
+        def formatting_func(example):
+            return tokenizer.apply_chat_template(example["messages"], tokenize=False)
 
     # --- Train/eval split ---
     split_dataset = dataset.train_test_split(test_size=args.eval_split, seed=42)
