@@ -4,6 +4,7 @@
 > 21,865 training pairs · 3B–70B Qwen base · 16GB–128GB VRAM.
 
 [![License: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
+[![PyPI version](https://img.shields.io/pypi/v/attacklm.svg)](https://pypi.org/project/attacklm/)
 [![Training data: mixed](https://img.shields.io/badge/data-mixed%20%28see%20ATTRIBUTION%29-orange.svg)](ATTRIBUTION.md)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](requirements.txt)
 [![Model: 3B-7B Qwen2.5](https://img.shields.io/badge/base%20model-Qwen2.5--Coder--3B--Instruct-green.svg)](https://huggingface.co/unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit)
@@ -63,53 +64,52 @@ The full per-source map:
 
 ---
 
-## Quickstart (5 min)
+## Quickstart
+
+### Option A: Install from PyPI (fastest — 30 seconds)
 
 ```bash
 # 1. Install uv (Python package manager, ~10MB)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. Install AttackLM from PyPI with the full CUDA training stack
+uv pip install "attacklm[all]"
+
+# 3. Clone the repo for the training data (the PyPI package is code-only)
+git clone https://github.com/Veedubin/AttackLM.git
+cd AttackLM
+
+# 4. Initialize the dataset (probes local `data/` first; falls back to git clone)
+attacklm-init --yes
+
+# 5. Train
+attacklm-train-all --single-model \
+  --dataset base/ \
+  --base-model huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated \
+  --epochs 5 --max-length 2048
+```
+
+### Option B: Install from source (if you want to modify the code)
+
+```bash
+# 1. Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 2. Clone this repo
 git clone https://github.com/Veedubin/AttackLM.git
 cd AttackLM
 
-# 3a. Install as a Python package (gets you 11 `attacklm-*` commands)
-#    — use `[all]` to get every optional dependency
+# 3. Install as an editable Python package (gets you all `attacklm-*` commands)
 uv pip install -e ".[all]"
 
-#    Or, if you just want the bare CLI dispatchers (no ML stack):
-# uv pip install -e .
-
-# 3b. Alternative: classic uv-managed venv with all deps in pyproject.toml
-# uv sync
-
-# 4. Initialize the dataset (probes local `data/` first; falls back to git clone)
+# 4. Initialize the dataset
 attacklm-init --yes
 
-#    The single command above replaces steps 4–7 below. If you'd rather
-#    run each step individually, the four commands are still available:
-#
-# 4. Clone upstream data sources (~1.5GB total, optional — data is in the repo)
-# attacklm-clone
-#
-# 5. Extract training data from each source
-# attacklm-extract
-#
-# 6. Augment each JSONL with per-pair source/license attribution
-# attacklm-attribute
-#
-# 7. Organize into 16 MITRE/AI/tools buckets
-# attacklm-buckets
-
-# 8. Pick a base model — use an uncensored/abliterated one (see "Pick a base model" below)
-#    Example: Qwen2.5-Coder-3B-Instruct with refusal direction removed
-#    v0.2.0+ uses --dataset (multi-positional) instead of --include-tools etc.
+# 5. Train
 attacklm-train-all --single-model \
   --dataset base/ \
   --base-model huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated \
   --epochs 5 --max-length 2048
-
-# Optional: add --hpo for automatic lora_r / lora_dropout sweep
 ```
 
 The trained LoRA adapter lands in `models/attacklm-single_<TIMESTAMP>/`
@@ -129,6 +129,17 @@ The merged model goes to `models/merged/attacklm-single/`. See
 The project ships as a **proper Python package** (`pyproject.toml`,
 `src/attacklm/` layout, hatchling build backend) so users don't have to
 build anything by hand.
+
+**Install from PyPI (recommended):**
+```bash
+uv pip install "attacklm[all]"          # CUDA training stack
+uv pip install "attacklm[all-rocm]"     # ROCm training stack
+uv pip install "attacklm[infer]"        # CPU / Apple Silicon (inference only)
+```
+
+Then clone the repo for the training data: `git clone https://github.com/Veedubin/AttackLM.git`
+
+**Install from source** (editable, for development):
 
 There are **two GPU stacks** — pick the one for your hardware.
 
