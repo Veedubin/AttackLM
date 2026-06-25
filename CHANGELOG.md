@@ -4,6 +4,75 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
+## [0.5.0] — 2026-06-24 — Blue-team data sources, team presets, defensive extractors
+
+### Added
+
+- **6 new blue-team/defensive data sources** (~5,850 pairs):
+  - SigmaHQ/sigma: 3,000 detection rules (DRL-1.1)
+  - Elastic/detection-rules: 1,200 EQL/KQL rules (Elastic-2.0)
+  - Splunk/security_content: 800 SPL detections (Apache-2.0)
+  - OTRF/Security-Datasets (Mordor): 500 event log scenarios (Apache-2.0)
+  - OTRF/ThreatHunter-Playbook: 150 hunting playbooks (Apache-2.0)
+  - NIST SP 800-61r3: 200 IR procedure pairs (Public Domain, template-based)
+- **6 new extractor scripts**: `extract_sigma_defensive.py`, `extract_elastic_rules.py`,
+  `extract_splunk_content.py`, `extract_mordor.py`, `extract_threathunter_playbook.py`,
+  `extract_nist_ir.py`
+- **3 team presets** (`presets/red-team.json`, `purple-team.json`, `blue-team.json`)
+  with pre-configured bucket weights for offensive/defensive mix control
+- **`--preset` and `--system-prompt` flags** on `attacklm-balance`
+- **3 new defensive buckets**: `defensive/detection_engineering` (5,000),
+  `defensive/threat_hunting` (650), `defensive/incident_response` (200)
+- **12 attribution files** (SOURCE.md + LICENSE.md per new source)
+- **`notes/BLUE_TEAM_DESIGN_v0.5.0.md`** — full architectural plan (792 lines)
+
+### Changed
+
+- `scripts/init_pipeline.py` — 5 new local probes, 5 new remote repos, 6 new extractors
+- `src/attacklm/cli.py` — 6 new extractors in extraction sequence
+- `data/datasets/buckets/manifest.json` — 21,865 total pairs, 23 buckets, 17 sources
+- `scripts/balance_buckets.py` — preset loading, weight resolution, `--preset` flag
+- `src/attacklm/__version__.py` — bumped to `0.5.0`
+
+### Fixed
+
+- `balance_buckets.py` `BASE_DIR` undefined in preset helpers
+- `_caps_for_target_total` fallback for buckets not in any category share
+- Manifest `total_pairs` math consistency (source_totals sum = tier_totals sum = total_pairs)
+
+---
+
+## [0.4.1] — 2026-06-22 — Evaluation framework, steering vectors, dataset cleanup
+
+### Added
+
+- **7-pattern ds4 evaluation framework** (Patterns 1-7):
+  - Pattern 1: Reference-continuation NLL scoring (`collect_reference.py`, `score_candidates.py`, `compare_scores.py`)
+  - Pattern 2: Golden-vector regression gates (`golden_vectors.py`, 558 lines)
+  - Pattern 3: 100-question domain benchmark (`domain_bench.py`, 563 lines)
+  - Pattern 4: Speed profiling / context-frontier (`speed_bench.py`, 463 lines)
+  - Pattern 5: QA checklist (documentation)
+  - Pattern 6: Steering vectors (`steering.py`, 1,120 lines) — extract, apply, sweep, diagnose
+  - Pattern 7: Narrow-bet philosophy doc
+- **Shared model loader** `_eval_loader.py` (149 lines) — extracted from `eval_retention.py`
+- **4 new CLI entry points**: `attacklm-collect-ref`, `attacklm-score`, `attacklm-compare`, `attacklm-golden`
+- **198 hermetic pytest tests** across 8 test files (all pass, 0.62s)
+- **`notes/EVAL_DESIGN_v0.4.0.md`** (1,098 lines), **`notes/STEERING_REVIEW_v0.4.0.md`** (793 lines)
+- **`EVALUATION.md`**, **`QA_BEFORE_RELEASES.md`** documentation
+
+### Changed
+
+- `scripts/eval_retention.py` refactored to import from `_eval_loader.py`
+- `scripts/domain_bench.py` — integrated steering vector flags
+- `pyproject.toml` — 4 new eval entry points, `eval` optional-dependency group
+
+### Removed
+
+- **8,649 template-generated synthetic records** deleted — dataset reduced from 25,601 → 16,015 pairs
+  (only 380 orchestrator records kept from synthetic sources)
+
+---
+
 ## [0.4.0] — 2026-06-22 — MoE-safe training, retention eval, and experience replay
 
 ### Added
