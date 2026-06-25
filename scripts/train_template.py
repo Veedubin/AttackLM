@@ -355,6 +355,20 @@ Examples:
             "per Unsloth guidance. Default: OFF."
         ),
     )
+    parser.add_argument(
+        "--use-unsloth",
+        action="store_true",
+        default=False,
+        help=(
+            "Use Unsloth's optimized model loading and LoRA kernels. "
+            "Unsloth provides 2-5x faster training, 70% less VRAM, and "
+            "8x longer context support vs standard HF QLoRA. Requires "
+            "'uv pip install attacklm[unsloth]' or 'pip install unsloth'. "
+            "When enabled, Unsloth's FastLanguageModel replaces the "
+            "standard AutoModelForCausalLM + BitsAndBytes pipeline. "
+            "Default: OFF (standard HF QLoRA)."
+        ),
+    )
 
     return parser.parse_args()
 
@@ -1431,12 +1445,17 @@ def main() -> None:
         if args.moe_safe_target
         else "OFF"
     )
+    _unsloth_display = (
+        "ON (FastLanguageModel + optimized LoRA kernels)" if args.use_unsloth else "OFF"
+    )
 
     print("=" * 60)
     print(" TRAINING PLAN")
     print("=" * 60)
     print(f"  Model:              {args.base_model}")
-    if not args.moe_safe_target:
+    if args.use_unsloth:
+        print("  Quantization:       4-bit (Unsloth internal)")
+    elif not args.moe_safe_target:
         print("  Quantization:       4-bit NF4 (double quant)")
     else:
         print("  Quantization:       NONE (bf16 full-precision for MoE)")
@@ -1448,6 +1467,7 @@ def main() -> None:
     print(f"  DoRA:               {_dora_display}")
     print(f"  LoftQ init:         {_loftq_display}")
     print(f"  MoE-safe target:    {_moe_display}")
+    print(f"  Unsloth:            {_unsloth_display}")
     print(f"  Epochs:             {args.epochs}")
     print(f"  Batch size:         {args.batch_size}")
     print(f"  Max seq length:     {args.max_length}")
@@ -1482,6 +1502,12 @@ def main() -> None:
         print("  Memory estimate for Qwen2.5-7B QLoRA:")
         print("    ~10-12 GB VRAM at batch_size=2, max_length=2048")
         print("    ~6-8 GB VRAM at batch_size=1, max_length=1024")
+        if args.use_unsloth:
+            print("")
+            print("  With --use-unsloth (70% less VRAM):")
+            print("    ~4-5 GB VRAM at batch_size=2, max_length=2048")
+            print("    ~3-4 GB VRAM at batch_size=1, max_length=1024")
+            print("    ~13B model fits in 16GB with Unsloth QLoRA")
         print("=" * 60)
         return
 
@@ -1585,6 +1611,22 @@ def main() -> None:
         )
         sys.exit(1)
 
+    # --- Unsloth: import and verify availability ---
+    _unsloth_available = False
+    if args.use_unsloth:
+        try:
+            from unsloth import FastLanguageModel, is_bfloat16_supported
+
+            _unsloth_available = True
+            print("  Unsloth: loaded (FastLanguageModel available)")
+        except ImportError:
+            print(
+                "ERROR: --use-unsloth requires the 'unsloth' package.\n"
+                "  Install: uv pip install attacklm[unsloth]\n"
+                "  Or:      pip install unsloth"
+            )
+            sys.exit(1)
+
     # --- Build quantization config ---
     import torch
 
@@ -1617,18 +1659,25 @@ def main() -> None:
     # BitsAndBytes 4-bit does not support MoE expert weights per Unsloth
     # guidance. For MoE models, we load in bf16 and only apply LoRA to the
     # attention + MLP modules (excluding router/gate/lm_head).
-    skip_quantization = args.moe_safe_target
+    # --use-unsloth: Unsloth handles quantization internally via its own
+    # load_in_4bit parameter. We skip BitsAndBytes entirely.
+    skip_quantization = args.moe_safe_target or args.use_unsloth
 
     if skip_quantization:
-        bnb_config = None  # No quantization for MoE-safe mode
-        # Force bf16 for MoE models
-        if compute_type != "bf16":
-            print(
-                "  --moe-safe-target: overriding compute dtype to bf16 "
-                "(required for MoE models without 4-bit quantization)"
-            )
-            compute_type = "bf16"
-        compute_dtype = torch.bfloat16
+        bnb_config = None  # No quantization for MoE-safe or Unsloth mode
+        if args.moe_safe_target:
+            # Force bf16 for MoE models
+            if compute_type != "bf16":
+                print(
+                    "  --moe-safe-target: overriding compute dtype to bf16 "
+                    "(required for MoE models without 4-bit quantization)"
+                )
+                compute_type = "bf16"
+            compute_dtype = torch.bfloat16
+        elif args.use_unsloth:
+            # Unsloth handles dtype internally; we still set compute_dtype
+            # for the SFTConfig mixed-precision flags
+            compute_dtype = torch.bfloat16 if compute_type == "bf16" else torch.float16
     else:
         bnb_config = get_quantization_config()
 
@@ -1658,6 +1707,8 @@ def main() -> None:
 
     print(f"Loading model: {args.base_model}")
     print(f"  Detected quantization: {quant_label}")
+    if args.use_unsloth:
+        print("  Unsloth: enabled (FastLanguageModel + optimized LoRA kernels)")
 
     # LoftQ init: if the model is already quantized, LoftQ cannot apply.
     # Print a warning and fall back to default init.
@@ -1728,9 +1779,36 @@ def main() -> None:
                     pass
 
         try:
-            model = AutoModelForCausalLM.from_pretrained(
-                base_model_resolved, **load_kwargs
-            )
+            if args.use_unsloth and _unsloth_available:
+                # --- Unsloth model loading path ---
+                # Unsloth's FastLanguageModel handles 4-bit quantization
+                # internally (no BitsAndBytesConfig needed). It also
+                # provides optimized LoRA kernels that are 2-5x faster
+                # and use 70% less VRAM than standard HF QLoRA.
+                print("  Loading with Unsloth FastLanguageModel...")
+                model, tokenizer = FastLanguageModel.from_pretrained(
+                    model_name=base_model_resolved,
+                    max_seq_length=args.max_length,
+                    load_in_4bit=True,
+                    dtype=None,  # Auto-detect from GPU
+                    trust_remote_code=True,
+                )
+                # Unsloth returns (model, tokenizer) — use its tokenizer
+                # which has the correct chat template and special tokens
+                model, tokenizer = FastLanguageModel.from_pretrained(
+                    model_name=base_model_resolved,
+                    max_seq_length=args.max_length,
+                    load_in_4bit=True,
+                    dtype=None,  # Auto-detect from GPU
+                    trust_remote_code=True,
+                )
+                if tokenizer.pad_token is None:
+                    tokenizer.pad_token = tokenizer.eos_token
+                print("  Unsloth: model loaded with internal 4-bit quantization")
+            else:
+                model = AutoModelForCausalLM.from_pretrained(
+                    base_model_resolved, **load_kwargs
+                )
         except (ImportError, ValueError, ModuleNotFoundError) as e:
             error_str = str(e).lower()
             if "flash" in error_str or "flash_attention" in error_str:
@@ -1901,24 +1979,56 @@ def main() -> None:
     # (before training plan display) so they can appear in the plan output.
     # The LoftQ warning for pre-quantized models was also printed earlier.
 
-    lora_config = get_qlora_config(
-        lora_r=args.lora_r,
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
-        use_rslora=args.use_rslora,
-        target_modules=target_modules_list,
-        use_dora=args.use_dora,
-        init_lora_weights=init_lora_weights,
-    )
-
-    if args.use_dora:
-        print("  DoRA/QDoRA enabled (use_dora=True)")
-    if args.use_rslora:
-        print("  RSLoRA enabled (use_rslora=True)")
+    if args.use_unsloth and _unsloth_available:
+        # Unsloth LoRA path: FastLanguageModel.get_peft_model uses
+        # optimized Triton kernels for 2-5x faster training and
+        # 70% less VRAM than standard HF PEFT.
+        print("  Unsloth: applying optimized LoRA via FastLanguageModel.get_peft_model")
+        model = FastLanguageModel.get_peft_model(
+            model,
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            target_modules=target_modules_list
+            or [
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
+            ],
+            use_gradient_checkpointing="unsloth",  # Unsloth's optimized checkpointing
+            random_state=42,
+            use_rslora=args.use_rslora,
+            loftq_config=None,  # Unsloth handles quantization internally
+        )
+        if args.use_dora:
+            print(
+                "  WARNING: DoRA not supported by Unsloth's get_peft_model. "
+                "Falling back to standard LoRA. Use --no-use-unsloth for DoRA."
+            )
     else:
-        print("  RSLoRA disabled (classic LoRA scaling alpha/r)")
+        lora_config = get_qlora_config(
+            lora_r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            use_rslora=args.use_rslora,
+            target_modules=target_modules_list,
+            use_dora=args.use_dora,
+            init_lora_weights=init_lora_weights,
+        )
 
-    model = get_peft_model(model, lora_config)
+        if args.use_dora:
+            print("  DoRA/QDoRA enabled (use_dora=True)")
+        if args.use_rslora:
+            print("  RSLoRA enabled (use_rslora=True)")
+        else:
+            print("  RSLoRA disabled (classic LoRA scaling alpha/r)")
+
+        model = get_peft_model(model, lora_config)
+
     model.print_trainable_parameters()
 
     # --- Formatting function for chat template ---

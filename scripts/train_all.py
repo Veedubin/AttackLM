@@ -418,6 +418,8 @@ def build_train_cmd(
         cmd.extend(["--target-modules", args.target_modules])
     if getattr(args, "moe_safe_target", False):
         cmd.append("--moe-safe-target")
+    if getattr(args, "use_unsloth", False):
+        cmd.append("--use-unsloth")
     # v0.1.6+: pass dataset specs so train_template can record them in
     # state.json[dataset.specs] (reproducibility).
     if dataset_specs:
@@ -735,6 +737,14 @@ def main():
         default=False,
         help="Restrict LoRA to attention + MLP, force bf16, disable 4-bit quantization "
         "for MoE models in train_template.py (default: OFF).",
+    )
+    parser.add_argument(
+        "--use-unsloth",
+        action="store_true",
+        default=False,
+        help="Use Unsloth's optimized model loading and LoRA kernels "
+        "(2-5x faster, 70% less VRAM). Requires 'pip install unsloth'. "
+        "Passed through to train_template.py (default: OFF).",
     )
     # ---- Experience replay flags ----
     parser.add_argument(

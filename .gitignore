@@ -214,3 +214,4 @@ hf/data/*.parquet
 #
 # All archive contents are preserved locally but never pushed to remote.
 archive/
+unsloth_compiled_cache/

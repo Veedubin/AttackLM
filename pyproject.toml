@@ -179,6 +179,16 @@ convert = [
     "gguf",
     "llama-cpp-python",
 ]
+# Unsloth: 2-5x faster training, 70% less VRAM.
+# NOTE: Unsloth requires trl<=0.24.0 which conflicts with our trl==1.5.1.
+# Install Unsloth in a separate venv or let pip resolve the conflict:
+#   pip install unsloth  # will downgrade trl automatically
+# Then use: attacklm-train-all --use-unsloth ...
+# The [unsloth] extra is provided for convenience but is NOT included
+# in [all] due to the trl version conflict.
+unsloth = [
+    "unsloth>=2026.6",
+]
 dev = [
     "pytest",
     "ruff",
