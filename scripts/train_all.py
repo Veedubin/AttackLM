@@ -51,12 +51,18 @@ from bucket_loader import (  # noqa: E402
     get_bucket,
 )
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATASETS_DIR = BASE_DIR / "data" / "datasets"
-BUCKETS_DIR = DATASETS_DIR / "buckets"
-SOURCES_DIR = BUCKETS_DIR / "sources"
-MODELS_DIR = BASE_DIR / "models"
-LOGS_DIR = BASE_DIR / "logs"
+from attacklm._project_root import (
+    BASE_DIR,
+    DATASETS_DIR,
+    BUCKETS_DIR,
+    SOURCES_DIR,
+    MODELS_DIR,
+    LOGS_DIR,
+    require_manifest,
+)
+
+# Re-export for backward compatibility with local code that uses these names
+# (they're already defined in _project_root, but some scripts reassign them)
 
 
 def _resolve_replay_sources(replay_source_args: list[str] | None) -> list[Path]:
