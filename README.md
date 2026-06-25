@@ -76,8 +76,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv pip install "attacklm[all]"
 
 # 3. (Optional) Install flash-attn for 2-3x faster training on Qwen3-Next models
-#    Must be installed separately because it needs torch at build time
-uv pip install "attacklm[flash-attn]"
+#    --no-build-isolation is required because flash-attn needs torch at build time
+#    but doesn't declare it in its build-system.requires
+uv pip install "attacklm[flash-attn]" --no-build-isolation
 
 # 4. Clone the repo for the training data (the PyPI package is code-only)
 git clone https://github.com/Veedubin/AttackLM.git
@@ -140,8 +141,9 @@ build anything by hand.
 uv pip install "attacklm[all]"
 
 # Optional: flash-attn for 2-3x faster training (Qwen3-Next, packing mode)
-# Must be separate because it needs torch at build time
-uv pip install "attacklm[flash-attn]"
+# --no-build-isolation is required because flash-attn needs torch at build time
+# but doesn't declare it in its build-system.requires
+uv pip install "attacklm[flash-attn]" --no-build-isolation
 
 # Optional: Unsloth for 2-5x faster training + 70% less VRAM
 # Must be separate because it conflicts with trl==1.5.1 (needs trl<=0.24.0)
