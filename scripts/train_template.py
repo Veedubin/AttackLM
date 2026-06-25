@@ -2039,17 +2039,21 @@ def main() -> None:
     model.print_trainable_parameters()
 
     # --- Formatting function for chat template ---
-    # Unsloth's SFTTrainer expects formatting_func to return a list of
-    # strings (one per example in the batch), while standard TRL accepts
-    # a single string. We wrap accordingly.
+    # Unsloth's SFTTrainer may pass a single example (dict of lists)
+    # or a batch (dict of list-of-lists). We detect and handle both.
     if args.use_unsloth and _unsloth_available:
 
         def formatting_func(examples):
-            texts = [
+            msgs_field = examples["messages"]
+            # Detect: single example = list of dicts, batch = list of lists
+            if msgs_field and isinstance(msgs_field[0], dict):
+                # Single example: msgs_field is [{"role":..., "content":...}, ...]
+                return [tokenizer.apply_chat_template(msgs_field, tokenize=False)]
+            # Batch: msgs_field is [[{...}, {...}], [{...}, {...}], ...]
+            return [
                 tokenizer.apply_chat_template(msgs, tokenize=False)
-                for msgs in examples["messages"]
+                for msgs in msgs_field
             ]
-            return texts
     else:
 
         def formatting_func(example):
@@ -2172,7 +2176,8 @@ def main() -> None:
         # checkpointing, activations get recomputed but the logits
         # tensor is NOT — this alone can be the OOM trigger.
         # See: https://huggingface.co/docs/trl/sft_trainer#computing-the-loss
-        loss_type="chunked_nll",
+        # NOTE: Unsloth's SFTTrainer only supports "nll" and "dft".
+        loss_type="nll" if (args.use_unsloth and _unsloth_available) else "chunked_nll",
         # OOM fix #8: Eval accumulation steps
         # With batch_size=1, predictions are moved to CPU one at a time,
         # which is slow. Set eval_accumulation_steps=4 to batch the
