@@ -72,11 +72,12 @@ The full per-source map:
 # 1. Install uv (Python package manager, ~10MB)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 2. Install PyTorch + Triton first (required by flash-attn and Unsloth)
-uv pip install torch==2.12.0 torchvision==0.27.0 triton
-
-# 3. Install AttackLM from PyPI with the full CUDA training stack
+# 2. Install AttackLM with the full CUDA training stack
 uv pip install "attacklm[all]"
+
+# 3. (Optional) Install flash-attn for 2-3x faster training on Qwen3-Next models
+#    Must be installed separately because it needs torch at build time
+uv pip install "attacklm[flash-attn]"
 
 # 4. Clone the repo for the training data (the PyPI package is code-only)
 git clone https://github.com/Veedubin/AttackLM.git
@@ -135,13 +136,22 @@ build anything by hand.
 
 **Install from PyPI (recommended):**
 ```bash
-# PyTorch + Triton must be installed first (flash-attn and Unsloth need them)
-uv pip install torch==2.12.0 torchvision==0.27.0 triton
+# Full CUDA training stack (torch, bitsandbytes, trl, peft, transformers, etc.)
+uv pip install "attacklm[all]"
 
-# Then install AttackLM
-uv pip install "attacklm[all]"          # CUDA training stack
-uv pip install "attacklm[all-rocm]"     # ROCm training stack
-uv pip install "attacklm[infer]"        # CPU / Apple Silicon (inference only)
+# Optional: flash-attn for 2-3x faster training (Qwen3-Next, packing mode)
+# Must be separate because it needs torch at build time
+uv pip install "attacklm[flash-attn]"
+
+# Optional: Unsloth for 2-5x faster training + 70% less VRAM
+# Must be separate because it conflicts with trl==1.5.1 (needs trl<=0.24.0)
+uv pip install "attacklm[unsloth]"
+
+# ROCm stack (AMD GPUs)
+uv pip install "attacklm[all-rocm]"
+
+# Inference only (CPU / Apple Silicon, no GPU needed)
+uv pip install "attacklm[infer]"
 ```
 
 Then clone the repo for the training data: `git clone https://github.com/Veedubin/AttackLM.git`
