@@ -246,9 +246,12 @@ attacklm-golden = "attacklm.cli:main_golden"
 [tool.hatch.build.targets.wheel]
 packages = ["src/attacklm"]
 
-# data/ is ~5 MB of cloned repos — not included in the wheel.
-# Users should `git clone` the repo for the data.
+# Include scripts/ in the wheel so CLI entry points can find them.
+# Without this, `attacklm-train-all` etc. fail with "script not found"
+# because _SCRIPTS_DIR resolves to site-packages/scripts/ which is empty.
+# scripts/ is ~200KB of Python — negligible for the wheel.
 [tool.hatch.build.targets.wheel.force-include]
+"scripts" = "attacklm/scripts"
 
 [tool.hatch.version]
 path = "src/attacklm/__version__.py"
