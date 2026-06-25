@@ -1800,10 +1800,10 @@ def main() -> None:
                     tokenizer.pad_token = tokenizer.eos_token
                 # Fix: huihui-ai abliterated models sometimes have a bad
                 # eos_token (e.g. '<EOS_TOKEN>') that doesn't exist in the
-                # vocabulary. Reset to the model's actual EOS token.
-                try:
-                    _ = tokenizer.encode(tokenizer.eos_token)
-                except (ValueError, KeyError):
+                # vocabulary. Check by converting to ID — if it maps to
+                # unk, the token is invalid.
+                eos_id = tokenizer.convert_tokens_to_ids(tokenizer.eos_token)
+                if eos_id == tokenizer.unk_token_id:
                     tokenizer.eos_token = "</s>"
                     if (
                         tokenizer.pad_token is None
