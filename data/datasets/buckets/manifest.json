@@ -9,10 +9,10 @@
     "TheBigPromptLibrary (mixed/unclear)"
   ],
   "created": "2026-06-12T02:49:52.749367+00:00",
-  "total_buckets": 20,
-  "total_pairs": 16015,
+  "total_buckets": 23,
+  "total_pairs": 21865,
   "tier_totals": {
-    "human": 15635,
+    "human": 21485,
     "llm": 0,
     "synth": 380
   },
@@ -21,13 +21,19 @@
     "attacklm-synthetic": 380,
     "azure-pyrit": 0,
     "cyberark-fuzzyai": 0,
+    "elastic-rules": 1200,
     "llm-generated": 0,
     "metasploit-framework": 13997,
     "mitre-atlas-arsenal": 20,
     "mitre-stockpile": 390,
+    "mordor": 500,
+    "nist-ir": 200,
     "nvidia-garak": 50,
     "promptfoo": 33,
-    "promptmap": 30
+    "promptmap": 30,
+    "sigma-hq": 3000,
+    "splunk-content": 800,
+    "threathunter-playbook": 150
   },
   "sources": {
     "atomic-red-team": {
@@ -626,6 +632,57 @@
       },
       "dominant_source": "attacklm-synthetic",
       "license": "MIT"
+    },
+    {
+      "name": "defensive_detection_engineering",
+      "path": "defensive/detection_engineering",
+      "category": "defensive",
+      "count": 5000,
+      "sub_sources": {
+        "human": 5000,
+        "llm": 0,
+        "synth": 0
+      },
+      "sources": {
+        "sigma-hq": 3000,
+        "elastic-rules": 1200,
+        "splunk-content": 800
+      },
+      "dominant_source": "sigma-hq",
+      "license": "DRL-1.1"
+    },
+    {
+      "name": "defensive_threat_hunting",
+      "path": "defensive/threat_hunting",
+      "category": "defensive",
+      "count": 650,
+      "sub_sources": {
+        "human": 650,
+        "llm": 0,
+        "synth": 0
+      },
+      "sources": {
+        "mordor": 500,
+        "threathunter-playbook": 150
+      },
+      "dominant_source": "mordor",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "defensive_incident_response",
+      "path": "defensive/incident_response",
+      "category": "defensive",
+      "count": 200,
+      "sub_sources": {
+        "human": 200,
+        "llm": 0,
+        "synth": 0
+      },
+      "sources": {
+        "nist-ir": 200
+      },
+      "dominant_source": "nist-ir",
+      "license": "Public-Domain"
     }
   ]
 }

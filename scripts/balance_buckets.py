@@ -503,6 +503,7 @@ def _caps_for_target_total(target_total: int, buckets: list[dict]) -> dict[str, 
         "ics": 0.05,
         "ai_specific": 0.08,
         "meta": 0.05,
+        "defensive": 0.00,  # added by team presets
     }
 
     # If a custom profile was selected, the user may have passed
@@ -589,6 +590,11 @@ def _caps_for_target_total(target_total: int, buckets: list[dict]) -> dict[str, 
                 largest["count"],
                 caps[largest["path"]] + deficit,
             )
+
+    # Ensure ALL buckets have a cap entry (categories not in shares get 0)
+    for b in buckets:
+        if b["path"] not in caps:
+            caps[b["path"]] = 0
 
     return caps
 
@@ -762,6 +768,62 @@ def _write_jsonl(examples: Iterable[dict], path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Preset helpers
+# ---------------------------------------------------------------------------
+
+PRESET_DIR = _Path(__file__).resolve().parent.parent / "presets"
+
+
+def _resolve_preset_path(preset_name: str) -> Path:
+    """Resolve a preset name to a file path."""
+    builtins = {
+        "red-team": PRESET_DIR / "red-team.json",
+        "purple-team": PRESET_DIR / "purple-team.json",
+        "blue-team": PRESET_DIR / "blue-team.json",
+    }
+    if preset_name in builtins:
+        path = builtins[preset_name]
+    else:
+        path = Path(preset_name)
+
+    if not path.exists():
+        raise FileNotFoundError(f"Preset not found: {path}")
+    return path
+
+
+def _bucket_weights_to_category_shares(weights: dict[str, float]) -> dict[str, float]:
+    """Convert bucket weight patterns to category shares for balance_buckets.
+
+    Maps wildcard patterns like 'base/*' to the actual category names used
+    in the manifest (tactic, tools, ai_redteam, meta, defensive, etc.).
+    """
+    # Map bucket patterns to manifest categories
+    pattern_to_category = {
+        "base/*": "tactic",
+        "tools/*": "tools",
+        "ai/*": "ai_redteam",
+        "orchestrator": "meta",
+        "defensive/*": "defensive",
+    }
+
+    shares: dict[str, float] = {}
+    for pattern, weight in weights.items():
+        cat = pattern_to_category.get(pattern)
+        if cat:
+            if cat in shares:
+                shares[cat] += weight
+            else:
+                shares[cat] = weight
+
+    # Normalize to sum to 1.0
+    total = sum(shares.values())
+    if total > 0:
+        shares = {k: v / total for k, v in shares.items()}
+
+    return shares
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -793,9 +855,21 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--profile",
-        required=True,
+        default=None,
         choices=list(PROFILES.keys()),
         help="Target model + VRAM profile (determines per-bucket cap).",
+    )
+    parser.add_argument(
+        "--preset",
+        type=str,
+        default=None,
+        help="Team preset: 'red-team', 'purple-team', 'blue-team', or path to custom preset JSON. Overrides --profile.",
+    )
+    parser.add_argument(
+        "--system-prompt",
+        type=str,
+        default=None,
+        help="Override system prompt in output pairs (used with --preset).",
     )
     parser.add_argument(
         "--strategy",
@@ -873,6 +947,33 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     args = parser.parse_args(argv)
+
+    # --- Preset handling ---
+    if args.preset:
+        preset_path = _resolve_preset_path(args.preset)
+        with open(preset_path) as f:
+            preset = json.load(f)
+        print(
+            f"Loaded preset: {preset['name']} — {preset['description']}",
+            file=sys.stderr,
+        )
+
+        # Override profile with custom
+        args.profile = "custom"
+        if args.target_total is None:
+            args.target_total = preset.get("total_pairs", 16000)
+
+        # Build category shares from bucket weights
+        weights = preset.get("bucket_weights", {})
+        shares = _bucket_weights_to_category_shares(weights)
+        args.category_shares = json.dumps(shares)
+
+        if args.system_prompt is None:
+            args.system_prompt = preset.get("system_prompt")
+
+    if not args.profile:
+        print("ERROR: --profile or --preset is required", file=sys.stderr)
+        sys.exit(2)
 
     # Wire --category-shares through to the cap allocator via
     # the module-global. (It's the cleanest way to inject a runtime

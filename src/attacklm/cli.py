@@ -105,6 +105,12 @@ def main_extract(argv: Sequence[str] | None = None) -> int:
         "extract_rta_to_jsonl.py",
         "extract_infection_monkey_to_jsonl.py",
         "extract_ai_tools_to_jsonl.py",
+        "extract_sigma_defensive.py",
+        "extract_mordor.py",
+        "extract_threathunter_playbook.py",
+        "extract_elastic_rules.py",
+        "extract_splunk_content.py",
+        "extract_nist_ir.py",
     ]
     for extractor in extractors:
         print(f"\n=== Running {extractor} ===", file=sys.stderr)

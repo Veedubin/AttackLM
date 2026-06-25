@@ -104,6 +104,36 @@ _LOCAL_PROBES: list[tuple[str, Path, Path, int]] = [
         DATA_DIR / "RTA",  # the whole dir is the marker; just check size
         1024,
     ),
+    (
+        "mordor",
+        DATA_DIR / "mordor",
+        DATA_DIR / "mordor" / "datasets",
+        1024,
+    ),
+    (
+        "threathunter-playbook",
+        DATA_DIR / "threathunter-playbook",
+        DATA_DIR / "threathunter-playbook" / "playbooks",
+        1024,
+    ),
+    (
+        "elastic-detection-rules",
+        DATA_DIR / "elastic-detection-rules",
+        DATA_DIR / "elastic-detection-rules" / "rules",
+        1024,
+    ),
+    (
+        "splunk-security-content",
+        DATA_DIR / "splunk-security-content",
+        DATA_DIR / "splunk-security-content" / "detections",
+        1024,
+    ),
+    (
+        "nist-sp800-61r3",
+        DATA_DIR / "nist-sp800-61r3",
+        DATA_DIR / "nist-sp800-61r3" / "NIST.SP.800-61r3.pdf",
+        1024,
+    ),
 ]
 
 # (name, github_url, dest_dir) — same set as clone_repos.sh, kept in sync
@@ -137,6 +167,26 @@ _REMOTE_REPOS: list[tuple[str, str, Path]] = [
         "RTA",
         "https://github.com/endgameinc/RTA.git",
         DATA_DIR / "RTA",
+    ),
+    (
+        "mordor",
+        "https://github.com/OTRF/Security-Datasets.git",
+        DATA_DIR / "mordor",
+    ),
+    (
+        "threathunter-playbook",
+        "https://github.com/OTRF/ThreatHunter-Playbook.git",
+        DATA_DIR / "threathunter-playbook",
+    ),
+    (
+        "elastic-detection-rules",
+        "https://github.com/elastic/detection-rules.git",
+        DATA_DIR / "elastic-detection-rules",
+    ),
+    (
+        "splunk-security-content",
+        "https://github.com/splunk/security_content.git",
+        DATA_DIR / "splunk-security-content",
     ),
 ]
 
@@ -262,6 +312,12 @@ def stage_extract(force: bool = False) -> int:
         "extract_rta_to_jsonl.py",
         "extract_infection_monkey_to_jsonl.py",
         "extract_ai_tools_to_jsonl.py",
+        "extract_sigma_defensive.py",
+        "extract_mordor.py",
+        "extract_threathunter_playbook.py",
+        "extract_elastic_rules.py",
+        "extract_splunk_content.py",
+        "extract_nist_ir.py",
     ]
     for script in extractors:
         path = BASE_DIR / "scripts" / script

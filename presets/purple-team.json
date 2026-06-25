@@ -1,0 +1,14 @@
+{
+  "name": "purple-team",
+  "version": "1.0",
+  "description": "Adversary emulation + detection engineering — 50% red team, 50% blue team. Includes orchestrator routing data.",
+  "bucket_weights": {
+    "base/*": 0.25,
+    "tools/*": 0.15,
+    "ai/*": 0.05,
+    "orchestrator": 0.05,
+    "defensive/*": 0.50
+  },
+  "total_pairs": 16000,
+  "system_prompt": "You are a Purple Team specialist bridging offensive and defensive security. Provide adversary emulation techniques alongside detection engineering guidance, mapped to MITRE ATT&CK."
+}
