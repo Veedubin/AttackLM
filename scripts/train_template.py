@@ -1796,15 +1796,21 @@ def main() -> None:
                 )
                 # Unsloth returns (model, tokenizer) — use its tokenizer
                 # which has the correct chat template and special tokens
-                model, tokenizer = FastLanguageModel.from_pretrained(
-                    model_name=base_model_resolved,
-                    max_seq_length=args.max_length,
-                    load_in_4bit=True,
-                    dtype=None,  # Auto-detect from GPU
-                    trust_remote_code=True,
-                )
                 if tokenizer.pad_token is None:
                     tokenizer.pad_token = tokenizer.eos_token
+                # Fix: huihui-ai abliterated models sometimes have a bad
+                # eos_token (e.g. '<EOS_TOKEN>') that doesn't exist in the
+                # vocabulary. Reset to the model's actual EOS token.
+                try:
+                    _ = tokenizer.encode(tokenizer.eos_token)
+                except (ValueError, KeyError):
+                    tokenizer.eos_token = "</s>"
+                    if (
+                        tokenizer.pad_token is None
+                        or tokenizer.pad_token == "<EOS_TOKEN>"
+                    ):
+                        tokenizer.pad_token = "</s>"
+                    print("  Fixed tokenizer: reset eos_token to '</s>' (was invalid)")
                 print("  Unsloth: model loaded with internal 4-bit quantization")
             else:
                 model = AutoModelForCausalLM.from_pretrained(
