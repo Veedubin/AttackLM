@@ -1,7 +1,7 @@
 # AttackLM
 
-> A QLoRA fine-tuning pipeline for a MITRE ATT&CK-grounded red-team AI assistant.
-> 16,982 training pairs · 3B–70B Qwen base · 16GB–128GB VRAM.
+> A QLoRA fine-tuning pipeline for a MITRE ATT&CK-grounded red/blue-team AI assistant.
+> 21,865 training pairs · 3B–70B Qwen base · 16GB–128GB VRAM.
 
 [![License: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
 [![Training data: mixed](https://img.shields.io/badge/data-mixed%20%28see%20ATTRIBUTION%29-orange.svg)](ATTRIBUTION.md)
@@ -13,14 +13,17 @@
 ## What is this?
 
 AttackLM is a complete pipeline for fine-tuning a small language model to be
-a competent red-team / AI-security assistant. The training data is grounded in
-**MITRE ATT&CK** techniques, sourced from openly licensed open-source projects
-(Atomic Red Team, MITRE Caldera, Metasploit, Sigma, Infection Monkey, RTA,
-plus prompt-injection and jailbreak corpora for AI-security coverage).
+a competent red-team / blue-team / AI-security assistant. The training data is
+grounded in **MITRE ATT&CK** techniques, sourced from openly licensed
+open-source projects (Atomic Red Team, MITRE Caldera, Metasploit, Sigma,
+Elastic, Splunk, Mordor, ThreatHunter-Playbook, NIST IR, plus prompt-injection
+and jailbreak corpora for AI-security coverage).
 
-The pipeline ingests 10 MITRE tactic buckets plus 6 specialized buckets
-(orchestrator routing, AI-model attacks, security tooling) and produces a
-QLoRA LoRA adapter you can drop on top of `Qwen2.5-Coder-3B-Instruct`.
+The pipeline ingests 10 MITRE tactic buckets, 3 defensive buckets, 3 tool
+buckets, 2 AI-security buckets, 1 orchestrator bucket, and 4 extended-category
+buckets (23 total) and produces a QLoRA LoRA adapter you can drop on top of
+`Qwen2.5-Coder-3B-Instruct`. Team presets (red/purple/blue) let you control
+the offensive/defensive mix.
 
 What makes it different:
 - **No LLM in the data pipeline.** Every training pair is deterministically
@@ -44,23 +47,19 @@ its contribution to AttackLM's training mix is documented in
 The full per-source map:
 
 | Source | Pairs | License | Repository |
-|---|---:|---|---|
-| Atomic Red Team | 2,506 | MIT | [redcanaryco/atomic-red-team](https://github.com/redcanaryco/atomic-red-team) |
-| MITRE Caldera / Stockpile | 608 | Apache-2.0 | [mitre/stockpile](https://github.com/mitre/stockpile) |
-| Caldera plugins (arsenal/manx/access) | 56 | Apache-2.0 | [mitre/caldera](https://github.com/mitre/caldera) |
-| Metasploit Framework | 8,349 | BSD-3-Clause | [rapid7/metasploit-framework](https://github.com/rapid7/metasploit-framework) |
-| Infection Monkey | 36 | GPL-3.0 | [guardicore/monkey](https://github.com/guardicore/monkey) |
-| RTA — Red Team Automation | 76 | **AGPL-3.0** ⚠️ | [endgameinc/RTA](https://github.com/endgameinc/RTA) |
-| Sigma rules | (labels) | DRL-1.1 | [SigmaHQ/sigma](https://github.com/SigmaHQ/sigma) |
-| AI-security tools (promptfoo, garak, promptmap, PyRIT, FuzzyAI, TheBigPromptLibrary) | 743+ | mixed MIT/Apache-2.0 | various (see [ATTRIBUTION.md](ATTRIBUTION.md)) |
-| Synthetic orchestrator / prompt-injection | 1,067 | MIT | this repo |
-| **Total** | **16,982** | | |
-
-⚠️ **AGPLv3 note:** RTA is the only AGPL-licensed source. The AGPL has
-network-distribution implications for derivative works. The public
-repository satisfies the source-availability requirement. If you need an
-AGPL-clean deployment, retrain after removing the `tools/rta` bucket.
-See [ATTRIBUTION.md §8](ATTRIBUTION.md) for the full analysis.
+|---|---|---|---|
+| Metasploit Framework | 13,997 | BSD-3-Clause | [rapid7/metasploit-framework](https://github.com/rapid7/metasploit-framework) |
+| Sigma rules | 3,000 | DRL-1.1 | [SigmaHQ/sigma](https://github.com/SigmaHQ/sigma) |
+| Elastic detection rules | 1,200 | Elastic-2.0 | [elastic/detection-rules](https://github.com/elastic/detection-rules) |
+| Splunk security content | 800 | Apache-2.0 | [splunk/security_content](https://github.com/splunk/security_content) |
+| Mordor (OTRF) | 500 | Apache-2.0 | [OTRF/Security-Datasets](https://github.com/OTRF/Security-Datasets) |
+| Atomic Red Team | 1,115 | MIT | [redcanaryco/atomic-red-team](https://github.com/redcanaryco/atomic-red-team) |
+| MITRE Caldera / Stockpile | 390 | Apache-2.0 | [mitre/stockpile](https://github.com/mitre/stockpile) |
+| ThreatHunter-Playbook | 150 | Apache-2.0 | [OTRF/ThreatHunter-Playbook](https://github.com/OTRF/ThreatHunter-Playbook) |
+| NIST SP 800-61r3 | 200 | Public Domain | NIST (template-based extractor) |
+| AI-security tools (garak, promptfoo, promptmap) | 113 | mixed MIT/Apache-2.0 | various (see [ATTRIBUTION.md](ATTRIBUTION.md)) |
+| Synthetic (orchestrator + extended categories) | 380 | MIT | this repo |
+| **Total** | **21,865** | | |
 
 ---
 
@@ -230,7 +229,7 @@ prompts. Pick `[all-cuda]` or `[all-rocm]` for actual training.
 
 ---
 
-### 11 console-script entry points
+### 21 console-script entry points
 
 All install paths give you these:
 
@@ -245,11 +244,18 @@ All install paths give you these:
 | `attacklm-build`         | `scripts/build.py`                     | merge → GGUF → install (one shot)      |
 | `attacklm-demo`          | `scripts/demo.py`                      | Multi-agent orchestrator demo          |
 | `attacklm-extract`       | all 6 extractors                       | Extract data from cloned repos         |
-| `attacklm-buckets`       | `setup_buckets.py` + `reorganize_buckets.py` | Organize data into 16 buckets  |
+| `attacklm-buckets`       | `setup_buckets.py` + `reorganize_buckets.py` | Organize data into 23 buckets  |
 | `attacklm-attribute`     | `scripts/augment_attribution.py`       | Add source/license to each JSONL row   |
 | `attacklm-clone`         | `scripts/clone_repos.sh`               | Clone upstream data repos              |
 | `attacklm-init`          | `scripts/init_pipeline.py`             | **One-shot init: clone→extract→attribute→buckets** (probes local first) |
 | `attacklm-balance`       | `scripts/balance_buckets.py`           | Build a balanced subset of the buckets |
+| `attacklm-build`         | `scripts/build.py`                     | merge → GGUF → install (one shot)      |
+| `attacklm-train-lora`    | `scripts/train_template.py`            | Direct LoRA training (single dataset)  |
+| `attacklm-eval`          | `scripts/eval_retention.py`            | Retention evaluation suite             |
+| `attacklm-collect-ref`   | `scripts/collect_reference.py`         | Collect reference model outputs        |
+| `attacklm-score`         | `scripts/score_candidates.py`          | Score candidate models vs reference    |
+| `attacklm-compare`       | `scripts/compare_scores.py`            | Compare multiple candidate models      |
+| `attacklm-golden`        | `scripts/golden_vectors.py`            | Golden vector regression gates         |
 
 The CLI dispatchers are thin wrappers — they use `runpy.run_path()` to
 invoke the canonical script in `scripts/`. So `scripts/` stays the
@@ -292,7 +298,7 @@ thin dispatcher layer.
 
 ## Architecture
 
-The training data is organized into **16 buckets**:
+The training data is organized into **23 buckets**:
 
 - **10 MITRE tactic buckets** — under `base/`: `base/collection`,
   `base/command_and_control`, `base/credential_access`, `base/defense_evasion`,
@@ -303,9 +309,13 @@ The training data is organized into **16 buckets**:
 - **1 orchestrator bucket** — routing decisions across 6 sub-agents
 - **2 AI-model attack buckets** — under `ai/`: `ai/prompt-injection` and
   `ai/jailbreaking` (TA0040 — Adversarial ML)
-- **3 security-tool buckets** — under `tools/`: `tools/infection_monkey`,
-  `tools/metasploit`, `tools/rta` (consolidated tool-specific data, re-routed
-  to MITRE tactics where applicable)
+- **3 security-tool buckets** — under `tools/`: `tools/metasploit`
+- **3 defensive buckets** — under `defensive/`: `defensive/detection_engineering`
+  (Sigma, Elastic, Splunk — 5,000 pairs), `defensive/threat_hunting`
+  (Mordor, ThreatHunter-Playbook — 650 pairs), `defensive/incident_response`
+  (NIST SP 800-61r3 — 200 pairs)
+- **4 extended-category buckets** — `attack_tactics/`, `web_app/`, `cloud/`,
+  `ics/`, `wireless/`, `supply_chain/`, `social_engineering/`
 
 > **v0.2.1 layout change:** the 10 tactic buckets moved from top-level
 > into a new `base/` parent directory, and `ai-models/` was renamed to
@@ -459,13 +469,15 @@ The new dataset spec is dir-shaped and hierarchical:
 | Spec                          | Resolves to                                          | Pair count |
 |-------------------------------|------------------------------------------------------|-----------:|
 | `base/`                       | All 10 MITRE tactic buckets                          |      7,398 |
-| `tools/`                      | All 3 tool buckets (metasploit, infection_monkey, rta) |      8,461 |
-| `tools/metasploit/`           | Just metasploit                                       |      8,349 |
-| `tools/infection_monkey/`     | Just infection_monkey                                 |         36 |
-| `tools/rta/`                  | Just RTA                                              |         76 |
+| `tools/`                      | All tool buckets (metasploit)                         |     13,997 |
+| `tools/metasploit/`           | Just metasploit                                       |     13,997 |
 | `ai/`                         | Both AI buckets (jailbreaking, prompt-injection)      |        743 |
+| `defensive/`                  | All 3 defensive buckets                              |      5,850 |
+| `defensive/detection_engineering/` | Sigma + Elastic + Splunk                        |      5,000 |
+| `defensive/threat_hunting/`   | Mordor + ThreatHunter-Playbook                       |        650 |
+| `defensive/incident_response/` | NIST SP 800-61r3                                   |        200 |
 | `orchestrator`                | The orchestrator bucket                               |        380 |
-| `all`                         | Everything (alias for `base + tools + ai + orchestrator`) |     16,982 |
+| `all`                         | Everything (alias for `base + tools + ai + defensive + orchestrator`) |     21,865 |
 | `tactics`                     | Alias for `base/`                                     |      7,398 |
 
 Multiple specs combine: `--dataset base/ tools/metasploit/` = 10 tactics + just metasploit = 15,747 pairs.
@@ -475,15 +487,17 @@ and translate internally to `--dataset` specs. The new flag wins if both are pas
 
 ### Balanced sampling (`attacklm-balance`)
 
-The 16 buckets are heavily skewed: `tools/metasploit` alone has 8,349
-pairs (49% of the 16,982 total). Training on raw `--dataset all`
+The 23 buckets are heavily skewed: `tools/metasploit` alone has 13,997
+pairs (64% of the 21,865 total). Training on raw `--dataset all`
 makes the model see ~2 Metasploit examples for every 1 non-Metasploit
 example, which overfits it to msfconsole syntax at the expense of
 broader tactical coverage.
 
 `attacklm-balance` builds a balanced subset of the buckets. It applies
 a per-bucket cap (one cap applied uniformly to all buckets) and
-selects examples from each bucket with a chosen strategy:
+selects examples from each bucket with a chosen strategy. Team presets
+(`--preset red-team|purple-team|blue-team`) control the offensive/defensive
+mix with pre-configured bucket weights.
 
 ```bash
 # Dry-run: see the per-bucket caps + total without writing
@@ -508,7 +522,7 @@ attacklm-train --dataset data/datasets/balanced/balanced_7b-128gb.jsonl \
 | `7b-128gb` |          1,500 |     ~9,800  | 7B QLoRA on 128 GB rig                     |
 | `14b-128gb`|          1,500 |     ~9,800  | 14B QLoRA on 128 GB rig                    |
 | `31b-128gb`|          2,000 |    ~10,600  | 31B QLoRA on 128 GB rig                    |
-| `full`     |      unlimited |     16,982  | All data, no cap                           |
+| `full`     |      unlimited |     21,865  | All data, no cap                           |
 | `custom`   |       (you set)|    (you set)| `--per-bucket-cap` or `--target-total`     |
 
 **Strategies** (within a bucket, after the cap is applied):
@@ -653,20 +667,21 @@ print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 ## Data Sources (upstream)
 
 | Project | License | Use |
-|---|---|---|
-| [redcanaryco/atomic-red-team](https://github.com/redcanaryco/atomic-red-team) | MIT | 2,506 atomic test triples |
-| [mitre/stockpile](https://github.com/mitre/stockpile) | Apache-2.0 | 608 adversary-emulation abilities |
-| [mitre/caldera](https://github.com/mitre/caldera) | Apache-2.0 | 56 plugin descriptors |
-| [rapid7/metasploit-framework](https://github.com/rapid7/metasploit-framework) | BSD-3-Clause | 8,349 module description triples |
-| [guardicore/monkey](https://github.com/guardicore/monkey) | GPL-3.0 | 36 plugin manifest triples |
-| [endgameinc/RTA](https://github.com/endgameinc/RTA) | **AGPL-3.0** ⚠️ | 76 Python TTP triples |
-| [SigmaHQ/sigma](https://github.com/SigmaHQ/sigma) | DRL-1.1 | Auxiliary context for triple structure |
+|---|---|---|---|
+| [rapid7/metasploit-framework](https://github.com/rapid7/metasploit-framework) | BSD-3-Clause | 13,997 module description triples |
+| [SigmaHQ/sigma](https://github.com/SigmaHQ/sigma) | DRL-1.1 | 3,000 detection rules |
+| [elastic/detection-rules](https://github.com/elastic/detection-rules) | Elastic-2.0 | 1,200 EQL/KQL detection rules |
+| [splunk/security_content](https://github.com/splunk/security_content) | Apache-2.0 | 800 SPL detections |
+| [redcanaryco/atomic-red-team](https://github.com/redcanaryco/atomic-red-team) | MIT | 1,115 atomic test triples |
+| [OTRF/Security-Datasets](https://github.com/OTRF/Security-Datasets) | Apache-2.0 | 500 Mordor event log scenarios |
+| [mitre/stockpile](https://github.com/mitre/stockpile) | Apache-2.0 | 390 adversary-emulation abilities |
+| [OTRF/ThreatHunter-Playbook](https://github.com/OTRF/ThreatHunter-Playbook) | Apache-2.0 | 150 hunting playbooks |
+| NIST SP 800-61r3 | Public Domain | 200 IR procedure pairs (template-based) |
 | [promptfoo/promptfoo](https://github.com/promptfoo/promptfoo) | MIT | Prompt injection probes |
 | [NVIDIA/garak](https://github.com/NVIDIA/garak) | Apache-2.0 | DAN/probe resources |
 | [utkusen/promptmap](https://github.com/utkusen/promptmap) | MIT | Prompt injection rules |
-| [Azure/PyRIT](https://github.com/Azure/PyRIT) | MIT | Jailbreak templates |
-| [cyberark/FuzzyAI](https://github.com/cyberark/FuzzyAI) | Apache-2.0 | Adversarial prompt resources |
-| [Resident-Falker/TheBigPromptLibrary](https://github.com/Resident-Falker/TheBigPromptLibrary) | mixed MIT/MPL | Jailbreak + system prompt library |
+| [Azure/PyRIT](https://github.com/Azure/PyRIT) | MIT | Jailbreak templates (reserved) |
+| [cyberark/FuzzyAI](https://github.com/cyberark/FuzzyAI) | Apache-2.0 | Adversarial prompt resources (reserved) |
 
 Full attribution, per-pair source mapping, and re-distribution guidance in
 [**`/ATTRIBUTION.md`**](ATTRIBUTION.md).
@@ -676,8 +691,10 @@ Full attribution, per-pair source mapping, and re-distribution guidance in
 ## License
 
 - **Code in this repository** — [MIT License](LICENSE)
-- **Training data** — inherits the most restrictive license of its components
-  (currently AGPL-3.0 from RTA — see [ATTRIBUTION.md §8](ATTRIBUTION.md))
+- **Training data** — mixed licenses per source. The most restrictive
+  licenses in the dataset are DRL-1.1 (Sigma rules) and BSD-3-Clause
+  (Metasploit Framework). See [ATTRIBUTION.md](ATTRIBUTION.md) for the
+  full per-source license table.
 - **Trained model weights** — MIT License as a new statistical artifact
   learned from openly licensed material. Whether model weights are a
   "derivative work" in the copyright sense is an unsettled question; no
@@ -701,6 +718,16 @@ submitting PRs, and extending the bucket/extractor system.
 See [CHANGELOG.md](CHANGELOG.md) for the full version history. Notable
 recent releases:
 
+- **v0.5.0** (2026-06-24) — Blue-team data sources (6 new extractors,
+  5,850 pairs), team presets (red/purple/blue), 3 defensive buckets,
+  21,865 total pairs, 23 buckets.
+- **v0.4.1** (2026-06-22) — 7-pattern ds4 evaluation framework,
+  steering vectors, 198 hermetic tests, dataset cleanup (8,649
+  synthetic records removed).
+- **v0.4.0** (2026-06-22) — MoE-safe training, retention eval,
+  experience replay, DoRA/LoftQ support.
+- **v0.3.0** (2026-06-11) — Dataset license audit, per-source layout,
+  RTA/Infection Monkey/BPL removed, 100% per-record attribution.
 - **v0.2.2** (2026-06-10) — `attacklm-balance` (balanced bucket sampler),
   `attacklm-build` (one-shot merge+GGUF+install), auto-timestamped
   run dirs in `attacklm-train`, accurate epoch counter, GGUF
@@ -720,6 +747,6 @@ recent releases:
 ## Acknowledgments
 
 Thanks to the open-source security community — Red Canary, MITRE, Rapid7,
-Guardicore, Endgame/Elastic, the SigmaHQ maintainers, the promptfoo,
+Elastic, Splunk, OTRF, NIST, the SigmaHQ maintainers, the promptfoo,
 garak, PyRIT, and FuzzyAI teams, and everyone who contributes to the
 projects we depend on. AttackLM stands on their shoulders.

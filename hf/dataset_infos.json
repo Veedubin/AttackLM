@@ -1,6 +1,6 @@
 {
   "attacklm": {
-    "description": "AttackLM — Balanced Red-Team Training Dataset. A MITRE ATT&CK-grounded instruction-following dataset for training red-team cybersecurity LLMs. 17,616 conversation triples across 23 buckets covering 12+ attack categories.",
+    "description": "AttackLM — Balanced Red/Blue-Team Training Dataset. A MITRE ATT&CK-grounded instruction-following dataset for training red/blue-team cybersecurity LLMs. 21,865 conversation triples across 23 buckets covering 17 attack/defense categories.",
     "citation": "@misc{attacklm2026,\n  title={AttackLM: A Balanced Red-Team Training Dataset Grounded in MITRE ATT&CK},\n  author={jcharles},\n  year={2026},\n  url={https://github.com/Veedubin/AttackLM},\n  note={Dataset available at https://huggingface.co/datasets/neuralgentics/attacklm}\n}",
     "homepage": "https://github.com/Veedubin/AttackLM",
     "license": "gpl-3.0",

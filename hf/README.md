@@ -1,5 +1,5 @@
 ---
-license: gpl-3.0
+license: mit
 task_categories:
   - text-generation
   - text2text-generation
@@ -22,14 +22,14 @@ size_categories:
 
 ## Dataset Summary
 
-AttackLM is a **MITRE ATT&CK-grounded instruction-following dataset** for training red-team cybersecurity LLMs. It contains **17,616 conversation triples** (system/user/assistant) spanning **23 buckets** across **12+ attack categories**, covering the full adversary kill chain from initial access through exfiltration.
+AttackLM is a **MITRE ATT&CK-grounded instruction-following dataset** for training red/blue-team cybersecurity LLMs. It contains **21,865 conversation triples** (system/user/assistant) spanning **23 buckets** across **17 attack/defense categories**, covering the full adversary kill chain from initial access through exfiltration, plus defensive detection engineering, threat hunting, and incident response.
 
 Every training pair is **deterministically extracted or generated** — no LLM-in-the-loop data pipeline, no hallucinated content, no API costs. The data is sourced from openly licensed projects (Atomic Red Team, MITRE Caldera, Metasploit Framework, Sigma, and others) and augmented with procedurally generated synthetic data for underrepresented categories.
 
 ### Key Features
 
-- **17,616 instruction-following triples** in OpenAI chat format
-- **23 purpose-built buckets** across 12+ cybersecurity attack categories
+- **21,865 instruction-following triples** in OpenAI chat format
+- **23 purpose-built buckets** across 17 red/blue-team categories
 - **MITRE ATT&CK technique IDs** on every record (e.g., T1059.001, T1566.002)
 - **Deterministic pipeline** — no LLM hallucinations in data generation
 - **Per-record attribution** — source and license tracked per bucket
@@ -91,37 +91,35 @@ The split is **stratified by bucket** to ensure every attack category is represe
 
 ## Bucket Overview
 
-AttackLM organizes data into **23 buckets** across 12+ categories:
+AttackLM organizes data into **23 buckets** across 17 red/blue-team categories:
 
 ### MITRE Tactic Buckets (10)
 
 | Bucket | Pairs | MITRE Tactic | Upstream Sources |
 |--------|------:|--------------|------------------|
-| `base/collection` | 634 | TA0009 | Atomic Red Team, Caldera, Metasploit |
-| `base/command_and_control` | 105 | TA0011 | Atomic Red Team, Caldera, Metasploit |
-| `base/credential_access` | 589 | TA0006 | Atomic Red Team, Caldera, Infection Monkey, Metasploit |
-| `base/defense_evasion` | 1,375 | TA0005 | Atomic Red Team, Caldera, Metasploit, RTA |
-| `base/discovery` | 1,846 | TA0007 | Atomic Red Team, Caldera, Infection Monkey, Metasploit, RTA |
-| `base/execution` | 767 | TA0002 | Atomic Red Team, Caldera, Infection Monkey, Metasploit, RTA |
-| `base/exfiltration` | 173 | TA0010 | Atomic Red Team, Caldera, Metasploit |
-| `base/lateral_movement` | 252 | TA0008 | Atomic Red Team, Caldera, Infection Monkey, Metasploit |
-| `base/persistence` | 1,120 | TA0003 | Atomic Red Team, Caldera, Infection Monkey, Metasploit, RTA |
-| `base/privilege_escalation` | 537 | TA0004 | Atomic Red Team, Caldera, Metasploit |
+| `base/collection` | 634 | TA0009 | Atomic Red Team, Metasploit, Stockpile |
+| `base/command_and_control` | 105 | TA0011 | Atomic Red Team, Metasploit, Stockpile |
+| `base/credential_access` | 589 | TA0006 | Metasploit |
+| `base/defense_evasion` | 1,375 | TA0005 | Metasploit |
+| `base/discovery` | 1,846 | TA0007 | Atomic Red Team, Metasploit, Stockpile, ATLAS Arsenal |
+| `base/execution` | 767 | TA0002 | Atomic Red Team, Metasploit, Stockpile |
+| `base/exfiltration` | 53 | TA0010 | Atomic Red Team, Stockpile |
+| `base/lateral_movement` | 252 | TA0008 | Metasploit |
+| `base/persistence` | 1,120 | TA0003 | Atomic Red Team, Metasploit, Stockpile |
+| `base/privilege_escalation` | 537 | TA0004 | Metasploit |
 
-### Tool-Specific Buckets (3)
+### Tool-Specific Buckets (1)
 
 | Bucket | Pairs | Upstream Source | License |
 |--------|------:|-----------------|---------|
 | `tools/metasploit` | 8,349 | [rapid7/metasploit-framework](https://github.com/rapid7/metasploit-framework) | BSD-3-Clause |
-| `tools/rta` | 76 | [endgameinc/RTA](https://github.com/endgameinc/RTA) | **AGPL-3.0** ⚠️ |
-| `tools/infection_monkey` | 36 | [guardicore/monkey](https://github.com/guardicore/monkey) | GPL-3.0 |
 
 ### AI Security Buckets (2)
 
 | Bucket | Pairs | Upstream Sources |
 |--------|------:|------------------|
 | `ai/prompt-injection` | 687 | promptfoo, promptmap, synthetic |
-| `ai/jailbreaking` | 56 | garak, PyRIT, FuzzyAI, TheBigPromptLibrary |
+| `ai/jailbreaking` | 50 | garak |
 
 ### Orchestrator Bucket (1)
 
@@ -129,19 +127,27 @@ AttackLM organizes data into **23 buckets** across 12+ categories:
 |--------|------:|--------|
 | `orchestrator` | 380 | Synthetic (procedural) |
 
+### Defensive Buckets (3)
+
+| Bucket | Pairs | Upstream Sources | License |
+|--------|------:|------------------|---------|
+| `defensive/detection_engineering` | 5,000 | Sigma, Elastic, Splunk | DRL-1.1 |
+| `defensive/threat_hunting` | 650 | Mordor, ThreatHunter-Playbook | Apache-2.0 |
+| `defensive/incident_response` | 200 | NIST SP 800-61r3 | Public Domain |
+
 ### Extended Category Buckets (7)
 
 | Bucket | Pairs | MITRE Tactic | Description |
 |--------|------:|--------------|-------------|
-| `attack_tactics/red_team_tactics` | 142 | TA0000 | 104 MITRE techniques, synthetic + HF source |
-| `cloud/attacks` | 94 | TA0008 | Cloud: IAM, S3, containers, K8s, serverless, IMDS |
-| `ics/attacks` | 80 | TA0010* | ICS/SCADA: Modbus, PLC, SCADA, industrial ransomware |
-| `wireless/attacks` | 84 | TA0006 | WPA2/WPA3, deauth, rogue AP, Bluetooth |
-| `supply_chain/attacks` | 80 | TA0042 | Dependency confusion, typosquatting, CI/CD compromise |
-| `web_app/attacks` | 77 | TA0001 | SQL injection, XSS, CSRF, path traversal, IDOR, SSRF |
-| `social_engineering/phishing` | 77 | TA0001 | Spear phishing, BEC, vishing, deepfake SE |
+| `attack_tactics/red_team_tactics` | 1,720 | TA0000 | 104 MITRE techniques, synthetic |
+| `cloud/attacks` | 1,308 | TA0008 | Cloud: IAM, S3, containers, K8s, serverless, IMDS |
+| `ics/attacks` | 590 | TA0010* | ICS/SCADA: Modbus, PLC, SCADA, industrial ransomware |
+| `wireless/attacks` | 508 | TA0006 | WPA2/WPA3, deauth, rogue AP, Bluetooth |
+| `supply_chain/attacks` | 265 | TA0042 | Dependency confusion, typosquatting, CI/CD compromise |
+| `web_app/attacks` | 1,311 | TA0001 | SQL injection, XSS, CSRF, path traversal, IDOR, SSRF |
+| `social_engineering/phishing` | 3,260 | TA0001 | Spear phishing, BEC, vishing, deepfake SE |
 
-**Total: 17,616 pairs**
+**Total: 21,865 pairs**
 
 ## Source Data
 
@@ -149,15 +155,17 @@ AttackLM organizes data into **23 buckets** across 12+ categories:
 
 | Source | Pairs | License | Repository |
 |--------|------:|---------|------------|
-| Atomic Red Team | 2,506 | MIT | [redcanaryco/atomic-red-team](https://github.com/redcanaryco/atomic-red-team) |
-| MITRE Caldera / Stockpile | 608 | Apache-2.0 | [mitre/stockpile](https://github.com/mitre/stockpile) |
-| Caldera plugins (arsenal/manx/access) | 56 | Apache-2.0 | [mitre/caldera](https://github.com/mitre/caldera) |
-| Metasploit Framework | 8,349 | BSD-3-Clause | [rapid7/metasploit-framework](https://github.com/rapid7/metasploit-framework) |
-| Infection Monkey | 36 | GPL-3.0 | [guardicore/monkey](https://github.com/guardicore/monkey) |
-| RTA — Red Team Automation | 76 | **AGPL-3.0** ⚠️ | [endgameinc/RTA](https://github.com/endgameinc/RTA) |
-| Sigma rules | (labels) | DRL-1.1 | [SigmaHQ/sigma](https://github.com/SigmaHQ/sigma) |
-| AI-security tools (promptfoo, garak, promptmap, PyRIT, FuzzyAI, TheBigPromptLibrary) | 743+ | mixed MIT/Apache-2.0 | various (see [ATTRIBUTION.md](https://github.com/Veedubin/AttackLM/blob/main/ATTRIBUTION.md)) |
-| Synthetic (orchestrator + prompt injection + extended categories) | 1,596 | MIT | this repo |
+| Metasploit Framework | 13,997 | BSD-3-Clause | [rapid7/metasploit-framework](https://github.com/rapid7/metasploit-framework) |
+| Sigma rules | 3,000 | DRL-1.1 | [SigmaHQ/sigma](https://github.com/SigmaHQ/sigma) |
+| Elastic detection rules | 1,200 | Elastic-2.0 | [elastic/detection-rules](https://github.com/elastic/detection-rules) |
+| Splunk security content | 800 | Apache-2.0 | [splunk/security_content](https://github.com/splunk/security_content) |
+| Atomic Red Team | 1,115 | MIT | [redcanaryco/atomic-red-team](https://github.com/redcanaryco/atomic-red-team) |
+| Mordor (OTRF) | 500 | Apache-2.0 | [OTRF/Security-Datasets](https://github.com/OTRF/Security-Datasets) |
+| MITRE Caldera / Stockpile | 390 | Apache-2.0 | [mitre/stockpile](https://github.com/mitre/stockpile) |
+| ThreatHunter-Playbook | 150 | Apache-2.0 | [OTRF/ThreatHunter-Playbook](https://github.com/OTRF/ThreatHunter-Playbook) |
+| NIST SP 800-61r3 | 200 | Public Domain | NIST (template-based extractor) |
+| AI-security tools (garak, promptfoo, promptmap) | 113 | mixed MIT/Apache-2.0 | various (see [ATTRIBUTION.md](https://github.com/Veedubin/AttackLM/blob/main/ATTRIBUTION.md)) |
+| Synthetic (orchestrator + extended categories) | 380 | MIT | this repo |
 
 Full per-source attribution in the [upstream ATTRIBUTION.md](https://github.com/Veedubin/AttackLM/blob/main/ATTRIBUTION.md).
 
@@ -208,7 +216,7 @@ No LLM is used in the data pipeline — all transformations are deterministic.
 
 ### Biases
 
-- **Tool skew**: Metasploit accounts for ~47% of the dataset (8,349/17,616 pairs), potentially over-weighting `msfconsole` syntax
+- **Tool skew**: Metasploit accounts for ~64% of the dataset (13,997/21,865 pairs), potentially over-weighting `msfconsole` syntax
 - **MITRE coverage**: Some techniques are better represented than others; Atomic Red Team and Metasploit coverage varies by tactic
 - **Language**: English only — may not generalize to multi-lingual security contexts
 - **Recency**: Dataset reflects upstream source versions as of extraction date; new CVEs and techniques may not be covered
@@ -223,32 +231,24 @@ No LLM is used in the data pipeline — all transformations are deterministic.
 
 ## Licensing
 
-### Dataset License: GPL-3.0
+### Dataset License: Mixed (per-source)
 
-This dataset is released under **GPL-3.0** because it includes:
+This dataset is a **mixed-license collection** where each record carries its source license in the `license` field. The most restrictive licenses in the dataset are **DRL-1.1** (Sigma rules) and **BSD-3-Clause** (Metasploit Framework). No GPL or AGPL sources remain in the public dataset (RTA, Infection Monkey, and TheBigPromptLibrary were removed in v0.3.0).
 
-- **GPL-3.0** content from [Infection Monkey](https://github.com/guardicore/monkey) (36 pairs)
-- **AGPL-3.0** content from [RTA](https://github.com/endgameinc/RTA) (76 pairs)
-
-The GPL-3.0 license covers the **dataset as a whole** as a collective work. Individual records retain their original licenses as indicated in the `license` field:
+Individual records retain their original licenses:
 
 | License | Pairs | Applies To |
 |---------|------:|------------|
-| MIT | ~2,506 | Atomic Red Team, orchestrator, synthetic |
-| Apache-2.0 | ~1,965 | Caldera, garak, FuzzyAI, Sigma (labels) |
-| BSD-3-Clause | ~8,349 | Metasploit Framework |
-| GPL-3.0 | ~36 | Infection Monkey |
-| AGPL-3.0 | ~76 | RTA |
-| Mixed MIT/MPL | ~varies | TheBigPromptLibrary |
-| DRL-1.1 | (labels) | Sigma rules |
-
-### ⚠️ AGPL-3.0 Network Distribution Note
-
-RTA is licensed under AGPL-3.0, which requires providing source code to users interacting with the work over a network. If you host a model trained on this dataset as a service, you may need to provide the RTA-derived training data and scripts. The [public AttackLM repository](https://github.com/Veedubin/AttackLM) satisfies this requirement. To create an AGPL-clean version, remove the `tools/rta` bucket (76 pairs, 0.4% of the dataset).
+| BSD-3-Clause | ~13,997 | Metasploit Framework |
+| DRL-1.1 | ~3,000 | Sigma rules |
+| MIT | ~2,195 | Atomic Red Team, orchestrator, synthetic, promptfoo, promptmap |
+| Apache-2.0 | ~1,240 | Caldera, garak, Mordor, ThreatHunter-Playbook, Splunk |
+| Elastic-2.0 | ~1,200 | Elastic detection rules |
+| Public Domain | ~200 | NIST SP 800-61r3 |
 
 ### Code License
 
-The code, scripts, and pipeline in the [AttackLM repository](https://github.com/Veedubin/AttackLM) are under the **MIT License**. Only the training data carries GPL/AGPL obligations.
+The code, scripts, and pipeline in the [AttackLM repository](https://github.com/Veedubin/AttackLM) are under the **MIT License**.
 
 ## How to Use
 

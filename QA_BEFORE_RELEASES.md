@@ -12,7 +12,7 @@
 **Threshold**: 0 errors, 0 warnings
 
 **Checks**:
-- All 25,601 records present across 20 buckets
+- All 21,865 records present across 23 buckets
 - No duplicate records
 - All required fields present (messages, source, license, attribution)
 - License attribution complete for all records

@@ -16,11 +16,12 @@ artifact* learned from these sources; they are not a verbatim copy.
   attribution in this file** per each source's license.
 - If you modify the training data, **document what you changed**.
 - If you re-distribute the trained model commercially, **review the
-  AGPLv3 RTA note below** — it has network-distribution implications.
+  DRL-1.1 and BSD-3-Clause requirements below** — they have attribution
+  obligations.
 
 ---
 
-## Training Data Sources (16,982 pairs across 16 buckets)
+## Training Data Sources (21,865 pairs across 23 buckets)
 
 ### 1. Atomic Red Team (redcanaryco)
 
@@ -239,26 +240,27 @@ AGPLv3 terms.
 
 The full per-bucket manifest is at `data/datasets/buckets/manifest.json`.
 It records which pairs come from which upstream source (via the
-`source_file` field). Total: **16,982 pairs across 16 buckets**.
+`source_file` field). Total: **21,865 pairs across 23 buckets**.
 
 | Bucket | Pairs | Upstream sources |
-|---|---:|---|
-| collection | 634 | atomic, caldera, metasploit |
-| command_and_control | 105 | atomic, caldera, metasploit |
-| credential_access | 589 | atomic, caldera, infection_monkey, metasploit |
-| defense_evasion | 1,375 | atomic, caldera, metasploit, RTA |
-| discovery | 1,846 | atomic, caldera, infection_monkey, metasploit, RTA |
-| execution | 767 | atomic, caldera, infection_monkey, metasploit, RTA |
-| exfiltration | 173 | atomic, caldera, metasploit |
-| lateral_movement | 252 | atomic, caldera, infection_monkey, metasploit |
-| persistence | 1,120 | atomic, caldera, infection_monkey, metasploit, RTA |
-| privilege_escalation | 537 | atomic, caldera, metasploit |
+|---|---|---:|
+| collection | 634 | atomic, metasploit, stockpile |
+| command_and_control | 105 | atomic, metasploit, stockpile |
+| credential_access | 589 | metasploit |
+| defense_evasion | 1,375 | metasploit |
+| discovery | 1,846 | atomic, metasploit, stockpile, atlas-arsenal |
+| execution | 767 | atomic, metasploit, stockpile |
+| exfiltration | 53 | atomic, stockpile |
+| lateral_movement | 252 | metasploit |
+| persistence | 1,120 | atomic, metasploit, stockpile |
+| privilege_escalation | 537 | metasploit |
 | orchestrator | 380 | synthetic |
-| ai/jailbreaking | 56 | garak, PyRIT, FuzzyAI, TheBigPromptLibrary |
+| ai/jailbreaking | 50 | garak |
 | ai/prompt-injection | 687 | promptfoo, promptmap, synthetic |
-| tools/infection_monkey | 36 | guardicore/monkey |
 | tools/metasploit | 8,349 | rapid7/metasploit-framework |
-| tools/rta | 76 | endgameinc/RTA (AGPLv3) |
+| defensive/detection_engineering | 5,000 | sigma-hq, elastic-rules, splunk-content |
+| defensive/threat_hunting | 650 | mordor, threathunter-playbook |
+| defensive/incident_response | 200 | nist-ir |
 
 ---
 
@@ -268,16 +270,13 @@ If you fork AttackLM and re-distribute:
 
 1. **Keep this `ATTRIBUTION.md` file intact** in any derivative repo.
 2. **Keep all upstream LICENSE files** in `data/<source>/LICENSE*`.
-3. **Do not remove any source's attribution** when removing its data —
-   if you remove the RTA bucket, also remove the RTA entry above.
-4. **For Apache 2.0 sources (Caldera, MITRE ATT&CK, garak, FuzzyAI):**
+3. **Do not remove any source's attribution** when removing its data.
+4. **For Apache 2.0 sources (Caldera, garak, Mordor, ThreatHunter-Playbook, Splunk):**
    include a `NOTICE` file in your distribution (template below).
-5. **For AGPLv3 (RTA):** if you host a model trained on RTA data over
-   a network, provide access to the corresponding source — this
-   public GitHub repo satisfies that requirement.
-6. **For GPLv3 (Infection Monkey):** the dataset is a transformation
-   of upstream code; the GPL may apply to the JSONL files but not
-   to model weights learned from them.
+5. **For BSD-3-Clause (Metasploit):** preserve the copyright notice and
+   license text in derivative works per BSD §1.
+6. **For DRL-1.1 (Sigma):** preserve attribution to Sigma rule authors
+   per the Detection Rule License.
 
 ### NOTICE template (required by Apache 2.0)
 
