@@ -245,3 +245,12 @@ packages = ["src/attacklm"]
 
 [tool.hatch.version]
 path = "src/attacklm/__version__.py"
+
+# ── Build-time dependencies for packages that don't declare them ────────────────
+# flash-attn and causal-conv1d need torch at build time but don't list it in
+# their build-system.requires. Without this, `uv pip install attacklm[all]` fails
+# with "ModuleNotFoundError: No module named 'torch'" during the flash-attn build.
+# This tells uv to pre-install torch before building these packages.
+[tool.uv.extra-build-dependencies]
+flash-attn = ["torch"]
+causal-conv1d = ["torch"]
