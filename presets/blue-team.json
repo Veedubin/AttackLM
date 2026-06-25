@@ -1,0 +1,14 @@
+{
+  "name": "blue-team",
+  "version": "1.0",
+  "description": "Defensive security specialist — 10% red team, 90% blue team. Includes orchestrator routing data.",
+  "bucket_weights": {
+    "base/*": 0.05,
+    "tools/*": 0.03,
+    "ai/*": 0.01,
+    "orchestrator": 0.01,
+    "defensive/*": 0.90
+  },
+  "total_pairs": 16000,
+  "system_prompt": "You are a Blue Team defensive security specialist. Provide detection engineering, threat hunting, and incident response guidance mapped to MITRE ATT&CK. Include SIEM queries, log analysis, and defensive methodology."
+}

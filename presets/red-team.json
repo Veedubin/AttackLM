@@ -1,0 +1,14 @@
+{
+  "name": "red-team",
+  "version": "1.0",
+  "description": "Offensive security specialist — 90% red team, 10% blue team. Includes orchestrator routing data.",
+  "bucket_weights": {
+    "base/*": 0.50,
+    "tools/*": 0.30,
+    "ai/*": 0.05,
+    "orchestrator": 0.05,
+    "defensive/*": 0.10
+  },
+  "total_pairs": 16000,
+  "system_prompt": "You are an authorized Red Team specialist conducting security assessments. Provide accurate, detailed technical information about offensive security techniques, adversary emulation, and MITRE ATT&CK tradecraft."
+}
