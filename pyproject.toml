@@ -150,7 +150,14 @@ rocm = [
 # `causal_conv1d` and `flash_linear_attention` are CUDA C++ extensions.
 # ROCm users can SKIP these — the Qwen3NextForCausalLM modeling has pure-PyTorch
 # fallbacks (slower but works).
-cuda-extras = [
+#
+# IMPORTANT: flash-attn and causal-conv1d need torch at build time but don't
+# declare it in their build-system.requires. They are NOT included in [all]
+# or [train-cuda] — install them separately AFTER torch is in the environment:
+#   uv pip install attacklm[all]
+#   uv pip install attacklm[flash-attn]
+cuda-extras = []
+flash-attn = [
     "flash-attn>=2.7",                # requires CUDA dev tools to build
     "causal-conv1d>=1.4",             # CUDA-only
     "flash-linear-attention>=0.2",    # CUDA-only
