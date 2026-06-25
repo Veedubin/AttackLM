@@ -75,19 +75,14 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # 2. Install AttackLM with the full CUDA training stack
 uv pip install "attacklm[all]"
 
-# 3. (Optional) Install flash-attn for 2-3x faster training on Qwen3-Next models
-#    --no-build-isolation is required because flash-attn needs torch at build time
-#    but doesn't declare it in its build-system.requires
-uv pip install "attacklm[flash-attn]" --no-build-isolation
-
-# 4. Clone the repo for the training data (the PyPI package is code-only)
+# 3. Clone the repo for the training data (the PyPI package is code-only)
 git clone https://github.com/Veedubin/AttackLM.git
 cd AttackLM
 
-# 5. Initialize the dataset (probes local `data/` first; falls back to git clone)
+# 4. Initialize the dataset (probes local `data/` first; falls back to git clone)
 attacklm-init --yes
 
-# 6. Train
+# 5. Train
 attacklm-train-all --single-model \
   --dataset base/ \
   --base-model huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated \
@@ -107,13 +102,10 @@ cd AttackLM
 # 3. Install as an editable Python package (gets you all `attacklm-*` commands)
 uv pip install -e ".[all]"
 
-# 4. (Optional) Install flash-attn for 2-3x faster training
-uv pip install -e ".[flash-attn]" --no-build-isolation
-
-# 5. Initialize the dataset
+# 4. Initialize the dataset
 attacklm-init --yes
 
-# 6. Train
+# 5. Train
 attacklm-train-all --single-model \
   --dataset base/ \
   --base-model huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated \
@@ -143,11 +135,6 @@ build anything by hand.
 # Full CUDA training stack (torch, bitsandbytes, trl, peft, transformers, etc.)
 uv pip install "attacklm[all]"
 
-# Optional: flash-attn for 2-3x faster training (Qwen3-Next, packing mode)
-# --no-build-isolation is required because flash-attn needs torch at build time
-# but doesn't declare it in its build-system.requires
-uv pip install "attacklm[flash-attn]" --no-build-isolation
-
 # Optional: Unsloth for 2-5x faster training + 70% less VRAM
 # Must be separate because it conflicts with trl==1.5.1 (needs trl<=0.24.0)
 uv pip install "attacklm[unsloth]"
@@ -158,6 +145,13 @@ uv pip install "attacklm[all-rocm]"
 # Inference only (CPU / Apple Silicon, no GPU needed)
 uv pip install "attacklm[infer]"
 ```
+
+> **flash-attn is NOT included in [all].** It compiles CUDA kernels from
+> source (no pre-built wheels) and can consume 20-30GB+ RAM during
+> compilation — enough to OOM a 32GB system. The training code falls back
+> to PyTorch's built-in `sdpa` attention, which works fine for Qwen2.5.
+> flash-attn is only needed for Qwen3-Next models or `--packing` mode.
+> If you have 64GB+ RAM and want it: `uv pip install "attacklm[flash-attn]" --no-build-isolation`
 
 Then clone the repo for the training data: `git clone https://github.com/Veedubin/AttackLM.git`
 
@@ -175,25 +169,16 @@ cd AttackLM
 
 # Full CUDA training stack (torch, bitsandbytes, trl, peft, transformers, etc.)
 uv pip install -e ".[all]"
-
-# Optional: flash-attn for 2-3x faster training (Qwen3-Next, packing mode)
-# --no-build-isolation is required because flash-attn needs torch at build time
-# but doesn't declare it in its build-system.requires
-uv pip install -e ".[flash-attn]" --no-build-isolation
 ```
 
 That installs everything: `torch` (CUDA wheel from PyPI), `bitsandbytes`,
-`transformers`, `peft`, `trl`. The C++ extensions `flash-attn`,
-`causal-conv1d`, and `flash-linear-attention` are in the separate
-`[flash-attn]` extra (they need torch at build time and can't be in `[all]`).
+`transformers`, `peft`, `trl`. The training code uses PyTorch's built-in
+`sdpa` attention by default — no flash-attn needed for Qwen2.5 models.
 
-| Component | Where it comes from |
-|---|---|
-| `torch`, `torchvision`        | PyPI (CUDA build, auto-selected) |
-| `bitsandbytes`                | PyPI (CUDA wheels) |
-| `flash-attn`                  | Built from source via pip (~5 min, needs `--no-build-isolation`) |
-| `causal-conv1d`               | Pre-built wheel from PyPI |
-| `flash-linear-attention`      | Pre-built wheel from PyPI |
+> **flash-attn is NOT included.** It compiles CUDA kernels from source
+> (no pre-built wheels) and can consume 20-30GB+ RAM during compilation.
+> If you have 64GB+ RAM and want it for Qwen3-Next or `--packing` mode:
+> `MAX_JOBS=2 uv pip install -e ".[flash-attn]" --no-build-isolation`
 
 ---
 
