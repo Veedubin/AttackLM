@@ -380,7 +380,32 @@ Examples:
             "consumer GPUs without LoRA adapters. Mutually exclusive with "
             "--use-unsloth (GaLore trains ALL parameters, no LoRA needed). "
             "Requires 'uv pip install attacklm[galore]' or "
-            "'pip install galore-torch'. Default: OFF (standard QLoRA)."
+            "'pip install galore-torch'. "
+            "Default: 8-bit optimizer + per-layer hooks (fits 16GB for 3B). "
+            "Use --galore-32bit for full-precision (needs ~20GB+ for 3B)."
+        ),
+    )
+    parser.add_argument(
+        "--galore-32bit",
+        action="store_true",
+        default=False,
+        help=(
+            "Use 32-bit GaLoreAdamW instead of 8-bit GaLoreAdamW8bit. "
+            "Full-precision optimizer states (~12GB for 3B vs ~3GB for 8-bit). "
+            "Disables per-layer weight updates (incompatible with 32-bit path). "
+            "Only meaningful with --use-galore. "
+            "Auto-enabled by --multi-gpu (per-layer hooks don't work with DDP)."
+        ),
+    )
+    parser.add_argument(
+        "--multi-gpu",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable multi-GPU training via DDP (DistributedDataParallel). "
+            "Auto-enables --galore-32bit when combined with --use-galore "
+            "(per-layer weight updates are incompatible with DDP). "
+            "Use torchrun or accelerate launch to start multi-GPU training."
         ),
     )
 
@@ -1661,10 +1686,11 @@ def main() -> None:
     _galore_available = False
     if args.use_galore:
         try:
-            from galore_torch import GaLoreAdamW8bit  # noqa: F401
+            from galore_torch import GaLoreAdamW, GaLoreAdamW8bit  # noqa: F401
 
             _galore_available = True
-            print("  GaLore: loaded (GaLoreAdamW8bit available)")
+            _galore_bits = "32-bit" if args.galore_32bit else "8-bit"
+            print(f"  GaLore: loaded ({_galore_bits} GaLoreAdamW available)")
         except ImportError:
             print(
                 "ERROR: --use-galore requires the 'galore-torch' package.\n"
@@ -1672,6 +1698,15 @@ def main() -> None:
                 "  Or:      pip install galore-torch"
             )
             sys.exit(1)
+
+    # --multi-gpu + --use-galore: auto-enable 32-bit (per-layer hooks
+    # are incompatible with DDP's gradient all-reduce).
+    if args.multi_gpu and args.use_galore and not args.galore_32bit:
+        print(
+            "  GaLore: --multi-gpu detected — auto-enabling --galore-32bit "
+            "(per-layer weight updates are incompatible with DDP)"
+        )
+        args.galore_32bit = True
 
     try:
         from transformers import AutoModelForCausalLM
@@ -2651,89 +2686,120 @@ def main() -> None:
     # --- GaLore: use custom trainer with GaLoreAdamW optimizer ---
     if args.use_galore and _galore_available:
         from transformers import Trainer
-        from galore_torch import GaLoreAdamW
 
-        class GaLoreTrainer(SFTTrainer):
-            """SFTTrainer subclass that uses GaLoreAdamW8bit for full-parameter training.
+        _use_32bit = args.galore_32bit
+        _OptimCls = GaLoreAdamW if _use_32bit else GaLoreAdamW8bit
+        _bits_label = "32-bit" if _use_32bit else "8-bit"
+        _hook_label = (
+            "standard (multi-GPU compatible)"
+            if _use_32bit
+            else "per-layer hooks (single-GPU optimized)"
+        )
 
-            GaLore (Gradient Low-Rank Projection) projects gradients into a
-            low-rank space during optimization, enabling full-parameter learning
-            on consumer GPUs. Uses 8-bit optimizer states (~3GB for 3B model
-            vs ~12GB for 32-bit) and per-layer weight updates to free gradient
-            memory after each layer's backward pass.
+        print(f"  GaLore optimizer:    {_bits_label} GaLoreAdamW")
+        print(f"  GaLore update mode:  {_hook_label}")
 
-            Key hyperparameters (tuned for 3B-7B models on 16-24GB GPUs):
-              - rank=128: projection rank (higher = more capacity, more VRAM)
-              - update_proj_gap=200: steps between SVD recomputation
-              - scale=0.25: gradient scaling factor
-              - proj_type='std': standard SVD-based projection
-            """
+        if _use_32bit:
+            # --- 32-bit path: standard optimizer, multi-GPU compatible ---
+            class GaLoreTrainer(SFTTrainer):
+                """SFTTrainer with 32-bit GaLoreAdamW for full-parameter training.
 
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                # Per-layer optimizer dict: one GaLoreAdamW8bit per parameter.
-                # This enables per-layer weight updates via
-                # register_post_accumulate_grad_hook, which frees gradient
-                # memory after each layer's backward pass instead of holding
-                # all gradients until the end. Critical for fitting 3B+
-                # models on 16GB GPUs.
-                self._galore_optimizers = {}
-                for name, param in self.model.named_parameters():
-                    if not param.requires_grad:
-                        continue
-                    if param.ndim >= 2:
-                        # 2D weight matrices: GaLore projection
-                        self._galore_optimizers[param] = GaLoreAdamW8bit(
-                            [
-                                {
-                                    "params": [param],
-                                    "rank": 128,
-                                    "update_proj_gap": 200,
-                                    "scale": 0.25,
-                                    "proj_type": "std",
-                                }
-                            ],
-                            lr=self.args.learning_rate,
-                            weight_decay=self.args.weight_decay,
-                        )
-                    else:
-                        # 1D params (biases, norms): standard 8-bit AdamW
-                        self._galore_optimizers[param] = GaLoreAdamW8bit(
-                            [{"params": [param]}],
-                            lr=self.args.learning_rate,
-                            weight_decay=self.args.weight_decay,
-                        )
-
-                # Register per-layer hooks: step + zero_grad after each
-                # parameter's gradient is accumulated. This frees gradient
-                # memory layer-by-layer instead of holding all gradients
-                # until the optimizer step.
-                def _make_hook(opt):
-                    def hook(p):
-                        if p.grad is None:
-                            return
-                        opt.step()
-                        opt.zero_grad()
-
-                    return hook
-
-                for p, opt in self._galore_optimizers.items():
-                    p.register_post_accumulate_grad_hook(_make_hook(opt))
-
-            def create_optimizer(self):
-                """No-op: per-layer optimizers are created in __init__.
-
-                We override this to prevent SFTTrainer from creating its own
-                optimizer. All optimizer state is managed by the per-layer
-                GaLoreAdamW8bit instances in self._galore_optimizers.
+                Uses standard create_optimizer() override — compatible with
+                multi-GPU DDP. Optimizer states are ~12GB for a 3B model.
+                Needs ~20GB+ VRAM for 3B, ~40GB+ for 7B.
                 """
-                if self.optimizer is None:
-                    # Return a dummy optimizer so HF Trainer doesn't crash.
-                    # The real optimization happens in the per-layer hooks.
-                    self.optimizer = GaLoreAdamW8bit(
-                        [{"params": []}], lr=self.args.learning_rate
-                    )
-                return self.optimizer
+
+                def create_optimizer(self):
+                    if self.optimizer is None:
+                        galore_params = []
+                        non_galore_params = []
+                        for name, param in self.model.named_parameters():
+                            if not param.requires_grad:
+                                continue
+                            if param.ndim >= 2:
+                                galore_params.append(param)
+                            else:
+                                non_galore_params.append(param)
+
+                        param_groups = [
+                            {"params": non_galore_params},
+                            {
+                                "params": galore_params,
+                                "rank": 128,
+                                "update_proj_gap": 200,
+                                "scale": 0.25,
+                                "proj_type": "std",
+                            },
+                        ]
+                        opt_cls, opt_kwargs = Trainer.get_optimizer_cls_and_kwargs(
+                            self.args
+                        )
+                        self.optimizer = GaLoreAdamW(
+                            param_groups,
+                            lr=opt_kwargs.get("lr", 2e-4),
+                            weight_decay=opt_kwargs.get("weight_decay", 0.0),
+                            betas=opt_kwargs.get("betas", (0.9, 0.999)),
+                            eps=opt_kwargs.get("eps", 1e-8),
+                        )
+                    return self.optimizer
+        else:
+            # --- 8-bit path: per-layer hooks, single-GPU only ---
+            class GaLoreTrainer(SFTTrainer):
+                """SFTTrainer with 8-bit GaLoreAdamW8bit + per-layer weight updates.
+
+                Uses register_post_accumulate_grad_hook to free gradient memory
+                after each layer's backward pass. Optimizer states are ~3GB for
+                a 3B model. Fits 3B on 16GB, 7B on 24GB.
+
+                NOT compatible with multi-GPU DDP — per-layer hooks fire before
+                the gradient all-reduce. Use --galore-32bit for multi-GPU.
+                """
+
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    self._galore_optimizers = {}
+                    for name, param in self.model.named_parameters():
+                        if not param.requires_grad:
+                            continue
+                        if param.ndim >= 2:
+                            self._galore_optimizers[param] = GaLoreAdamW8bit(
+                                [
+                                    {
+                                        "params": [param],
+                                        "rank": 128,
+                                        "update_proj_gap": 200,
+                                        "scale": 0.25,
+                                        "proj_type": "std",
+                                    }
+                                ],
+                                lr=self.args.learning_rate,
+                                weight_decay=self.args.weight_decay,
+                            )
+                        else:
+                            self._galore_optimizers[param] = GaLoreAdamW8bit(
+                                [{"params": [param]}],
+                                lr=self.args.learning_rate,
+                                weight_decay=self.args.weight_decay,
+                            )
+
+                    def _make_hook(opt):
+                        def hook(p):
+                            if p.grad is None:
+                                return
+                            opt.step()
+                            opt.zero_grad()
+
+                        return hook
+
+                    for p, opt in self._galore_optimizers.items():
+                        p.register_post_accumulate_grad_hook(_make_hook(opt))
+
+                def create_optimizer(self):
+                    if self.optimizer is None:
+                        self.optimizer = GaLoreAdamW8bit(
+                            [{"params": []}], lr=self.args.learning_rate
+                        )
+                    return self.optimizer
 
         trainer = GaLoreTrainer(
             model=model,
