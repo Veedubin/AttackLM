@@ -1661,10 +1661,10 @@ def main() -> None:
     _galore_available = False
     if args.use_galore:
         try:
-            from galore_torch import GaLoreAdamW  # noqa: F401
+            from galore_torch import GaLoreAdamW8bit  # noqa: F401
 
             _galore_available = True
-            print("  GaLore: loaded (GaLoreAdamW available)")
+            print("  GaLore: loaded (GaLoreAdamW8bit available)")
         except ImportError:
             print(
                 "ERROR: --use-galore requires the 'galore-torch' package.\n"
@@ -2654,62 +2654,84 @@ def main() -> None:
         from galore_torch import GaLoreAdamW
 
         class GaLoreTrainer(SFTTrainer):
-            """SFTTrainer subclass that uses GaLoreAdamW for full-parameter training.
+            """SFTTrainer subclass that uses GaLoreAdamW8bit for full-parameter training.
 
             GaLore (Gradient Low-Rank Projection) projects gradients into a
             low-rank space during optimization, enabling full-parameter learning
-            on consumer GPUs. This trainer overrides create_optimizer() to use
-            GaLoreAdamW instead of the standard HF optimizer.
+            on consumer GPUs. Uses 8-bit optimizer states (~3GB for 3B model
+            vs ~12GB for 32-bit) and per-layer weight updates to free gradient
+            memory after each layer's backward pass.
 
-            Key hyperparameters (tuned for 3B-7B models):
+            Key hyperparameters (tuned for 3B-7B models on 16-24GB GPUs):
               - rank=128: projection rank (higher = more capacity, more VRAM)
               - update_proj_gap=200: steps between SVD recomputation
               - scale=0.25: gradient scaling factor
               - proj_type='std': standard SVD-based projection
             """
 
-            def create_optimizer(self):
-                """Override to use GaLoreAdamW with gradient low-rank projection.
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                # Per-layer optimizer dict: one GaLoreAdamW8bit per parameter.
+                # This enables per-layer weight updates via
+                # register_post_accumulate_grad_hook, which frees gradient
+                # memory after each layer's backward pass instead of holding
+                # all gradients until the end. Critical for fitting 3B+
+                # models on 16GB GPUs.
+                self._galore_optimizers = {}
+                for name, param in self.model.named_parameters():
+                    if not param.requires_grad:
+                        continue
+                    if param.ndim >= 2:
+                        # 2D weight matrices: GaLore projection
+                        self._galore_optimizers[param] = GaLoreAdamW8bit(
+                            [
+                                {
+                                    "params": [param],
+                                    "rank": 128,
+                                    "update_proj_gap": 200,
+                                    "scale": 0.25,
+                                    "proj_type": "std",
+                                }
+                            ],
+                            lr=self.args.learning_rate,
+                            weight_decay=self.args.weight_decay,
+                        )
+                    else:
+                        # 1D params (biases, norms): standard 8-bit AdamW
+                        self._galore_optimizers[param] = GaLoreAdamW8bit(
+                            [{"params": [param]}],
+                            lr=self.args.learning_rate,
+                            weight_decay=self.args.weight_decay,
+                        )
 
-                Separates parameters into two groups:
-                  - 2D params (weight matrices): GaLore projection applied
-                  - 1D params (biases, norms, embeddings): standard AdamW
+                # Register per-layer hooks: step + zero_grad after each
+                # parameter's gradient is accumulated. This frees gradient
+                # memory layer-by-layer instead of holding all gradients
+                # until the optimizer step.
+                def _make_hook(opt):
+                    def hook(p):
+                        if p.grad is None:
+                            return
+                        opt.step()
+                        opt.zero_grad()
+
+                    return hook
+
+                for p, opt in self._galore_optimizers.items():
+                    p.register_post_accumulate_grad_hook(_make_hook(opt))
+
+            def create_optimizer(self):
+                """No-op: per-layer optimizers are created in __init__.
+
+                We override this to prevent SFTTrainer from creating its own
+                optimizer. All optimizer state is managed by the per-layer
+                GaLoreAdamW8bit instances in self._galore_optimizers.
                 """
                 if self.optimizer is None:
-                    galore_params = []
-                    non_galore_params = []
-
-                    for name, param in self.model.named_parameters():
-                        if not param.requires_grad:
-                            continue
-                        # Apply GaLore to 2D weight matrices (linear layers,
-                        # attention projections). Skip 1D params (biases,
-                        # layer norms, embeddings) — they get standard AdamW.
-                        if param.ndim >= 2:
-                            galore_params.append(param)
-                        else:
-                            non_galore_params.append(param)
-
-                    param_groups = [
-                        {"params": non_galore_params},
-                        {
-                            "params": galore_params,
-                            "rank": 128,
-                            "update_proj_gap": 200,
-                            "scale": 0.25,
-                            "proj_type": "std",
-                        },
-                    ]
-
-                    optimizer_cls, optimizer_kwargs = (
-                        Trainer.get_optimizer_cls_and_kwargs(self.args)
-                    )
-                    self.optimizer = GaLoreAdamW(
-                        param_groups,
-                        lr=optimizer_kwargs.get("lr", 2e-4),
-                        weight_decay=optimizer_kwargs.get("weight_decay", 0.0),
-                        betas=optimizer_kwargs.get("betas", (0.9, 0.999)),
-                        eps=optimizer_kwargs.get("eps", 1e-8),
+                    # Return a dummy optimizer so HF Trainer doesn't crash.
+                    # The real optimization happens in the per-layer hooks.
+                    self.optimizer = GaLoreAdamW8bit(
+                        [{"params": []}], lr=self.args.learning_rate
                     )
                 return self.optimizer
 
