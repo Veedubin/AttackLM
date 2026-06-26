@@ -408,6 +408,16 @@ Examples:
             "Use torchrun or accelerate launch to start multi-GPU training."
         ),
     )
+    parser.add_argument(
+        "--galore-rank",
+        type=int,
+        default=64,
+        help=(
+            "GaLore projection rank (default: 64 for 3B/16GB, 128 for 7B/24GB). "
+            "Higher = more capacity but more VRAM. SVD projection memory "
+            "scales with rank². Only meaningful with --use-galore."
+        ),
+    )
 
     return parser.parse_args()
 
@@ -1488,7 +1498,7 @@ def main() -> None:
         "ON (FastLanguageModel + optimized LoRA kernels)" if args.use_unsloth else "OFF"
     )
     _galore_display = (
-        "ON (full-parameter, rank=128, update_proj_gap=200, scale=0.25)"
+        f"ON (full-parameter, rank={args.galore_rank}, update_proj_gap=200, scale=0.25)"
         if args.use_galore
         else "OFF"
     )
@@ -1827,7 +1837,8 @@ def main() -> None:
         load_kwargs = dict(
             device_map="auto",
             trust_remote_code=True,
-            dtype=torch_dtype,
+            torch_dtype=torch_dtype,
+            low_cpu_mem_usage=True,
         )
         # OOM fix #13: FlashAttention 2 for varlen (padding-free) support
         attn_impl = suggest_attn_implementation(args.packing)
@@ -1910,19 +1921,30 @@ def main() -> None:
                 # GaLore: force bf16/fp16 at config level so from_pretrained
                 # never allocates fp32. Some models (e.g. huihui-ai abliterated)
                 # have torch_dtype=float32 in config.json which overrides the
-                # dtype kwarg. model.to() after load creates a second copy
-                # (fp32 + bf16 = 18GB for 3B → OOM on 16GB).
+                # dtype kwarg. We also use low_cpu_mem_usage=True to create
+                # the model directly in the target dtype (no fp32 intermediate).
                 if args.use_galore:
                     from transformers import AutoConfig
 
                     _cfg = AutoConfig.from_pretrained(
                         base_model_resolved, trust_remote_code=True
                     )
-                    _cfg.torch_dtype = compute_type
+                    # compute_type is "bf16"/"fp16"/"fp32" — config.torch_dtype
+                    # needs the full name: "bfloat16", "float16", "float32"
+                    _dtype_map = {
+                        "bf16": "bfloat16",
+                        "fp16": "float16",
+                        "fp32": "float32",
+                    }
+                    _cfg.torch_dtype = _dtype_map.get(compute_type, "bfloat16")
                     load_kwargs["config"] = _cfg
+                    # low_cpu_mem_usage creates the model directly in the
+                    # target dtype — no fp32 intermediate allocation on CPU
+                    # or GPU. Critical for 16GB cards.
+                    load_kwargs["low_cpu_mem_usage"] = True
                     print(
-                        f"  GaLore: forcing config.torch_dtype={compute_type} "
-                        f"(prevents fp32 allocation)"
+                        f"  GaLore: forcing config.torch_dtype={_cfg.torch_dtype} "
+                        f"(low_cpu_mem_usage=True, prevents fp32 allocation)"
                     )
                 model = AutoModelForCausalLM.from_pretrained(
                     base_model_resolved, **load_kwargs
@@ -2742,7 +2764,7 @@ def main() -> None:
                             {"params": non_galore_params},
                             {
                                 "params": galore_params,
-                                "rank": 128,
+                                "rank": args.galore_rank,
                                 "update_proj_gap": 200,
                                 "scale": 0.25,
                                 "proj_type": "std",
@@ -2783,7 +2805,7 @@ def main() -> None:
                                 [
                                     {
                                         "params": [param],
-                                        "rank": 128,
+                                        "rank": args.galore_rank,
                                         "update_proj_gap": 200,
                                         "scale": 0.25,
                                         "proj_type": "std",
