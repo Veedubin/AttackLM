@@ -1926,11 +1926,28 @@ def main() -> None:
                 # identical to standard Qwen2.5-Coder, just abliterated weights.
                 # The standard Qwen2ForCausalLM class respects torch_dtype.
                 if args.use_galore:
+                    from transformers import AutoConfig
+
+                    # Patch config.json's torch_dtype BEFORE loading.
+                    # The standard Qwen2ForCausalLM class reads dtype from
+                    # config, not from the dtype kwarg. Without this patch,
+                    # the model loads in fp32 (13GB) even with dtype=bf16.
+                    _cfg = AutoConfig.from_pretrained(
+                        base_model_resolved, trust_remote_code=False
+                    )
+                    _dtype_map = {
+                        "bf16": "bfloat16",
+                        "fp16": "float16",
+                        "fp32": "float32",
+                    }
+                    _cfg.torch_dtype = _dtype_map.get(compute_type, "bfloat16")
+                    load_kwargs["config"] = _cfg
                     load_kwargs["trust_remote_code"] = False
-                    load_kwargs["torch_dtype"] = torch_dtype
+                    load_kwargs["dtype"] = torch_dtype
                     load_kwargs["low_cpu_mem_usage"] = True
                     print(
-                        f"  GaLore: trust_remote_code=False, torch_dtype={compute_type} "
+                        f"  GaLore: trust_remote_code=False, "
+                        f"config.torch_dtype={_cfg.torch_dtype} "
                         f"(bypasses custom modeling code that forces fp32)"
                     )
                 model = AutoModelForCausalLM.from_pretrained(
