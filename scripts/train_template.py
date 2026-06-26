@@ -1827,7 +1827,7 @@ def main() -> None:
         load_kwargs = dict(
             device_map="auto",
             trust_remote_code=True,
-            dtype=torch_dtype,
+            torch_dtype=torch_dtype,
         )
         # OOM fix #13: FlashAttention 2 for varlen (padding-free) support
         attn_impl = suggest_attn_implementation(args.packing)
