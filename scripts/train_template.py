@@ -1926,33 +1926,26 @@ def main() -> None:
                 # identical to standard Qwen2.5-Coder, just abliterated weights.
                 # The standard Qwen2ForCausalLM class respects torch_dtype.
                 if args.use_galore:
-                    from transformers import AutoConfig
-
-                    # Patch config.json's torch_dtype BEFORE loading.
-                    # The standard Qwen2ForCausalLM class reads dtype from
-                    # config, not from the dtype kwarg. Without this patch,
-                    # the model loads in fp32 (13GB) even with dtype=bf16.
-                    _cfg = AutoConfig.from_pretrained(
-                        base_model_resolved, trust_remote_code=False
-                    )
-                    _dtype_map = {
-                        "bf16": "bfloat16",
-                        "fp16": "float16",
-                        "fp32": "float32",
-                    }
-                    _cfg.torch_dtype = _dtype_map.get(compute_type, "bfloat16")
-                    load_kwargs["config"] = _cfg
+                    # Nuclear option: set global default dtype to bf16.
+                    # from_pretrained() ignores dtype=, torch_dtype=, AND
+                    # config.torch_dtype when the model's _init_weights
+                    # method creates tensors with torch.empty() (which uses
+                    # the global default). Setting torch.set_default_dtype
+                    # forces ALL allocations to use bf16.
+                    _orig_default_dtype = torch.get_default_dtype()
+                    torch.set_default_dtype(torch_dtype)
                     load_kwargs["trust_remote_code"] = False
-                    load_kwargs["dtype"] = torch_dtype
                     load_kwargs["low_cpu_mem_usage"] = True
                     print(
-                        f"  GaLore: trust_remote_code=False, "
-                        f"config.torch_dtype={_cfg.torch_dtype} "
-                        f"(bypasses custom modeling code that forces fp32)"
+                        f"  GaLore: torch.set_default_dtype({compute_type}) "
+                        f"(forces bf16 for all tensor allocations)"
                     )
                 model = AutoModelForCausalLM.from_pretrained(
                     base_model_resolved, **load_kwargs
                 )
+                if args.use_galore:
+                    torch.set_default_dtype(_orig_default_dtype)
+                    print(f"  GaLore: restored default dtype to {_orig_default_dtype}")
         except (ImportError, ValueError, ModuleNotFoundError) as e:
             error_str = str(e).lower()
             if "flash" in error_str or "flash_attention" in error_str:
