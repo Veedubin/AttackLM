@@ -1926,16 +1926,30 @@ def main() -> None:
                 # identical to standard Qwen2.5-Coder, just abliterated weights.
                 # The standard Qwen2ForCausalLM class respects torch_dtype.
                 if args.use_galore:
-                    # transformers 5.x: use dtype= (not torch_dtype= which is
-                    # deprecated). The model weights DO load in bf16 correctly
-                    # — the OOM is from per-layer optimizer overhead, not fp32
-                    # weights. See HF issue #40678 for dtype behavior.
+                    # device_map="auto" + dtype= don't work together in
+                    # transformers 5.10.2 — the model loads in fp32 on GPU.
+                    # Fix: load to CPU with explicit dtype, then move to GPU.
+                    # No dual allocation: CPU fp32 → CPU bf16 → gc → GPU bf16.
+                    load_kwargs.pop("device_map", None)
+                    load_kwargs["torch_dtype"] = torch_dtype
                     load_kwargs["trust_remote_code"] = False
                     load_kwargs["low_cpu_mem_usage"] = True
-                    print(f"  GaLore: trust_remote_code=False, dtype={compute_type}")
+                    print(f"  GaLore: loading to CPU with torch_dtype={compute_type}")
                 model = AutoModelForCausalLM.from_pretrained(
                     base_model_resolved, **load_kwargs
                 )
+                if args.use_galore:
+                    import gc as _gc
+
+                    model = model.to("cuda")
+                    _gc.collect()
+                    if is_cuda():
+                        torch.cuda.empty_cache()
+                    free_gb, total_gb = gpu_mem_info()
+                    print(
+                        f"  GaLore: model on GPU "
+                        f"({free_gb:.1f}GB free / {total_gb:.1f}GB total)"
+                    )
         except (ImportError, ValueError, ModuleNotFoundError) as e:
             error_str = str(e).lower()
             if "flash" in error_str or "flash_attention" in error_str:
