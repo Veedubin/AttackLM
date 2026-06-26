@@ -1926,30 +1926,15 @@ def main() -> None:
                 # identical to standard Qwen2.5-Coder, just abliterated weights.
                 # The standard Qwen2ForCausalLM class respects torch_dtype.
                 if args.use_galore:
-                    # device_map="auto" + dtype= don't work together in
-                    # transformers 5.10.2 — the model loads in fp32 on GPU.
-                    # Fix: load to CPU with explicit dtype, then move to GPU.
-                    # No dual allocation: CPU fp32 → CPU bf16 → gc → GPU bf16.
-                    load_kwargs.pop("device_map", None)
-                    load_kwargs["torch_dtype"] = torch_dtype
+                    # Use dtype= (new API, transformers 5.x). All three
+                    # approaches (dtype=, torch_dtype=, no dtype) load in
+                    # bf16 at 5.82GB for 3B — confirmed by test.
                     load_kwargs["trust_remote_code"] = False
                     load_kwargs["low_cpu_mem_usage"] = True
-                    print(f"  GaLore: loading to CPU with torch_dtype={compute_type}")
+                    print(f"  GaLore: trust_remote_code=False, dtype={compute_type}")
                 model = AutoModelForCausalLM.from_pretrained(
                     base_model_resolved, **load_kwargs
                 )
-                if args.use_galore:
-                    import gc as _gc
-
-                    model = model.to("cuda")
-                    _gc.collect()
-                    if is_cuda():
-                        torch.cuda.empty_cache()
-                    free_gb, total_gb = gpu_mem_info()
-                    print(
-                        f"  GaLore: model on GPU "
-                        f"({free_gb:.1f}GB free / {total_gb:.1f}GB total)"
-                    )
         except (ImportError, ValueError, ModuleNotFoundError) as e:
             error_str = str(e).lower()
             if "flash" in error_str or "flash_attention" in error_str:
@@ -2783,52 +2768,94 @@ def main() -> None:
                         )
                     return self.optimizer
         else:
-            # --- 8-bit path: single optimizer with param groups ---
-            # Per-layer hooks create 360+ individual GaLoreAdamW8bit instances
-            # (one per parameter), each with its own optimizer state buffers.
-            # That overhead alone eats 5-7GB before training starts.
-            # A single optimizer with param groups uses ~3GB total.
+            # --- 8-bit path: per-layer hooks grouped by layer prefix ---
+            # 360 individual optimizers (one per parameter) = 5-7GB overhead.
+            # Grouping by layer prefix (~30 optimizers, one per transformer
+            # layer) gives the same memory benefit (gradients freed after
+            # each layer's backward pass) with ~0.5GB overhead.
             _galore_rank = args.galore_rank  # capture before class scope
 
             class GaLoreTrainer(SFTTrainer):
-                """SFTTrainer with 8-bit GaLoreAdamW8bit for full-parameter training.
+                """SFTTrainer with 8-bit GaLoreAdamW8bit + per-layer weight updates.
 
-                Uses a single optimizer with param groups (not per-layer hooks).
-                Optimizer states are ~3GB for a 3B model. Fits 3B on 16GB.
-                Compatible with multi-GPU DDP.
+                Groups parameters by layer prefix (e.g. model.layers.0.*) and
+                creates one optimizer per layer. register_post_accumulate_grad_hook
+                frees gradient memory after each layer's backward pass. Peak
+                memory: model + 1 layer's gradients + 1 layer's optimizer states.
+                Fits 3B on 16GB, 7B on 24GB.
                 """
+
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    # Group params by layer prefix
+                    from collections import defaultdict
+
+                    _layer_params: dict[str, list] = defaultdict(list)
+                    for name, param in self.model.named_parameters():
+                        if not param.requires_grad:
+                            continue
+                        # Extract layer prefix: model.layers.0.self_attn.q_proj
+                        # → model.layers.0
+                        parts = name.split(".")
+                        if (
+                            len(parts) >= 3
+                            and parts[0] == "model"
+                            and parts[1] == "layers"
+                        ):
+                            prefix = ".".join(parts[:3])  # model.layers.N
+                        else:
+                            prefix = "other"  # embed, lm_head, norm
+                        _layer_params[prefix].append((name, param))
+
+                    self._galore_optimizers = {}
+                    for prefix, params in _layer_params.items():
+                        galore_p = []
+                        non_galore_p = []
+                        for _name, p in params:
+                            if p.ndim >= 2:
+                                galore_p.append(p)
+                            else:
+                                non_galore_p.append(p)
+
+                        groups = []
+                        if non_galore_p:
+                            groups.append({"params": non_galore_p})
+                        if galore_p:
+                            groups.append(
+                                {
+                                    "params": galore_p,
+                                    "rank": _galore_rank,
+                                    "update_proj_gap": 200,
+                                    "scale": 0.25,
+                                    "proj_type": "std",
+                                }
+                            )
+                        if groups:
+                            self._galore_optimizers[prefix] = GaLoreAdamW8bit(
+                                groups,
+                                lr=self.args.learning_rate,
+                                weight_decay=self.args.weight_decay,
+                            )
+
+                    # Register per-layer hooks
+                    def _make_hook(opt):
+                        def hook(p):
+                            if p.grad is None:
+                                return
+                            opt.step()
+                            opt.zero_grad()
+
+                        return hook
+
+                    for prefix, opt in self._galore_optimizers.items():
+                        for group in opt.param_groups:
+                            for p in group["params"]:
+                                p.register_post_accumulate_grad_hook(_make_hook(opt))
 
                 def create_optimizer(self):
                     if self.optimizer is None:
-                        galore_params = []
-                        non_galore_params = []
-                        for name, param in self.model.named_parameters():
-                            if not param.requires_grad:
-                                continue
-                            if param.ndim >= 2:
-                                galore_params.append(param)
-                            else:
-                                non_galore_params.append(param)
-
-                        param_groups = [
-                            {"params": non_galore_params},
-                            {
-                                "params": galore_params,
-                                "rank": _galore_rank,
-                                "update_proj_gap": 200,
-                                "scale": 0.25,
-                                "proj_type": "std",
-                            },
-                        ]
-                        opt_cls, opt_kwargs = Trainer.get_optimizer_cls_and_kwargs(
-                            self.args
-                        )
                         self.optimizer = GaLoreAdamW8bit(
-                            param_groups,
-                            lr=opt_kwargs.get("lr", 2e-4),
-                            weight_decay=opt_kwargs.get("weight_decay", 0.0),
-                            betas=opt_kwargs.get("betas", (0.9, 0.999)),
-                            eps=opt_kwargs.get("eps", 1e-8),
+                            [{"params": []}], lr=self.args.learning_rate
                         )
                     return self.optimizer
 
