@@ -1920,31 +1920,18 @@ def main() -> None:
             else:
                 # GaLore: force bf16/fp16 at config level so from_pretrained
                 # never allocates fp32. Some models (e.g. huihui-ai abliterated)
-                # have torch_dtype=float32 in config.json which overrides the
-                # dtype kwarg. We also use low_cpu_mem_usage=True to create
-                # the model directly in the target dtype (no fp32 intermediate).
+                # have torch_dtype=float32 in config.json AND custom modeling
+                # code that ignores the dtype kwarg. Solution: load with
+                # trust_remote_code=False — the model is architecturally
+                # identical to standard Qwen2.5-Coder, just abliterated weights.
+                # The standard Qwen2ForCausalLM class respects torch_dtype.
                 if args.use_galore:
-                    from transformers import AutoConfig
-
-                    _cfg = AutoConfig.from_pretrained(
-                        base_model_resolved, trust_remote_code=True
-                    )
-                    # compute_type is "bf16"/"fp16"/"fp32" — config.torch_dtype
-                    # needs the full name: "bfloat16", "float16", "float32"
-                    _dtype_map = {
-                        "bf16": "bfloat16",
-                        "fp16": "float16",
-                        "fp32": "float32",
-                    }
-                    _cfg.torch_dtype = _dtype_map.get(compute_type, "bfloat16")
-                    load_kwargs["config"] = _cfg
-                    # low_cpu_mem_usage creates the model directly in the
-                    # target dtype — no fp32 intermediate allocation on CPU
-                    # or GPU. Critical for 16GB cards.
+                    load_kwargs["trust_remote_code"] = False
+                    load_kwargs["torch_dtype"] = torch_dtype
                     load_kwargs["low_cpu_mem_usage"] = True
                     print(
-                        f"  GaLore: forcing config.torch_dtype={_cfg.torch_dtype} "
-                        f"(low_cpu_mem_usage=True, prevents fp32 allocation)"
+                        f"  GaLore: trust_remote_code=False, torch_dtype={compute_type} "
+                        f"(bypasses custom modeling code that forces fp32)"
                     )
                 model = AutoModelForCausalLM.from_pretrained(
                     base_model_resolved, **load_kwargs
