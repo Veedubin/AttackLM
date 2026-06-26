@@ -2783,6 +2783,8 @@ def main() -> None:
                     return self.optimizer
         else:
             # --- 8-bit path: per-layer hooks, single-GPU only ---
+            _galore_rank = args.galore_rank  # capture before class scope
+
             class GaLoreTrainer(SFTTrainer):
                 """SFTTrainer with 8-bit GaLoreAdamW8bit + per-layer weight updates.
 
@@ -2805,7 +2807,7 @@ def main() -> None:
                                 [
                                     {
                                         "params": [param],
-                                        "rank": args.galore_rank,
+                                        "rank": _galore_rank,
                                         "update_proj_gap": 200,
                                         "scale": 0.25,
                                         "proj_type": "std",
