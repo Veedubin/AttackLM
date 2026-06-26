@@ -1926,26 +1926,16 @@ def main() -> None:
                 # identical to standard Qwen2.5-Coder, just abliterated weights.
                 # The standard Qwen2ForCausalLM class respects torch_dtype.
                 if args.use_galore:
-                    # Nuclear option: set global default dtype to bf16.
-                    # from_pretrained() ignores dtype=, torch_dtype=, AND
-                    # config.torch_dtype when the model's _init_weights
-                    # method creates tensors with torch.empty() (which uses
-                    # the global default). Setting torch.set_default_dtype
-                    # forces ALL allocations to use bf16.
-                    _orig_default_dtype = torch.get_default_dtype()
-                    torch.set_default_dtype(torch_dtype)
+                    # transformers 5.x: use dtype= (not torch_dtype= which is
+                    # deprecated). The model weights DO load in bf16 correctly
+                    # — the OOM is from per-layer optimizer overhead, not fp32
+                    # weights. See HF issue #40678 for dtype behavior.
                     load_kwargs["trust_remote_code"] = False
                     load_kwargs["low_cpu_mem_usage"] = True
-                    print(
-                        f"  GaLore: torch.set_default_dtype({compute_type}) "
-                        f"(forces bf16 for all tensor allocations)"
-                    )
+                    print(f"  GaLore: trust_remote_code=False, dtype={compute_type}")
                 model = AutoModelForCausalLM.from_pretrained(
                     base_model_resolved, **load_kwargs
                 )
-                if args.use_galore:
-                    torch.set_default_dtype(_orig_default_dtype)
-                    print(f"  GaLore: restored default dtype to {_orig_default_dtype}")
         except (ImportError, ValueError, ModuleNotFoundError) as e:
             error_str = str(e).lower()
             if "flash" in error_str or "flash_attention" in error_str:
@@ -2729,7 +2719,7 @@ def main() -> None:
         _hook_label = (
             "standard (multi-GPU compatible)"
             if _use_32bit
-            else "per-layer hooks (single-GPU optimized)"
+            else "single optimizer + param groups"
         )
 
         print(f"  GaLore optimizer:    {_bits_label} GaLoreAdamW")
@@ -2779,63 +2769,52 @@ def main() -> None:
                         )
                     return self.optimizer
         else:
-            # --- 8-bit path: per-layer hooks, single-GPU only ---
+            # --- 8-bit path: single optimizer with param groups ---
+            # Per-layer hooks create 360+ individual GaLoreAdamW8bit instances
+            # (one per parameter), each with its own optimizer state buffers.
+            # That overhead alone eats 5-7GB before training starts.
+            # A single optimizer with param groups uses ~3GB total.
             _galore_rank = args.galore_rank  # capture before class scope
 
             class GaLoreTrainer(SFTTrainer):
-                """SFTTrainer with 8-bit GaLoreAdamW8bit + per-layer weight updates.
+                """SFTTrainer with 8-bit GaLoreAdamW8bit for full-parameter training.
 
-                Uses register_post_accumulate_grad_hook to free gradient memory
-                after each layer's backward pass. Optimizer states are ~3GB for
-                a 3B model. Fits 3B on 16GB, 7B on 24GB.
-
-                NOT compatible with multi-GPU DDP — per-layer hooks fire before
-                the gradient all-reduce. Use --galore-32bit for multi-GPU.
+                Uses a single optimizer with param groups (not per-layer hooks).
+                Optimizer states are ~3GB for a 3B model. Fits 3B on 16GB.
+                Compatible with multi-GPU DDP.
                 """
-
-                def __init__(self, *args, **kwargs):
-                    super().__init__(*args, **kwargs)
-                    self._galore_optimizers = {}
-                    for name, param in self.model.named_parameters():
-                        if not param.requires_grad:
-                            continue
-                        if param.ndim >= 2:
-                            self._galore_optimizers[param] = GaLoreAdamW8bit(
-                                [
-                                    {
-                                        "params": [param],
-                                        "rank": _galore_rank,
-                                        "update_proj_gap": 200,
-                                        "scale": 0.25,
-                                        "proj_type": "std",
-                                    }
-                                ],
-                                lr=self.args.learning_rate,
-                                weight_decay=self.args.weight_decay,
-                            )
-                        else:
-                            self._galore_optimizers[param] = GaLoreAdamW8bit(
-                                [{"params": [param]}],
-                                lr=self.args.learning_rate,
-                                weight_decay=self.args.weight_decay,
-                            )
-
-                    def _make_hook(opt):
-                        def hook(p):
-                            if p.grad is None:
-                                return
-                            opt.step()
-                            opt.zero_grad()
-
-                        return hook
-
-                    for p, opt in self._galore_optimizers.items():
-                        p.register_post_accumulate_grad_hook(_make_hook(opt))
 
                 def create_optimizer(self):
                     if self.optimizer is None:
+                        galore_params = []
+                        non_galore_params = []
+                        for name, param in self.model.named_parameters():
+                            if not param.requires_grad:
+                                continue
+                            if param.ndim >= 2:
+                                galore_params.append(param)
+                            else:
+                                non_galore_params.append(param)
+
+                        param_groups = [
+                            {"params": non_galore_params},
+                            {
+                                "params": galore_params,
+                                "rank": _galore_rank,
+                                "update_proj_gap": 200,
+                                "scale": 0.25,
+                                "proj_type": "std",
+                            },
+                        ]
+                        opt_cls, opt_kwargs = Trainer.get_optimizer_cls_and_kwargs(
+                            self.args
+                        )
                         self.optimizer = GaLoreAdamW8bit(
-                            [{"params": []}], lr=self.args.learning_rate
+                            param_groups,
+                            lr=opt_kwargs.get("lr", 2e-4),
+                            weight_decay=opt_kwargs.get("weight_decay", 0.0),
+                            betas=opt_kwargs.get("betas", (0.9, 0.999)),
+                            eps=opt_kwargs.get("eps", 1e-8),
                         )
                     return self.optimizer
 
