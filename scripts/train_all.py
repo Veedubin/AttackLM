@@ -426,6 +426,8 @@ def build_train_cmd(
         cmd.append("--moe-safe-target")
     if getattr(args, "use_unsloth", False):
         cmd.append("--use-unsloth")
+    if getattr(args, "use_galore", False):
+        cmd.append("--use-galore")
     # v0.1.6+: pass dataset specs so train_template can record them in
     # state.json[dataset.specs] (reproducibility).
     if dataset_specs:
@@ -750,6 +752,16 @@ def main():
         default=False,
         help="Use Unsloth's optimized model loading and LoRA kernels "
         "(2-5x faster, 70% less VRAM). Requires 'pip install unsloth'. "
+        "Passed through to train_template.py (default: OFF).",
+    )
+    parser.add_argument(
+        "--use-galore",
+        action="store_true",
+        default=False,
+        help="Use GaLore (Gradient Low-Rank Projection) for full-parameter "
+        "fine-tuning. GaLore projects gradients into a low-rank space, "
+        "enabling full-parameter learning on consumer GPUs. Mutually "
+        "exclusive with --use-unsloth. Requires 'pip install galore-torch'. "
         "Passed through to train_template.py (default: OFF).",
     )
     # ---- Experience replay flags ----

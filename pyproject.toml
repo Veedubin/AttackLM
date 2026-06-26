@@ -196,6 +196,15 @@ convert = [
 unsloth = [
     "unsloth>=2026.6",
 ]
+# GaLore: Gradient Low-Rank Projection for full-parameter fine-tuning.
+# Enables full-parameter learning on consumer GPUs by projecting
+# gradients into a low-rank space during optimization.
+# Mutually exclusive with Unsloth and QLoRA — GaLore trains ALL parameters.
+# Install: uv pip install attacklm[galore]
+# Then use: attacklm-train-all --use-galore ...
+galore = [
+    "galore-torch>=1.0",
+]
 dev = [
     "pytest",
     "ruff",

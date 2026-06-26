@@ -369,6 +369,20 @@ Examples:
             "Default: OFF (standard HF QLoRA)."
         ),
     )
+    parser.add_argument(
+        "--use-galore",
+        action="store_true",
+        default=False,
+        help=(
+            "Use GaLore (Gradient Low-Rank Projection) for full-parameter "
+            "fine-tuning. GaLore projects gradients into a low-rank space "
+            "during optimization, enabling full-parameter learning on "
+            "consumer GPUs without LoRA adapters. Mutually exclusive with "
+            "--use-unsloth (GaLore trains ALL parameters, no LoRA needed). "
+            "Requires 'uv pip install attacklm[galore]' or "
+            "'pip install galore-torch'. Default: OFF (standard QLoRA)."
+        ),
+    )
 
     return parser.parse_args()
 
@@ -1448,6 +1462,11 @@ def main() -> None:
     _unsloth_display = (
         "ON (FastLanguageModel + optimized LoRA kernels)" if args.use_unsloth else "OFF"
     )
+    _galore_display = (
+        "ON (full-parameter, rank=128, update_proj_gap=200, scale=0.25)"
+        if args.use_galore
+        else "OFF"
+    )
 
     print("=" * 60)
     print(" TRAINING PLAN")
@@ -1455,19 +1474,25 @@ def main() -> None:
     print(f"  Model:              {args.base_model}")
     if args.use_unsloth:
         print("  Quantization:       4-bit (Unsloth internal)")
+    elif args.use_galore:
+        print("  Quantization:       NONE (bf16 full-parameter for GaLore)")
     elif not args.moe_safe_target:
         print("  Quantization:       4-bit NF4 (double quant)")
     else:
         print("  Quantization:       NONE (bf16 full-precision for MoE)")
-    print(f"  LoRA rank:          {args.lora_r}")
-    print(f"  LoRA alpha:         {args.lora_alpha}")
-    print(f"  LoRA dropout:       {args.lora_dropout}")
-    print(f"  Target modules:     {_tm_display}")
-    print(f"  RSLoRA:             {_rslora_display}")
-    print(f"  DoRA:               {_dora_display}")
-    print(f"  LoftQ init:         {_loftq_display}")
+    if args.use_galore:
+        print("  Training mode:      GaLore full-parameter (no LoRA)")
+    else:
+        print(f"  LoRA rank:          {args.lora_r}")
+        print(f"  LoRA alpha:         {args.lora_alpha}")
+        print(f"  LoRA dropout:       {args.lora_dropout}")
+        print(f"  Target modules:     {_tm_display}")
+        print(f"  RSLoRA:             {_rslora_display}")
+        print(f"  DoRA:               {_dora_display}")
+        print(f"  LoftQ init:         {_loftq_display}")
     print(f"  MoE-safe target:    {_moe_display}")
     print(f"  Unsloth:            {_unsloth_display}")
+    print(f"  GaLore:             {_galore_display}")
     print(f"  Epochs:             {args.epochs}")
     print(f"  Batch size:         {args.batch_size}")
     print(f"  Max seq length:     {args.max_length}")
@@ -1508,6 +1533,12 @@ def main() -> None:
             print("    ~4-5 GB VRAM at batch_size=2, max_length=2048")
             print("    ~3-4 GB VRAM at batch_size=1, max_length=1024")
             print("    ~13B model fits in 16GB with Unsloth QLoRA")
+        if args.use_galore:
+            print("")
+            print("  With --use-galore (full-parameter training):")
+            print("    ~10-12 GB VRAM at batch_size=1, max_length=2048 (3B model)")
+            print("    ~14-16 GB VRAM at batch_size=1, max_length=2048 (7B model)")
+            print("    GaLore trains ALL parameters — no LoRA adapters needed")
         print("=" * 60)
         return
 
@@ -1599,6 +1630,16 @@ def main() -> None:
         # Non-fatal — we can still train, we just lose the resume signal
         print(f"  (Skipped state.json write: {e})")
 
+    # --- Mutual exclusivity: GaLore vs Unsloth ---
+    if args.use_galore and args.use_unsloth:
+        print(
+            "ERROR: --use-galore and --use-unsloth are mutually exclusive.\n"
+            "  GaLore is full-parameter training (no LoRA adapters).\n"
+            "  Unsloth is optimized QLoRA (LoRA adapters on quantized base).\n"
+            "  Choose one: --use-galore OR --use-unsloth, not both."
+        )
+        sys.exit(1)
+
     # --- Unsloth: import BEFORE transformers/peft/trl (required for optimizations) ---
     _unsloth_available = False
     if args.use_unsloth:
@@ -1613,6 +1654,22 @@ def main() -> None:
                 "ERROR: --use-unsloth requires the 'unsloth' package.\n"
                 "  Install: uv pip install attacklm[unsloth]\n"
                 "  Or:      pip install unsloth"
+            )
+            sys.exit(1)
+
+    # --- GaLore: import galore-torch for full-parameter training ---
+    _galore_available = False
+    if args.use_galore:
+        try:
+            from galore_torch import GaLoreAdamW  # noqa: F401
+
+            _galore_available = True
+            print("  GaLore: loaded (GaLoreAdamW available)")
+        except ImportError:
+            print(
+                "ERROR: --use-galore requires the 'galore-torch' package.\n"
+                "  Install: uv pip install attacklm[galore]\n"
+                "  Or:      pip install galore-torch"
             )
             sys.exit(1)
 
@@ -1662,7 +1719,9 @@ def main() -> None:
     # attention + MLP modules (excluding router/gate/lm_head).
     # --use-unsloth: Unsloth handles quantization internally via its own
     # load_in_4bit parameter. We skip BitsAndBytes entirely.
-    skip_quantization = args.moe_safe_target or args.use_unsloth
+    # --use-galore: GaLore is full-parameter training — no quantization
+    # needed. Model is loaded in bf16/fp16 for full-parameter updates.
+    skip_quantization = args.moe_safe_target or args.use_unsloth or args.use_galore
 
     if skip_quantization:
         bnb_config = None  # No quantization for MoE-safe or Unsloth mode
@@ -1979,64 +2038,74 @@ def main() -> None:
             print(f"\nERROR: Failed to load model: {e}")
         sys.exit(1)
 
-    # --- Apply LoRA ---
-    print("Applying LoRA adapter...")
-
-    # Note: target_modules_list and init_lora_weights were resolved earlier
-    # (before training plan display) so they can appear in the plan output.
-    # The LoftQ warning for pre-quantized models was also printed earlier.
-
-    if args.use_unsloth and _unsloth_available:
-        # Unsloth LoRA path: FastLanguageModel.get_peft_model uses
-        # optimized Triton kernels for 2-5x faster training and
-        # 70% less VRAM than standard HF PEFT.
-        print("  Unsloth: applying optimized LoRA via FastLanguageModel.get_peft_model")
-        model = FastLanguageModel.get_peft_model(
-            model,
-            r=args.lora_r,
-            lora_alpha=args.lora_alpha,
-            lora_dropout=args.lora_dropout,
-            target_modules=target_modules_list
-            or [
-                "q_proj",
-                "k_proj",
-                "v_proj",
-                "o_proj",
-                "gate_proj",
-                "up_proj",
-                "down_proj",
-            ],
-            use_gradient_checkpointing="unsloth",  # Unsloth's optimized checkpointing
-            random_state=42,
-            use_rslora=args.use_rslora,
-            loftq_config=None,  # Unsloth handles quantization internally
-        )
-        if args.use_dora:
-            print(
-                "  WARNING: DoRA not supported by Unsloth's get_peft_model. "
-                "Falling back to standard LoRA. Use --no-use-unsloth for DoRA."
-            )
+    # --- Apply LoRA (or skip for GaLore full-parameter training) ---
+    if args.use_galore and _galore_available:
+        # GaLore: full-parameter training — no LoRA adapter needed.
+        # GaLore projects gradients into a low-rank space during optimization,
+        # so ALL model parameters are trained directly. No PEFT wrapping.
+        print("GaLore: full-parameter training (no LoRA adapter)")
+        print("  Trainable parameters: ALL (full-parameter via GaLore projection)")
+        # model.print_trainable_parameters() would show 100% — skip it
     else:
-        lora_config = get_qlora_config(
-            lora_r=args.lora_r,
-            lora_alpha=args.lora_alpha,
-            lora_dropout=args.lora_dropout,
-            use_rslora=args.use_rslora,
-            target_modules=target_modules_list,
-            use_dora=args.use_dora,
-            init_lora_weights=init_lora_weights,
-        )
+        print("Applying LoRA adapter...")
 
-        if args.use_dora:
-            print("  DoRA/QDoRA enabled (use_dora=True)")
-        if args.use_rslora:
-            print("  RSLoRA enabled (use_rslora=True)")
+        # Note: target_modules_list and init_lora_weights were resolved earlier
+        # (before training plan display) so they can appear in the plan output.
+        # The LoftQ warning for pre-quantized models was also printed earlier.
+
+        if args.use_unsloth and _unsloth_available:
+            # Unsloth LoRA path: FastLanguageModel.get_peft_model uses
+            # optimized Triton kernels for 2-5x faster training and
+            # 70% less VRAM than standard HF PEFT.
+            print(
+                "  Unsloth: applying optimized LoRA via FastLanguageModel.get_peft_model"
+            )
+            model = FastLanguageModel.get_peft_model(
+                model,
+                r=args.lora_r,
+                lora_alpha=args.lora_alpha,
+                lora_dropout=args.lora_dropout,
+                target_modules=target_modules_list
+                or [
+                    "q_proj",
+                    "k_proj",
+                    "v_proj",
+                    "o_proj",
+                    "gate_proj",
+                    "up_proj",
+                    "down_proj",
+                ],
+                use_gradient_checkpointing="unsloth",  # Unsloth's optimized checkpointing
+                random_state=42,
+                use_rslora=args.use_rslora,
+                loftq_config=None,  # Unsloth handles quantization internally
+            )
+            if args.use_dora:
+                print(
+                    "  WARNING: DoRA not supported by Unsloth's get_peft_model. "
+                    "Falling back to standard LoRA. Use --no-use-unsloth for DoRA."
+                )
         else:
-            print("  RSLoRA disabled (classic LoRA scaling alpha/r)")
+            lora_config = get_qlora_config(
+                lora_r=args.lora_r,
+                lora_alpha=args.lora_alpha,
+                lora_dropout=args.lora_dropout,
+                use_rslora=args.use_rslora,
+                target_modules=target_modules_list,
+                use_dora=args.use_dora,
+                init_lora_weights=init_lora_weights,
+            )
 
-        model = get_peft_model(model, lora_config)
+            if args.use_dora:
+                print("  DoRA/QDoRA enabled (use_dora=True)")
+            if args.use_rslora:
+                print("  RSLoRA enabled (use_rslora=True)")
+            else:
+                print("  RSLoRA disabled (classic LoRA scaling alpha/r)")
 
-    model.print_trainable_parameters()
+            model = get_peft_model(model, lora_config)
+
+        model.print_trainable_parameters()
 
     # --- Formatting function for chat template ---
     # Unsloth's SFTTrainer may pass a single example (dict of lists)
@@ -2579,19 +2648,102 @@ def main() -> None:
         hpo_callbacks.append(HPOMetricsCSVCallback(args.hpo_metrics_csv, hpo_label))
         print(f"\n  HPO metrics CSV: {args.hpo_metrics_csv}  (label={hpo_label})")
 
-    trainer = SFTTrainer(
-        model=model,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        args=training_args,
-        formatting_func=formatting_func,
-        callbacks=[
-            EarlyStoppingCallback(early_stopping_patience=args.early_stopping_patience),
-            GCEpochCallback(),
-            LiveProgressCallback(),
-            *hpo_callbacks,
-        ],
-    )
+    # --- GaLore: use custom trainer with GaLoreAdamW optimizer ---
+    if args.use_galore and _galore_available:
+        from transformers import Trainer
+        from galore_torch import GaLoreAdamW
+
+        class GaLoreTrainer(SFTTrainer):
+            """SFTTrainer subclass that uses GaLoreAdamW for full-parameter training.
+
+            GaLore (Gradient Low-Rank Projection) projects gradients into a
+            low-rank space during optimization, enabling full-parameter learning
+            on consumer GPUs. This trainer overrides create_optimizer() to use
+            GaLoreAdamW instead of the standard HF optimizer.
+
+            Key hyperparameters (tuned for 3B-7B models):
+              - rank=128: projection rank (higher = more capacity, more VRAM)
+              - update_proj_gap=200: steps between SVD recomputation
+              - scale=0.25: gradient scaling factor
+              - proj_type='std': standard SVD-based projection
+            """
+
+            def create_optimizer(self):
+                """Override to use GaLoreAdamW with gradient low-rank projection.
+
+                Separates parameters into two groups:
+                  - 2D params (weight matrices): GaLore projection applied
+                  - 1D params (biases, norms, embeddings): standard AdamW
+                """
+                if self.optimizer is None:
+                    galore_params = []
+                    non_galore_params = []
+
+                    for name, param in self.model.named_parameters():
+                        if not param.requires_grad:
+                            continue
+                        # Apply GaLore to 2D weight matrices (linear layers,
+                        # attention projections). Skip 1D params (biases,
+                        # layer norms, embeddings) — they get standard AdamW.
+                        if param.ndim >= 2:
+                            galore_params.append(param)
+                        else:
+                            non_galore_params.append(param)
+
+                    param_groups = [
+                        {"params": non_galore_params},
+                        {
+                            "params": galore_params,
+                            "rank": 128,
+                            "update_proj_gap": 200,
+                            "scale": 0.25,
+                            "proj_type": "std",
+                        },
+                    ]
+
+                    optimizer_cls, optimizer_kwargs = (
+                        Trainer.get_optimizer_cls_and_kwargs(self.args)
+                    )
+                    self.optimizer = GaLoreAdamW(
+                        param_groups,
+                        lr=optimizer_kwargs.get("lr", 2e-4),
+                        weight_decay=optimizer_kwargs.get("weight_decay", 0.0),
+                        betas=optimizer_kwargs.get("betas", (0.9, 0.999)),
+                        eps=optimizer_kwargs.get("eps", 1e-8),
+                    )
+                return self.optimizer
+
+        trainer = GaLoreTrainer(
+            model=model,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            args=training_args,
+            formatting_func=formatting_func,
+            callbacks=[
+                EarlyStoppingCallback(
+                    early_stopping_patience=args.early_stopping_patience
+                ),
+                GCEpochCallback(),
+                LiveProgressCallback(),
+                *hpo_callbacks,
+            ],
+        )
+    else:
+        trainer = SFTTrainer(
+            model=model,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            args=training_args,
+            formatting_func=formatting_func,
+            callbacks=[
+                EarlyStoppingCallback(
+                    early_stopping_patience=args.early_stopping_patience
+                ),
+                GCEpochCallback(),
+                LiveProgressCallback(),
+                *hpo_callbacks,
+            ],
+        )
 
     # --- OOM fix #3: Clear CUDA cache + Python GC right before training ---
     # Even with expandable_segments, the model+LoRA+optimizer load leaves some
@@ -2665,10 +2817,9 @@ def main() -> None:
             print(f"\nERROR: Training failed: {e}")
         sys.exit(1)
 
-    # --- Save the best LoRA adapter ---
-    # EarlyStoppingCallback tracks the best checkpoint but doesn't write it
-    # to disk with the final adapter. We must save explicitly from the
-    # in-memory model so the adapter is loadable for inference / merge.
+    # --- Save the model ---
+    # For GaLore: save the full model (all parameters were trained).
+    # For QLoRA/Unsloth: save the LoRA adapter only.
     elapsed = time.time() - start_time
     final_loss = train_result.training_loss
     best_metric = getattr(train_result, "metrics", {}).get("eval_loss", "unknown")
@@ -2677,7 +2828,10 @@ def main() -> None:
     # use train_result.metrics["epoch"] for that because HF rounds it
     # to an int and we want the fractional value from log_history.
 
-    print(f"\nSaving best LoRA adapter to: {args.output}")
+    if args.use_galore and _galore_available:
+        print(f"\nSaving GaLore full-parameter model to: {args.output}")
+    else:
+        print(f"\nSaving best LoRA adapter to: {args.output}")
     os.makedirs(args.output, exist_ok=True)
     model.save_pretrained(args.output)
     tokenizer.save_pretrained(args.output)
@@ -2686,6 +2840,9 @@ def main() -> None:
     config = {
         "base_model": args.base_model,
         "dataset": args.dataset,
+        "training_mode": "galore_full_parameter"
+        if (args.use_galore and _galore_available)
+        else "qlora",
         "lora_r": args.lora_r,
         "lora_alpha": args.lora_alpha,
         "lora_dropout": args.lora_dropout,
@@ -2703,20 +2860,33 @@ def main() -> None:
         "use_dora": args.use_dora,
         "init_lora_weights": init_lora_weights,
         "moe_safe_target": args.moe_safe_target,
+        "use_unsloth": args.use_unsloth,
+        "use_galore": args.use_galore,
         "quantization": "4-bit NF4 double-quantized"
         if not skip_quantization
-        else "none (bf16 full-precision for MoE)",
+        else (
+            "none (bf16 full-parameter for GaLore)"
+            if (args.use_galore and _galore_available)
+            else "none (bf16 full-precision for MoE)"
+        ),
         "epochs": args.epochs,
         "batch_size": args.batch_size,
         "max_length": args.max_length,
         "gradient_checkpointing": True,
         "packing": args.packing,
         "compute_dtype": compute_type,
-        "optimizer": args.optim,
+        "optimizer": "galore_adamw"
+        if (args.use_galore and _galore_available)
+        else args.optim,
         "final_loss": final_loss,
         "training_time_seconds": round(elapsed, 2),
         "num_examples": len(dataset),
     }
+    if args.use_galore and _galore_available:
+        config["galore_rank"] = 128
+        config["galore_update_proj_gap"] = 200
+        config["galore_scale"] = 0.25
+        config["galore_proj_type"] = "std"
 
     config_path = os.path.join(args.output, "config.json")
     with open(config_path, "w", encoding="utf-8") as f:
@@ -2858,8 +3028,17 @@ def main() -> None:
     )
     print(f"  Config written to:   {config_path}")
     print("=" * 60)
-    print("\nTo load the trained adapter for inference:")
-    print(f"""
+    if args.use_galore and _galore_available:
+        print("\nTo load the GaLore-trained full model for inference:")
+        print(f"""
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    model = AutoModelForCausalLM.from_pretrained("{args.output}", device_map="auto")
+    tokenizer = AutoTokenizer.from_pretrained("{args.output}")
+    """)
+    else:
+        print("\nTo load the trained adapter for inference:")
+        print(f"""
     from peft import PeftModel
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
