@@ -1907,15 +1907,26 @@ def main() -> None:
                     print("  Fixed tokenizer: reset eos_token to '</s>' (was invalid)")
                 print("  Unsloth: model loaded with internal 4-bit quantization")
             else:
+                # GaLore: force bf16/fp16 at config level so from_pretrained
+                # never allocates fp32. Some models (e.g. huihui-ai abliterated)
+                # have torch_dtype=float32 in config.json which overrides the
+                # dtype kwarg. model.to() after load creates a second copy
+                # (fp32 + bf16 = 18GB for 3B → OOM on 16GB).
+                if args.use_galore:
+                    from transformers import AutoConfig
+
+                    _cfg = AutoConfig.from_pretrained(
+                        base_model_resolved, trust_remote_code=True
+                    )
+                    _cfg.torch_dtype = compute_type
+                    load_kwargs["config"] = _cfg
+                    print(
+                        f"  GaLore: forcing config.torch_dtype={compute_type} "
+                        f"(prevents fp32 allocation)"
+                    )
                 model = AutoModelForCausalLM.from_pretrained(
                     base_model_resolved, **load_kwargs
                 )
-                # Force dtype: some models (e.g. huihui-ai abliterated) have
-                # torch_dtype=float32 in config.json which overrides the
-                # dtype kwarg. Explicit .to() ensures bf16/fp16 for GaLore.
-                if args.use_galore:
-                    model = model.to(torch_dtype)
-                    print(f"  GaLore: forced model dtype to {compute_type}")
         except (ImportError, ValueError, ModuleNotFoundError) as e:
             error_str = str(e).lower()
             if "flash" in error_str or "flash_attention" in error_str:
