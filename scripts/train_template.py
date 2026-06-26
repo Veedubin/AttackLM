@@ -1827,7 +1827,7 @@ def main() -> None:
         load_kwargs = dict(
             device_map="auto",
             trust_remote_code=True,
-            torch_dtype=torch_dtype,
+            dtype=torch_dtype,
         )
         # OOM fix #13: FlashAttention 2 for varlen (padding-free) support
         attn_impl = suggest_attn_implementation(args.packing)
@@ -1910,6 +1910,12 @@ def main() -> None:
                 model = AutoModelForCausalLM.from_pretrained(
                     base_model_resolved, **load_kwargs
                 )
+                # Force dtype: some models (e.g. huihui-ai abliterated) have
+                # torch_dtype=float32 in config.json which overrides the
+                # dtype kwarg. Explicit .to() ensures bf16/fp16 for GaLore.
+                if args.use_galore:
+                    model = model.to(torch_dtype)
+                    print(f"  GaLore: forced model dtype to {compute_type}")
         except (ImportError, ValueError, ModuleNotFoundError) as e:
             error_str = str(e).lower()
             if "flash" in error_str or "flash_attention" in error_str:
