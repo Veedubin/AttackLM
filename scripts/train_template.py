@@ -1837,7 +1837,7 @@ def main() -> None:
         load_kwargs = dict(
             device_map="auto",
             trust_remote_code=True,
-            torch_dtype=torch_dtype,
+            dtype=torch_dtype,
             low_cpu_mem_usage=True,
         )
         # OOM fix #13: FlashAttention 2 for varlen (padding-free) support
