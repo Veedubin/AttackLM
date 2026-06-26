@@ -428,6 +428,10 @@ def build_train_cmd(
         cmd.append("--use-unsloth")
     if getattr(args, "use_galore", False):
         cmd.append("--use-galore")
+    if getattr(args, "galore_32bit", False):
+        cmd.append("--galore-32bit")
+    if getattr(args, "multi_gpu", False):
+        cmd.append("--multi-gpu")
     # v0.1.6+: pass dataset specs so train_template can record them in
     # state.json[dataset.specs] (reproducibility).
     if dataset_specs:
@@ -762,6 +766,24 @@ def main():
         "fine-tuning. GaLore projects gradients into a low-rank space, "
         "enabling full-parameter learning on consumer GPUs. Mutually "
         "exclusive with --use-unsloth. Requires 'pip install galore-torch'. "
+        "Passed through to train_template.py (default: OFF).",
+    )
+    parser.add_argument(
+        "--galore-32bit",
+        action="store_true",
+        default=False,
+        help="Use 32-bit GaLoreAdamW instead of 8-bit GaLoreAdamW8bit. "
+        "Full-precision optimizer states (~12GB for 3B vs ~3GB for 8-bit). "
+        "Only meaningful with --use-galore. "
+        "Passed through to train_template.py (default: OFF).",
+    )
+    parser.add_argument(
+        "--multi-gpu",
+        action="store_true",
+        default=False,
+        help="Enable multi-GPU training via DDP. Auto-enables --galore-32bit "
+        "when combined with --use-galore (per-layer hooks incompatible "
+        "with DDP). Use torchrun or accelerate launch. "
         "Passed through to train_template.py (default: OFF).",
     )
     # ---- Experience replay flags ----
