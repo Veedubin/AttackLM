@@ -34,6 +34,10 @@ from pathlib import Path
 from typing import Any
 
 import torch
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
 # ---------------------------------------------------------------------------
 # OOM fix #1: PyTorch CUDA / ROCm allocator configuration
@@ -588,7 +592,10 @@ def read_state(output_dir: str) -> dict | None:
         with sp.open() as f:
             return json.load(f)
     except (OSError, json.JSONDecodeError) as e:
-        print(f"  WARNING: state.json at {sp} is unreadable ({e}); ignoring")
+        _c = Console(width=80)
+        _c.print(
+            f"[yellow]WARNING:[/yellow] state.json at {sp} is unreadable ({e}); ignoring"
+        )
         return None
 
 
@@ -746,7 +753,8 @@ def resolve_output_path(
 def check_python_version() -> None:
     """Ensure Python 3.9+ is available."""
     if sys.version_info < (3, 9):
-        print(f"ERROR: Python 3.9+ required, got {sys.version}")
+        _c = Console(width=80)
+        _c.print(f"[red]ERROR:[/red] Python 3.9+ required, got {sys.version}")
         sys.exit(1)
 
 
@@ -768,43 +776,48 @@ def check_gpu(args: argparse.Namespace | None = None) -> str:
         gpu_name_and_memory,
     )
 
+    _c = Console(width=80)
+
     print_hardware_banner()
 
     # --moe-safe-target forces bf16 (BnB 4-bit is incompatible with MoE
     # expert weights per Unsloth guidance)
     if args and getattr(args, "moe_safe_target", False):
-        print("Mixed precision: BF16 (forced by --moe-safe-target)")
+        _c.print("Mixed precision: [bold]BF16[/bold] (forced by --moe-safe-target)")
         return "bf16"
 
     # Explicit overrides (mutually exclusive group in argparse)
     if args and getattr(args, "fp32", False):
-        print("Mixed precision: FP32 (forced by --fp32)")
+        _c.print("Mixed precision: [bold]FP32[/bold] (forced by --fp32)")
         return "fp32"
     if args and getattr(args, "bf16", False):
-        print("Mixed precision: BF16 (forced by --bf16)")
+        _c.print("Mixed precision: [bold]BF16[/bold] (forced by --bf16)")
         return "bf16"
     if args and getattr(args, "fp16", False):
-        print("Mixed precision: FP16 (forced by --fp16)")
+        _c.print("Mixed precision: [bold]FP16[/bold] (forced by --fp16)")
         return "fp16"
 
     if not is_cuda():
         if is_mps():
-            print("Apple Silicon (MPS) detected — training will be very slow.")
+            _c.print(
+                "[yellow]WARNING:[/yellow] Apple Silicon (MPS) detected — training will be very slow."
+            )
             return "fp32"
-        print(
-            "WARNING: No CUDA / ROCm GPU detected. Training will be extremely slow on CPU."
+        _c.print(
+            "[yellow]WARNING:[/yellow] No CUDA / ROCm GPU detected. "
+            "Training will be extremely slow on CPU."
         )
-        print(
+        _c.print(
             "         Consider using Google Colab (T4/A100) or RunPod if you lack a local GPU."
         )
         return "fp32"
 
     gpu_name, gpu_mem = gpu_name_and_memory()
-    print(f"GPU: {gpu_name} ({gpu_mem:.1f} GB VRAM)")
+    _c.print(f"GPU: [bold]{gpu_name}[/bold] ({gpu_mem:.1f} GB VRAM)")
 
     if gpu_mem < 10:
-        print(f"WARNING: GPU has only {gpu_mem:.1f} GB VRAM.")
-        print("         If you hit OOM, try: --batch-size 1 --max-length 1024")
+        _c.print(f"[yellow]WARNING:[/yellow] GPU has only {gpu_mem:.1f} GB VRAM.")
+        _c.print("         If you hit OOM, try: --batch-size 1 --max-length 1024")
 
     # Auto-detect bf16 capability on Ampere+ GPUs (compute capability >= 8.0).
     # Ampere (8.0), Ada (8.9), Hopper (9.0), Blackwell (10.0) all support bf16.
@@ -816,26 +829,31 @@ def check_gpu(args: argparse.Namespace | None = None) -> str:
         pass
 
     if cc_major >= 8:
-        print(f"Mixed precision: BF16 (auto-detected, compute capability {cc_major}.x)")
+        _c.print(
+            f"Mixed precision: [bold]BF16[/bold] (auto-detected, compute capability {cc_major}.x)"
+        )
         return "bf16"
     else:
-        print("Mixed precision: FP16 (GPU lacks BF16 hardware)")
+        _c.print("Mixed precision: [bold]FP16[/bold] (GPU lacks BF16 hardware)")
         return "fp16"
 
 
 def validate_dataset(dataset_path: str) -> None:
     """Validate dataset file exists and has correct format."""
+    _c = Console(width=80)
     path = Path(dataset_path)
 
     if not path.exists():
-        print(f"ERROR: Dataset file not found: {dataset_path}")
-        print(
+        _c.print(f"[red]ERROR:[/red] Dataset file not found: {dataset_path}")
+        _c.print(
             "       See README.md §Quickstart for how to generate datasets (run scripts/extract_*.py)."
         )
         sys.exit(1)
 
     if not path.suffix == ".jsonl":
-        print(f"WARNING: Expected .jsonl extension, got '{path.suffix}'")
+        _c.print(
+            f"[yellow]WARNING:[/yellow] Expected .jsonl extension, got '{path.suffix}'"
+        )
 
     # Read first few lines and validate format
     errors = 0
@@ -851,39 +869,43 @@ def validate_dataset(dataset_path: str) -> None:
                 if "messages" not in obj:
                     errors += 1
                     if errors <= 3:
-                        print(
-                            f"WARNING: Line {i + 1} missing 'messages' key — skipping"
+                        _c.print(
+                            f"[yellow]WARNING:[/yellow] Line {i + 1} missing 'messages' key — skipping"
                         )
                 else:
                     msgs = obj["messages"]
                     if not isinstance(msgs, list) or len(msgs) < 2:
                         errors += 1
                         if errors <= 3:
-                            print(
-                                f"WARNING: Line {i + 1} has invalid 'messages' format"
+                            _c.print(
+                                f"[yellow]WARNING:[/yellow] Line {i + 1} has invalid 'messages' format"
                             )
                     else:
                         for m in msgs:
                             if "role" not in m or "content" not in m:
                                 errors += 1
                                 if errors <= 3:
-                                    print(
-                                        f"WARNING: Line {i + 1} has message without 'role' or 'content'"
+                                    _c.print(
+                                        f"[yellow]WARNING:[/yellow] Line {i + 1} has message without 'role' or 'content'"
                                     )
                                 break
             except json.JSONDecodeError as e:
                 errors += 1
                 if errors <= 3:
-                    print(f"WARNING: Line {i + 1} JSON parse error: {e}")
+                    _c.print(
+                        f"[yellow]WARNING:[/yellow] Line {i + 1} JSON parse error: {e}"
+                    )
 
     if errors > 3:
-        print(f"WARNING: {errors} total format issues in dataset (showing first 3)")
+        _c.print(
+            f"[yellow]WARNING:[/yellow] {errors} total format issues in dataset (showing first 3)"
+        )
 
     if line_count == 0:
-        print(f"ERROR: Dataset file is empty: {dataset_path}")
+        _c.print(f"[red]ERROR:[/red] Dataset file is empty: {dataset_path}")
         sys.exit(1)
 
-    print(f"Dataset: {line_count} examples, {errors} format issues")
+    _c.print(f"Dataset: {line_count} examples, {errors} format issues")
 
 
 # ---------------------------------------------------------------------------
@@ -901,11 +923,15 @@ def print_dataset_stats(dataset, tokenizer, hpo_stats_path: str = None) -> None:
     pair_mean is approximate (num_tokens / pairs_in_window); the
     sidecar gives the precise, unchanging reference.
     """
+    _console = Console(width=80)
     num_examples = len(dataset)
-    print(f"\n{'=' * 60}")
-    print(" DATASET STATISTICS")
-    print(f"{'=' * 60}")
-    print(f"  Examples:       {num_examples}")
+
+    _tbl = Table(
+        title="Dataset Statistics", show_header=False, box=None, padding=(0, 1)
+    )
+    _tbl.add_column("Metric", style="bold")
+    _tbl.add_column("Value")
+    _tbl.add_row("Examples", str(num_examples))
 
     # Estimate token lengths (word-level)
     word_lengths = []
@@ -921,10 +947,10 @@ def print_dataset_stats(dataset, tokenizer, hpo_stats_path: str = None) -> None:
     if word_lengths:
         avg_words = sum(word_lengths) / len(word_lengths)
         avg_tokens_est = int(avg_words * 1.3)  # rough word-to-token ratio
-        print(f"  Avg word count: {avg_words:.0f} (sampled {sample_size})")
-        print(f"  Avg token est:   ~{avg_tokens_est} (1.3x word ratio)")
-        print(f"  Max word count:  {max(word_lengths)}")
-        print(f"  Min word count:  {min(word_lengths)}")
+        _tbl.add_row("Avg word count", f"{avg_words:.0f} (sampled {sample_size})")
+        _tbl.add_row("Avg token est", f"~{avg_tokens_est} (1.3x word ratio)")
+        _tbl.add_row("Max word count", str(max(word_lengths)))
+        _tbl.add_row("Min word count", str(min(word_lengths)))
 
     # Exact token stats (sampled for speed). For HPO we use this
     # to record pair_min/max/mean once at the start of a run.
@@ -960,15 +986,22 @@ def print_dataset_stats(dataset, tokenizer, hpo_stats_path: str = None) -> None:
             os.makedirs(os.path.dirname(hpo_stats_path) or ".", exist_ok=True)
             with open(hpo_stats_path, "w", encoding="utf-8") as f:
                 json.dump(stats, f, indent=2)
-            print(f"  Exact token stats (sampled {len(token_lengths)}):")
-            print(
-                f"    min={stats['min_tokens']}  median={stats['median_tokens']}  "
-                f"mean={stats['mean_tokens']}  p95={stats['p95_tokens']}  "
-                f"p99={stats['p99_tokens']}  max={stats['max_tokens']}"
+            _tbl.add_row(
+                "Exact token stats",
+                f"(sampled {len(token_lengths)})",
             )
-            print(f"  → wrote HPO stats to {hpo_stats_path}")
+            _tbl.add_row(
+                "  min/median/mean",
+                f"{stats['min_tokens']} / {stats['median_tokens']} / {stats['mean_tokens']}",
+            )
+            _tbl.add_row(
+                "  p95/p99/max",
+                f"{stats['p95_tokens']} / {stats['p99_tokens']} / {stats['max_tokens']}",
+            )
+            _console.print(f"  [green]✓[/green] wrote HPO stats to {hpo_stats_path}")
 
-    print(f"{'=' * 60}\n")
+    _console.print(_tbl)
+    _console.print()
 
 
 # ---------------------------------------------------------------------------
@@ -1229,6 +1262,7 @@ def detect_assistant_loss_support(tokenizer, dataset_sample: dict) -> dict:
 
 
 def main() -> None:
+    console = Console(width=80)
     args = parse_args()
     check_python_version()
 
@@ -1268,11 +1302,11 @@ def main() -> None:
             if not any(pat in m for pat in _MOE_EXCLUDED_PATTERNS)
         ]
         excluded = [m for m in _DEFAULT_TARGETS if m not in target_modules_list]
-        print(f"  --moe-safe-target: excluded modules: {excluded}")
-        print(f"  --moe-safe-target: target modules: {target_modules_list}")
+        console.print(f"  --moe-safe-target: excluded modules: {excluded}")
+        console.print(f"  --moe-safe-target: target modules: {target_modules_list}")
     elif args.target_modules:
         target_modules_list = [m.strip() for m in args.target_modules.split(",")]
-        print(f"  --target-modules: {target_modules_list}")
+        console.print(f"  --target-modules: {target_modules_list}")
     else:
         target_modules_list = None  # use defaults in get_qlora_config
 
@@ -1280,35 +1314,37 @@ def main() -> None:
     # the model is already quantized (checked after model load).
     init_lora_weights = "loftq" if args.loftq_init else True
 
-    print("\n" + "=" * 60)
-    print(" AttackLM QLoRA Fine-Tuning Template")
-    print("=" * 60)
     mode_label = "DRY RUN (no training)" if is_dry_run else "LIVE TRAINING"
-    print(f" Mode: {mode_label}")
-    print(f" Base model:  {args.base_model}")
-    print(f" Dataset:     {args.dataset}")
-    print(f" Output:      {args.output}")
+    output_note = ""
     if args.no_timestamp:
-        print(
-            "              (no-timestamp mode: clobbers existing runs without --force)"
-        )
+        output_note = "(no-timestamp: clobbers without --force)"
     else:
-        # If the output has a _YYYY-MM-DD_HH-MM suffix, note that we
-        # preserved it. Otherwise note that we appended one.
         import re as _re
 
         if _re.search(r"_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}", args.output):
-            print("              (timestamp suffix preserved)")
+            output_note = "(timestamp suffix preserved)"
         else:
-            print("              (auto-timestamped: each run is preserved)")
-    print(f" Epochs:      {args.epochs}")
-    print(f" Batch size:   {args.batch_size}")
-    print(f" Max length:   {args.max_length}")
-    print(
-        f" LoRA r={args.lora_r}, alpha={args.lora_alpha}, dropout={args.lora_dropout}"
+            output_note = "(auto-timestamped: each run preserved)"
+
+    _hdr = Table(show_header=False, box=None, padding=(0, 1))
+    _hdr.add_column("Key", style="bold")
+    _hdr.add_column("Value")
+    _hdr.add_row("Mode", mode_label)
+    _hdr.add_row("Base model", args.base_model)
+    _hdr.add_row("Dataset", args.dataset)
+    _hdr.add_row("Output", f"{args.output} {output_note}")
+    _hdr.add_row("Epochs", str(args.epochs))
+    _hdr.add_row("Batch size", str(args.batch_size))
+    _hdr.add_row("Max length", str(args.max_length))
+    _hdr.add_row(
+        "LoRA",
+        f"r={args.lora_r}, alpha={args.lora_alpha}, dropout={args.lora_dropout}",
     )
-    print(f" Optimizer:  {args.optim}")
-    print("=" * 60 + "\n")
+    _hdr.add_row("Optimizer", args.optim)
+    console.print(
+        Panel(_hdr, title="AttackLM QLoRA Fine-Tuning Template", border_style="cyan")
+    )
+    console.print()
 
     # --- Validate dataset path ---
     validate_dataset(args.dataset)
@@ -1317,19 +1353,19 @@ def main() -> None:
     compute_type = check_gpu(args)
 
     # --- Load dependencies (deferred so --dry-run can run without GPU) ---
-    print("\nLoading libraries...")
+    console.print("[bold]Loading libraries...[/bold]")
     try:
         from datasets import load_dataset
         from transformers import AutoTokenizer
     except ImportError as e:
-        print(f"ERROR: Missing dependency: {e}")
-        print(
+        console.print(f"[red]ERROR:[/red] Missing dependency: {e}")
+        console.print(
             "Install with: pip install transformers datasets trl peft bitsandbytes accelerate"
         )
         sys.exit(1)
 
     # --- Load tokenizer ---
-    print(f"\nLoading tokenizer: {args.base_model}")
+    console.print(f"[bold]Loading tokenizer:[/bold] {args.base_model}")
     try:
         # Resolve local paths to absolute early so HF's name validation
         # doesn't reject `./decensored_model` as an invalid repo ID.
@@ -1349,8 +1385,8 @@ def main() -> None:
         if base_state is not None and not base_state.get("completed", True):
             if has_incomplete_checkpoint(base_model_resolved):
                 if not args.resume_from_checkpoint:
-                    print(
-                        "  ↻ Detected started run (state.json: completed=false, "
+                    console.print(
+                        "[green]✓[/green] Detected started run (state.json: completed=false, "
                         "checkpoint-N/ present). Auto-resuming from latest checkpoint."
                     )
                     args.resume_from_checkpoint = True
@@ -1358,20 +1394,20 @@ def main() -> None:
                 # Marked-started but no actual training happened. Treat as
                 # a fresh base. This happens when --dry-run is run twice
                 # on the same dir.
-                print(
-                    "  ↻ Detected marked-started run but no checkpoint-N/ found. "
+                console.print(
+                    "[yellow]⚠[/yellow] Detected marked-started run but no checkpoint-N/ found. "
                     "Treating as base for a fresh training run."
                 )
 
         # Surface the round-2 SFT case clearly to the user
         if base_state is not None and base_state.get("completed", False):
-            print(
-                "  ✓ Detected completed run (state.json: completed=true). "
+            console.print(
+                "[green]✓[/green] Detected completed run (state.json: completed=true). "
                 "Round-2 SFT: training a fresh LoRA on top of the merged weights."
             )
             prev_hp = base_state.get("hparams", {})
             if prev_hp:
-                print(
+                console.print(
                     f"    Previous hparams: r={prev_hp.get('lora_r', '?')}, "
                     f"alpha={prev_hp.get('lora_alpha', '?')}, "
                     f"epochs={prev_hp.get('epochs', '?')}, "
@@ -1384,18 +1420,18 @@ def main() -> None:
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
     except Exception as e:
-        print(f"ERROR: Failed to load tokenizer: {e}")
-        print(
+        console.print(f"[red]ERROR:[/red] Failed to load tokenizer: {e}")
+        console.print(
             f"  Check that '{args.base_model}' exists on HuggingFace and you have internet access."
         )
         sys.exit(1)
 
     # --- Load dataset ---
-    print(f"Loading dataset: {args.dataset}")
+    console.print(f"[bold]Loading dataset:[/bold] {args.dataset}")
     try:
         dataset = load_dataset("json", data_files=args.dataset, split="train")
     except Exception as e:
-        print(f"ERROR: Failed to load dataset: {e}")
+        console.print(f"[red]ERROR:[/red] Failed to load dataset: {e}")
         sys.exit(1)
 
     # --- Auto-detect assistant-only loss support ---
@@ -1416,9 +1452,9 @@ def main() -> None:
             "completion_only_loss": False,
             "reason": f"auto-detection failed ({e}), falling back to full-sequence loss",
         }
-    print(f"\n  Assistant-loss detection: {loss_cfg['reason']}")
-    print(
-        f"  → assistant_only_loss={loss_cfg['assistant_only_loss']}, "
+    console.print(f"  Assistant-loss detection: {loss_cfg['reason']}")
+    console.print(
+        f"  [green]→[/green] assistant_only_loss={loss_cfg['assistant_only_loss']}, "
         f"completion_only_loss={loss_cfg['completion_only_loss']}"
     )
 
@@ -1454,8 +1490,9 @@ def main() -> None:
     dropped = pre_filter_count - post_filter_count
     _filtered_out: int = dropped  # captured for state.json
     if dropped > 0:
-        print(
-            f"  Dropped {dropped} examples exceeding {int(args.max_length * 1.5)} tokens "
+        console.print(
+            f"  [yellow]WARNING:[/yellow] Dropped {dropped} examples exceeding "
+            f"{int(args.max_length * 1.5)} tokens "
             f"({100 * dropped / pre_filter_count:.2f}% of dataset)"
         )
 
@@ -1503,84 +1540,86 @@ def main() -> None:
         else "OFF"
     )
 
-    print("=" * 60)
-    print(" TRAINING PLAN")
-    print("=" * 60)
-    print(f"  Model:              {args.base_model}")
+    _plan = Table(title="Training Plan", show_header=True, box=None, padding=(0, 1))
+    _plan.add_column("Setting", style="bold")
+    _plan.add_column("Value")
+    _plan.add_row("Model", args.base_model)
     if args.use_unsloth:
-        print("  Quantization:       4-bit (Unsloth internal)")
+        _plan.add_row("Quantization", "4-bit (Unsloth internal)")
     elif args.use_galore:
-        print("  Quantization:       NONE (bf16 full-parameter for GaLore)")
+        _plan.add_row("Quantization", "NONE (bf16 full-parameter for GaLore)")
     elif not args.moe_safe_target:
-        print("  Quantization:       4-bit NF4 (double quant)")
+        _plan.add_row("Quantization", "4-bit NF4 (double quant)")
     else:
-        print("  Quantization:       NONE (bf16 full-precision for MoE)")
+        _plan.add_row("Quantization", "NONE (bf16 full-precision for MoE)")
     if args.use_galore:
-        print("  Training mode:      GaLore full-parameter (no LoRA)")
+        _plan.add_row("Training mode", "GaLore full-parameter (no LoRA)")
     else:
-        print(f"  LoRA rank:          {args.lora_r}")
-        print(f"  LoRA alpha:         {args.lora_alpha}")
-        print(f"  LoRA dropout:       {args.lora_dropout}")
-        print(f"  Target modules:     {_tm_display}")
-        print(f"  RSLoRA:             {_rslora_display}")
-        print(f"  DoRA:               {_dora_display}")
-        print(f"  LoftQ init:         {_loftq_display}")
-    print(f"  MoE-safe target:    {_moe_display}")
-    print(f"  Unsloth:            {_unsloth_display}")
-    print(f"  GaLore:             {_galore_display}")
-    print(f"  Epochs:             {args.epochs}")
-    print(f"  Batch size:         {args.batch_size}")
-    print(f"  Max seq length:     {args.max_length}")
-    print("  Gradient checkpoint: True")
-    print(f"  Compute dtype:      {compute_type}")
-    print(f"  Save steps:         {args.save_steps}")
-    print(f"  Gradient accum:     {args.gradient_accumulation_steps}")
-    print("  Save strategy:      steps")
-    print("  Save total limit:   2")
-    print("  Logging steps:      10")
-    print(f"  Output dir:         {args.output}")
-    print(f"  Resume checkpoint:  {args.resume_from_checkpoint}")
-    print(f"  Optimizer:          {args.optim}")
-    print(f"  Packing:            {args.packing}  (--packing/--no-packing)")
-    print("=" * 60 + "\n")
+        _plan.add_row("LoRA rank", str(args.lora_r))
+        _plan.add_row("LoRA alpha", str(args.lora_alpha))
+        _plan.add_row("LoRA dropout", str(args.lora_dropout))
+        _plan.add_row("Target modules", _tm_display)
+        _plan.add_row("RSLoRA", _rslora_display)
+        _plan.add_row("DoRA", _dora_display)
+        _plan.add_row("LoftQ init", _loftq_display)
+    _plan.add_row("MoE-safe target", _moe_display)
+    _plan.add_row("Unsloth", _unsloth_display)
+    _plan.add_row("GaLore", _galore_display)
+    _plan.add_row("Epochs", str(args.epochs))
+    _plan.add_row("Batch size", str(args.batch_size))
+    _plan.add_row("Max seq length", str(args.max_length))
+    _plan.add_row("Gradient checkpoint", "True")
+    _plan.add_row("Compute dtype", compute_type)
+    _plan.add_row("Save steps", str(args.save_steps))
+    _plan.add_row("Gradient accum", str(args.gradient_accumulation_steps))
+    _plan.add_row("Save strategy", "steps")
+    _plan.add_row("Save total limit", "2")
+    _plan.add_row("Logging steps", "10")
+    _plan.add_row("Output dir", args.output)
+    _plan.add_row("Resume checkpoint", str(args.resume_from_checkpoint))
+    _plan.add_row("Optimizer", args.optim)
+    _plan.add_row("Packing", f"{args.packing}  (--packing/--no-packing)")
+    console.print(_plan)
+    console.print()
 
     # ===================================================================
     # DRY RUN — print plan and exit
     # ===================================================================
     if is_dry_run:
-        print("=" * 60)
-        print(" DRY RUN COMPLETE")
-        print("=" * 60)
-        print("  Dataset validated successfully.")
-        print("  No training was performed.")
-        print("")
-        print("  To actually train, re-run with --train flag:")
-        print(
-            f"    python train_template.py --dataset {args.dataset} --output {args.output} --train"
+        _dry_tbl = Table(show_header=False, box=None, padding=(0, 1))
+        _dry_tbl.add_column("Key", style="bold")
+        _dry_tbl.add_column("Value")
+        _dry_tbl.add_row("Status", "Dataset validated successfully")
+        _dry_tbl.add_row("Training", "Not performed (dry run)")
+        _dry_tbl.add_row(
+            "To train",
+            f"python train_template.py --dataset {args.dataset} --output {args.output} --train",
         )
-        print("")
-        print("  Memory estimate for Qwen2.5-7B QLoRA:")
-        print("    ~10-12 GB VRAM at batch_size=2, max_length=2048")
-        print("    ~6-8 GB VRAM at batch_size=1, max_length=1024")
+        _dry_tbl.add_row(
+            "Est. VRAM (7B QLoRA)",
+            "~10-12 GB (batch=2, len=2048) / ~6-8 GB (batch=1, len=1024)",
+        )
         if args.use_unsloth:
-            print("")
-            print("  With --use-unsloth (70% less VRAM):")
-            print("    ~4-5 GB VRAM at batch_size=2, max_length=2048")
-            print("    ~3-4 GB VRAM at batch_size=1, max_length=1024")
-            print("    ~13B model fits in 16GB with Unsloth QLoRA")
+            _dry_tbl.add_row(
+                "Est. VRAM (Unsloth)",
+                "~4-5 GB (batch=2, len=2048) / ~3-4 GB (batch=1, len=1024)",
+            )
+            _dry_tbl.add_row("Note", "13B model fits in 16GB with Unsloth QLoRA")
         if args.use_galore:
-            print("")
-            print("  With --use-galore (full-parameter training):")
-            print("    ~10-12 GB VRAM at batch_size=1, max_length=2048 (3B model)")
-            print("    ~14-16 GB VRAM at batch_size=1, max_length=2048 (7B model)")
-            print("    GaLore trains ALL parameters — no LoRA adapters needed")
-        print("=" * 60)
+            _dry_tbl.add_row(
+                "Est. VRAM (GaLore)",
+                "~10-12 GB (3B) / ~14-16 GB (7B), batch=1, len=2048",
+            )
+            _dry_tbl.add_row(
+                "Note", "GaLore trains ALL parameters — no LoRA adapters needed"
+            )
+        console.print(Panel(_dry_tbl, title="Dry Run Complete", border_style="green"))
         return
 
     # ===================================================================
     # LIVE TRAINING
     # ===================================================================
-    print("Starting training...\n")
+    console.rule("[bold]Starting training[/bold]")
     start_time = time.time()
 
     # --- Write state.json (started marker) ---
@@ -1658,17 +1697,17 @@ def main() -> None:
         )
     try:
         write_state(args.output, initial_state)
-        print(
-            f"  ↻ State recorded at {args.output}/state.json (version {_STATE_VERSION})"
+        console.print(
+            f"  [dim]↻ State recorded at {args.output}/state.json "
+            f"(version {_STATE_VERSION})[/dim]"
         )
     except Exception as e:
-        # Non-fatal — we can still train, we just lose the resume signal
-        print(f"  (Skipped state.json write: {e})")
+        console.print(f"  [dim](Skipped state.json write: {e})[/dim]")
 
     # --- Mutual exclusivity: GaLore vs Unsloth ---
     if args.use_galore and args.use_unsloth:
-        print(
-            "ERROR: --use-galore and --use-unsloth are mutually exclusive.\n"
+        console.print(
+            "[red]ERROR:[/red] --use-galore and --use-unsloth are mutually exclusive.\n"
             "  GaLore is full-parameter training (no LoRA adapters).\n"
             "  Unsloth is optimized QLoRA (LoRA adapters on quantized base).\n"
             "  Choose one: --use-galore OR --use-unsloth, not both."
@@ -1683,10 +1722,12 @@ def main() -> None:
             from unsloth import FastLanguageModel, is_bfloat16_supported
 
             _unsloth_available = True
-            print("  Unsloth: loaded (FastLanguageModel available)")
+            console.print(
+                "  [green]Unsloth:[/green] loaded (FastLanguageModel available)"
+            )
         except ImportError:
-            print(
-                "ERROR: --use-unsloth requires the 'unsloth' package.\n"
+            console.print(
+                "[red]ERROR:[/red] --use-unsloth requires the 'unsloth' package.\n"
                 "  Install: uv pip install attacklm[unsloth]\n"
                 "  Or:      pip install unsloth"
             )
@@ -1700,10 +1741,12 @@ def main() -> None:
 
             _galore_available = True
             _galore_bits = "32-bit" if args.galore_32bit else "8-bit"
-            print(f"  GaLore: loaded ({_galore_bits} GaLoreAdamW available)")
+            console.print(
+                f"  [green]GaLore:[/green] loaded ({_galore_bits} GaLoreAdamW available)"
+            )
         except ImportError:
-            print(
-                "ERROR: --use-galore requires the 'galore-torch' package.\n"
+            console.print(
+                "[red]ERROR:[/red] --use-galore requires the 'galore-torch' package.\n"
                 "  Install: uv pip install attacklm[galore]\n"
                 "  Or:      pip install galore-torch"
             )
@@ -1712,9 +1755,9 @@ def main() -> None:
     # --multi-gpu + --use-galore: auto-enable 32-bit (per-layer hooks
     # are incompatible with DDP's gradient all-reduce).
     if args.multi_gpu and args.use_galore and not args.galore_32bit:
-        print(
-            "  GaLore: --multi-gpu detected — auto-enabling --galore-32bit "
-            "(per-layer weight updates are incompatible with DDP)"
+        console.print(
+            "  [yellow]GaLore:[/yellow] --multi-gpu detected — auto-enabling "
+            "--galore-32bit (per-layer weight updates are incompatible with DDP)"
         )
         args.galore_32bit = True
 
@@ -1724,9 +1767,10 @@ def main() -> None:
         from trl import SFTTrainer, SFTConfig
         from transformers.trainer_callback import EarlyStoppingCallback
     except ImportError as e:
-        print(f"ERROR: Missing dependency for training: {e}")
-        print(
-            "Install with: pip install transformers datasets trl peft bitsandbytes accelerate"
+        console.print(f"[red]ERROR:[/red] Missing dependency for training: {e}")
+        console.print(
+            "Install with: pip install transformers datasets trl peft "
+            "bitsandbytes accelerate"
         )
         sys.exit(1)
 
@@ -2353,12 +2397,10 @@ def main() -> None:
 
         # OOM fix #10: VRAM threshold for emergency cache clear
         # (in bytes). If free VRAM drops below this after an optimizer
-        # step, force a gc.collect + empty_cache. 2GB is conservative —
-        # leaves room for one more forward+backward pass even on a
-        # 1024-token batch. The first optimizer step after this
-        # threshold trigger will slow down by ~200ms (cache clear
-        # overhead) but prevents a much longer OOM-retry restart.
-        EMERGENCY_CLEAR_THRESHOLD_BYTES = 2 * (1024**3)
+        # step, force a gc.collect + empty_cache. 1GB is safe for
+        # GaLore (per-layer hooks free gradients after each layer's
+        # backward pass) and QLoRA (quantized model + LoRA adapters).
+        EMERGENCY_CLEAR_THRESHOLD_BYTES = 1 * (1024**3)
 
         def on_evaluate(self, args, state, control, **kwargs):
             import gc
@@ -3158,41 +3200,50 @@ def main() -> None:
     try:
         write_state(args.output, final_state)
     except Exception as e:
-        print(f"  (Skipped state.json update: {e})")
+        console.print(f"  (Skipped state.json update: {e})")
 
     # --- Summary ---
-    print("\n" + "=" * 60)
-    print(" TRAINING COMPLETE")
-    print("=" * 60)
-    print(f"  Model saved to:      {args.output}")
-    print(f"  Training time:       {elapsed:.1f}s ({elapsed / 60:.1f} min)")
-    print(f"  Final loss:          {final_loss:.4f}")
-    print(
-        f"  Epochs:              {actual_current_epoch:.4f} / {args.epochs} target ({final_step} steps)"
+    from rich.syntax import Syntax
+
+    summary_tbl = Table(show_header=False, box=None, padding=(0, 1))
+    summary_tbl.add_column(style="bold cyan")
+    summary_tbl.add_column()
+    summary_tbl.add_row("Model saved to", args.output)
+    summary_tbl.add_row("Training time", f"{elapsed:.1f}s ({elapsed / 60:.1f} min)")
+    summary_tbl.add_row("Final loss", f"{final_loss:.4f}")
+    summary_tbl.add_row(
+        "Epochs",
+        f"{actual_current_epoch:.4f} / {args.epochs} target ({final_step} steps)",
     )
-    print(
-        f"  Examples trained:   {len(dataset)} (post-filter, target was {len(dataset) + filtered_out_val})"
+    summary_tbl.add_row(
+        "Examples trained",
+        f"{len(dataset)} (post-filter, target was {len(dataset) + filtered_out_val})",
     )
-    print(f"  Config written to:   {config_path}")
-    print("=" * 60)
+    summary_tbl.add_row("Config written to", config_path)
+
     if args.use_galore and _galore_available:
-        print("\nTo load the GaLore-trained full model for inference:")
-        print(f"""
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+        code = f"""from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    model = AutoModelForCausalLM.from_pretrained("{args.output}", device_map="auto")
-    tokenizer = AutoTokenizer.from_pretrained("{args.output}")
-    """)
+model = AutoModelForCausalLM.from_pretrained("{args.output}", device_map="auto")
+tokenizer = AutoTokenizer.from_pretrained("{args.output}")"""
     else:
-        print("\nTo load the trained adapter for inference:")
-        print(f"""
-    from peft import PeftModel
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+        code = f"""from peft import PeftModel
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    base = AutoModelForCausalLM.from_pretrained("{args.base_model}", device_map="auto")
-    model = PeftModel.from_pretrained(base, "{args.output}")
-    tokenizer = AutoTokenizer.from_pretrained("{args.output}")
-    """)
+base = AutoModelForCausalLM.from_pretrained("{args.base_model}", device_map="auto")
+model = PeftModel.from_pretrained(base, "{args.output}")
+tokenizer = AutoTokenizer.from_pretrained("{args.output}")"""
+
+    console.print()
+    console.print(
+        Panel(
+            summary_tbl,
+            title="[bold green]Training Complete[/bold green]",
+            border_style="green",
+        )
+    )
+    console.print("[bold]To load for inference:[/bold]")
+    console.print(Syntax(code, "python", theme="monokai", line_numbers=False))
 
 
 if __name__ == "__main__":
