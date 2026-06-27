@@ -1926,12 +1926,30 @@ def main() -> None:
                 # identical to standard Qwen2.5-Coder, just abliterated weights.
                 # The standard Qwen2ForCausalLM class respects torch_dtype.
                 if args.use_galore:
-                    # Use dtype= (new API, transformers 5.x). All three
-                    # approaches (dtype=, torch_dtype=, no dtype) load in
-                    # bf16 at 5.82GB for 3B — confirmed by test.
+                    # device_map='auto' ignores dtype= in transformers 5.10.2
+                    # when config.torch_dtype is set. Fix: pop dtype, use
+                    # torch_dtype (deprecated but functional), and patch
+                    # config.torch_dtype to bfloat16.
+                    from transformers import AutoConfig
+
+                    _cfg = AutoConfig.from_pretrained(
+                        base_model_resolved, trust_remote_code=False
+                    )
+                    _dtype_map = {
+                        "bf16": "bfloat16",
+                        "fp16": "float16",
+                        "fp32": "float32",
+                    }
+                    _cfg.torch_dtype = _dtype_map.get(compute_type, "bfloat16")
+                    load_kwargs.pop("dtype", None)
+                    load_kwargs["torch_dtype"] = torch_dtype
+                    load_kwargs["config"] = _cfg
                     load_kwargs["trust_remote_code"] = False
                     load_kwargs["low_cpu_mem_usage"] = True
-                    print(f"  GaLore: trust_remote_code=False, dtype={compute_type}")
+                    print(
+                        f"  GaLore: config.torch_dtype={_cfg.torch_dtype}, "
+                        f"torch_dtype={compute_type}"
+                    )
                 model = AutoModelForCausalLM.from_pretrained(
                     base_model_resolved, **load_kwargs
                 )
@@ -2718,7 +2736,7 @@ def main() -> None:
         _hook_label = (
             "standard (multi-GPU compatible)"
             if _use_32bit
-            else "single optimizer + param groups"
+            else "per-layer hooks (grouped by layer)"
         )
 
         print(f"  GaLore optimizer:    {_bits_label} GaLoreAdamW")
