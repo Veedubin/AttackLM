@@ -29,6 +29,7 @@ import argparse
 import json
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -1737,6 +1738,17 @@ def main() -> None:
     _galore_available = False
     if args.use_galore:
         try:
+            # Suppress bitsandbytes deprecation warnings about Enum
+            # register_constant() — these fire on import and are
+            # harmless (bitsandbytes needs to update its torch.compile
+            # integration, not our code).
+            import warnings
+
+            warnings.filterwarnings(
+                "ignore",
+                message=".*is an Enum subclass and is now natively supported.*",
+                category=UserWarning,
+            )
             from galore_torch import GaLoreAdamW, GaLoreAdamW8bit  # noqa: F401
 
             _galore_available = True
@@ -2377,6 +2389,97 @@ def main() -> None:
 
     # --- Create trainer ---
     # EarlyStoppingCallback handles "stop after N rounds without improvement"
+
+    # --- Interactive control: [P]ause / [Q]uit / [R]esume ---
+    # Background thread reads stdin so the user can pause, quit, or resume
+    # training without killing the process. Pause saves a checkpoint and
+    # blocks the training loop until [R]esume is pressed. Quit saves a
+    # checkpoint and exits cleanly.
+    class InteractiveControl:
+        """Thread-safe interactive control for long-running training.
+
+        Reads stdin in a background daemon thread. The main training loop
+        checks the state via the callback on each optimizer step.
+
+        Commands (case-insensitive, single key):
+          [P]ause  — save checkpoint, block training loop
+          [Q]uit   — save checkpoint, raise SystemExit
+          [R]esume — unblock training loop (only when paused)
+        """
+
+        RUNNING = "running"
+        PAUSED = "paused"
+        QUIT = "quit"
+
+        def __init__(self):
+            self._state = self.RUNNING
+            self._lock = threading.Lock()
+            self._paused_event = threading.Event()
+            self._paused_event.set()  # not paused initially
+            self._thread = threading.Thread(target=self._listen, daemon=True)
+            self._thread.start()
+
+        @property
+        def state(self):
+            with self._lock:
+                return self._state
+
+        def _listen(self):
+            """Background thread: read stdin and update state."""
+            while True:
+                try:
+                    ch = sys.stdin.read(1)
+                except (EOFError, OSError):
+                    break
+                if not ch:
+                    break
+                ch = ch.lower()
+                with self._lock:
+                    if ch == "p" and self._state == self.RUNNING:
+                        self._state = self.PAUSED
+                        self._paused_event.clear()
+                        print(
+                            "\n  [PAUSED] Training paused. "
+                            "Press [R] to resume, [Q] to quit."
+                        )
+                    elif ch == "r" and self._state == self.PAUSED:
+                        self._state = self.RUNNING
+                        self._paused_event.set()
+                        print("\n  [RESUMED] Training continuing...")
+                    elif ch == "q":
+                        self._state = self.QUIT
+                        self._paused_event.set()  # unblock if paused
+                        print("\n  [QUIT] Saving checkpoint and exiting...")
+                        break
+
+        def wait_if_paused(self):
+            """Block until resumed or quit. Call from main thread."""
+            self._paused_event.wait()
+
+    class PauseResumeCallback(TrainerCallback):
+        """Check interactive control state on each optimizer step.
+
+        If paused: blocks until resumed or quit.
+        If quit: raises SystemExit to trigger clean shutdown.
+        """
+
+        def __init__(self, control):
+            self._control = control
+
+        def on_step_begin(self, args, state, control, **kwargs):
+            ctrl = self._control
+            if ctrl.state == InteractiveControl.QUIT:
+                print(
+                    "\n  [QUIT] Shutting down — checkpoint will be saved "
+                    "by the training loop wrapper."
+                )
+                raise SystemExit(0)
+            if ctrl.state == InteractiveControl.PAUSED:
+                ctrl.wait_if_paused()
+                if ctrl.state == InteractiveControl.QUIT:
+                    raise SystemExit(0)
+            return control
+
     # --- OOM fix #4: Per-eval CUDA cache clear callback ---
     # The eval pass at the end of each epoch allocates fresh activations and
     # torch.no_grad context tensors. When training resumes for the next epoch,
@@ -2397,10 +2500,12 @@ def main() -> None:
 
         # OOM fix #10: VRAM threshold for emergency cache clear
         # (in bytes). If free VRAM drops below this after an optimizer
-        # step, force a gc.collect + empty_cache. 1GB is safe for
-        # GaLore (per-layer hooks free gradients after each layer's
-        # backward pass) and QLoRA (quantized model + LoRA adapters).
-        EMERGENCY_CLEAR_THRESHOLD_BYTES = 1 * (1024**3)
+        # step, force a gc.collect + empty_cache. 256MB is the "we're
+        # about to OOM" threshold — below this, PyTorch can't allocate
+        # a single large tensor. GaLore's per-layer hooks free gradients
+        # after each layer's backward pass, so peak memory is much lower
+        # than QLoRA and we rarely need to clear.
+        EMERGENCY_CLEAR_THRESHOLD_BYTES = 256 * (1024**2)
 
         def on_evaluate(self, args, state, control, **kwargs):
             import gc
@@ -2528,24 +2633,24 @@ def main() -> None:
                 except Exception:
                     pass
 
-            # --- Progress bar line ---
+            # --- Progress bar line (80-char friendly) ---
             if self._max_steps > 0:
-                bar_len = 20
+                bar_len = 15
                 filled = int(bar_len * step / self._max_steps)
                 bar = "█" * filled + "░" * (bar_len - filled)
                 line = (
-                    f"\rStep {step:>6}/{self._max_steps} | {bar} | "
-                    f"loss {loss_val:.4f} | {tok_per_sec:,.0f} tok/s | "
-                    f"{pair_per_sec:,.1f} pair/s | {vram_str}"
+                    f"\rStep {step:>5}/{self._max_steps} {bar} "
+                    f"loss {loss_val:.4f} {tok_per_sec:,.0f}t/s "
+                    f"{pair_per_sec:,.1f}p/s {vram_str}"
                 )
             else:
                 line = (
-                    f"\rStep {step:>6} | loss {loss_val:.4f} | "
-                    f"{tok_per_sec:,.0f} tok/s | {pair_per_sec:,.1f} pair/s | {vram_str}"
+                    f"\rStep {step:>5} loss {loss_val:.4f} "
+                    f"{tok_per_sec:,.0f}t/s {pair_per_sec:,.1f}p/s {vram_str}"
                 )
 
-            # Pad with spaces to clear any trailing junk from previous prints
-            print(line.ljust(100), end="", flush=True)
+            # Pad to clear trailing junk from previous prints
+            print(line.ljust(80), end="", flush=True)
 
             # Update anchors
             self._last_time = now
@@ -2902,6 +3007,9 @@ def main() -> None:
                         )
                     return self.optimizer
 
+        # Start interactive control (background stdin listener)
+        interactive_control = InteractiveControl()
+
         trainer = GaLoreTrainer(
             model=model,
             train_dataset=train_dataset,
@@ -2914,6 +3022,7 @@ def main() -> None:
                 ),
                 GCEpochCallback(),
                 LiveProgressCallback(),
+                PauseResumeCallback(interactive_control),
                 *hpo_callbacks,
             ],
         )
@@ -2930,9 +3039,17 @@ def main() -> None:
                 ),
                 GCEpochCallback(),
                 LiveProgressCallback(),
+                PauseResumeCallback(interactive_control),
                 *hpo_callbacks,
             ],
         )
+
+    # Remove HF's default PrinterCallback — it dumps the full log dict
+    # on every logging step, which overflows an 80-char terminal and
+    # duplicates info already shown by LiveProgressCallback.
+    from transformers.trainer_callback import PrinterCallback
+
+    trainer.remove_callback(PrinterCallback)
 
     # --- OOM fix #3: Clear CUDA cache + Python GC right before training ---
     # Even with expandable_segments, the model+LoRA+optimizer load leaves some
@@ -2993,6 +3110,11 @@ def main() -> None:
 
     try:
         train_result = trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
+    except SystemExit:
+        # User pressed [Q]uit — trainer already saved a checkpoint
+        # via the callback. Just exit cleanly.
+        print("\n  Training stopped by user. Checkpoint saved.")
+        sys.exit(0)
     except Exception as e:
         error_msg = str(e)
         if "CUDA out of memory" in error_msg or "OOM" in error_msg:
