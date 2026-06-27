@@ -2278,6 +2278,7 @@ def main() -> None:
         save_total_limit=args.early_stopping_patience + 1,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
+        load_best_model_at_end=True,
         # Precision — driven by compute_type determined from GPU / CLI flags
         fp16=(compute_type == "fp16"),
         bf16=(compute_type == "bf16"),
