@@ -1420,6 +1420,11 @@ def main() -> None:
         )
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
+        # Fix: Qwen tokenizer has bos_token_id=None but model config
+        # has bos_token_id=151643. Sync BEFORE model load so HF doesn't
+        # warn about PAD/BOS/EOS mismatch.
+        if tokenizer.bos_token_id is None:
+            tokenizer.bos_token_id = 151643  # Qwen default BOS
     except Exception as e:
         console.print(f"[red]ERROR:[/red] Failed to load tokenizer: {e}")
         console.print(
@@ -2002,13 +2007,16 @@ def main() -> None:
                 if hasattr(model.config, "tie_word_embeddings"):
                     model.config.tie_word_embeddings = True
 
-                # Fix: sync model config pad_token_id with tokenizer so
-                # HF doesn't warn about PAD/BOS/EOS mismatch on every
-                # checkpoint load.
+                # Fix: Qwen tokenizer has bos_token_id=None but model config
+                # has bos_token_id=151643. Sync tokenizer to model config
+                # BEFORE loading so HF doesn't warn about mismatch.
+                if (
+                    tokenizer.bos_token_id is None
+                    and model.config.bos_token_id is not None
+                ):
+                    tokenizer.bos_token_id = model.config.bos_token_id
                 if tokenizer.pad_token_id is not None:
                     model.config.pad_token_id = tokenizer.pad_token_id
-                if tokenizer.bos_token_id is not None:
-                    model.config.bos_token_id = tokenizer.bos_token_id
                 if tokenizer.eos_token_id is not None:
                     model.config.eos_token_id = tokenizer.eos_token_id
         except (ImportError, ValueError, ModuleNotFoundError) as e:
@@ -2644,14 +2652,14 @@ def main() -> None:
             except (TypeError, ValueError):
                 loss_val = 0.0
 
-            # --- VRAM ---
+            # --- VRAM (used/total) ---
             vram_str = ""
             if is_cuda():
                 try:
                     free_b, total_b = gpu_mem_info_bytes()
-                    vram_str = (
-                        f"VRAM {free_b / (1024**3):.1f}/{total_b / (1024**3):.1f} GB"
-                    )
+                    used_gb = (total_b - free_b) / (1024**3)
+                    total_gb = total_b / (1024**3)
+                    vram_str = f"VRAM {used_gb:.1f}/{total_gb:.1f} GB"
                 except Exception:
                     pass
 
