@@ -2272,7 +2272,7 @@ def main() -> None:
         optim=args.optim,
         # Eval + early stopping with automatic rollback
         eval_strategy="epoch",
-        save_strategy="steps",
+        save_strategy="epoch",  # must match eval_strategy for load_best_model_at_end
         save_steps=args.save_steps,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         save_total_limit=args.early_stopping_patience + 1,
