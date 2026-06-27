@@ -366,7 +366,7 @@ Examples:
         default=False,
         help=(
             "Use Unsloth's optimized model loading and LoRA kernels. "
-            "Unsloth provides 2-5x faster training, 70% less VRAM, and "
+            "Unsloth provides 2-5x faster training, 70%% less VRAM, and "
             "8x longer context support vs standard HF QLoRA. Requires "
             "'uv pip install attacklm[unsloth]' or 'pip install unsloth'. "
             "When enabled, Unsloth's FastLanguageModel replaces the "
@@ -1746,8 +1746,8 @@ def main() -> None:
 
             warnings.filterwarnings(
                 "ignore",
-                message=".*is an Enum subclass and is now natively supported.*",
                 category=UserWarning,
+                module="torch.utils._pytree",
             )
             from galore_torch import GaLoreAdamW, GaLoreAdamW8bit  # noqa: F401
 
@@ -2390,6 +2390,8 @@ def main() -> None:
     # --- Create trainer ---
     # EarlyStoppingCallback handles "stop after N rounds without improvement"
 
+    from transformers import TrainerCallback
+
     # --- Interactive control: [P]ause / [Q]uit / [R]esume ---
     # Background thread reads stdin so the user can pause, quit, or resume
     # training without killing the process. Pause saves a checkpoint and
@@ -2487,7 +2489,6 @@ def main() -> None:
     # after the eval tensors go out of scope. By step 13 of epoch 2, this
     # residual allocation is enough to push a borderline example over the
     # VRAM ceiling. Clearing after every eval prevents this accumulation.
-    from transformers import TrainerCallback
 
     class GCEpochCallback(TrainerCallback):
         """Run gc.collect() + empty_cache() after every eval to defragment VRAM.
@@ -2576,6 +2577,7 @@ def main() -> None:
             self._last_tokens = 0
             self._max_steps = 0
             self._pairs_per_step = 1
+            self._total_tokens = 0  # cumulative, never reset by eval
 
         def on_train_begin(self, args, state, control, **kwargs):
             self._start_time = time.time()
@@ -2652,17 +2654,21 @@ def main() -> None:
             # Pad to clear trailing junk from previous prints
             print(line.ljust(80), end="", flush=True)
 
-            # Update anchors
+            # Update anchors — only update _last_tokens when num_tokens
+            # is increasing (eval logs have num_tokens=0, which would
+            # reset the cumulative count and break Avg tok/s).
             self._last_time = now
             self._last_step = step
-            self._last_tokens = float(num_tokens)
+            if float(num_tokens) > self._last_tokens:
+                self._last_tokens = float(num_tokens)
+                self._total_tokens = float(num_tokens)
             return control
 
         def on_train_end(self, args, state, control, **kwargs):
             # Final newline so the shell prompt doesn't overwrite the bar
             total_s = time.time() - self._start_time
             print(
-                f"\n  Total time: {total_s:.1f}s | Avg tok/s: {self._last_tokens / max(1, total_s):,.0f}"
+                f"\n  Total time: {total_s:.1f}s | Avg tok/s: {self._total_tokens / max(1, total_s):,.0f}"
             )
             return control
 
