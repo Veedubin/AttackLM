@@ -1738,17 +1738,21 @@ def main() -> None:
     _galore_available = False
     if args.use_galore:
         try:
-            # Suppress bitsandbytes deprecation warnings about Enum
-            # register_constant() — these fire on import and are
-            # harmless (bitsandbytes needs to update its torch.compile
-            # integration, not our code).
-            import warnings
+            # Fix: bitsandbytes calls torch.utils._pytree.register_constant()
+            # on Enum subclasses, which is deprecated in PyTorch 2.12+.
+            # Monkey-patch to no-op for Enum types (natively supported now).
+            import enum
+            import torch.utils._pytree as _pytree
 
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                module="torch.utils._pytree",
-            )
+            _orig_register_constant = _pytree.register_constant
+
+            def _patched_register_constant(obj):
+                if isinstance(obj, type) and issubclass(obj, enum.Enum):
+                    return  # Enum subclasses are natively supported now
+                return _orig_register_constant(obj)
+
+            _pytree.register_constant = _patched_register_constant
+
             from galore_torch import GaLoreAdamW, GaLoreAdamW8bit  # noqa: F401
 
             _galore_available = True
@@ -1991,6 +1995,22 @@ def main() -> None:
                 model = AutoModelForCausalLM.from_pretrained(
                     base_model_resolved, **load_kwargs
                 )
+
+                # Fix: Qwen2.5-Coder uses tied embeddings (lm_head shares
+                # weight with input embeddings). Without this, saved
+                # checkpoints warn about missing lm_head.weight on load.
+                if hasattr(model.config, "tie_word_embeddings"):
+                    model.config.tie_word_embeddings = True
+
+                # Fix: sync model config pad_token_id with tokenizer so
+                # HF doesn't warn about PAD/BOS/EOS mismatch on every
+                # checkpoint load.
+                if tokenizer.pad_token_id is not None:
+                    model.config.pad_token_id = tokenizer.pad_token_id
+                if tokenizer.bos_token_id is not None:
+                    model.config.bos_token_id = tokenizer.bos_token_id
+                if tokenizer.eos_token_id is not None:
+                    model.config.eos_token_id = tokenizer.eos_token_id
         except (ImportError, ValueError, ModuleNotFoundError) as e:
             error_str = str(e).lower()
             if "flash" in error_str or "flash_attention" in error_str:
