@@ -425,8 +425,12 @@ def _resolve_caps(
     # Custom profile: user must specify either --per-bucket-cap or --target-total
     if profile_name == "custom":
         if args.per_bucket_cap:
-            # Apply the per-bucket cap uniformly. JSON string of {path: cap}
+            # Apply the per-bucket cap. Accepts either a JSON dict of
+            # {bucket_path: cap} or a plain integer for uniform cap.
             user_caps = json.loads(args.per_bucket_cap)
+            if isinstance(user_caps, int):
+                # Uniform cap: same limit for every bucket
+                return {b["path"]: min(user_caps, b["count"]) for b in buckets}
             return {
                 b["path"]: min(user_caps.get(b["path"], 1_000_000), b["count"])
                 for b in buckets
