@@ -155,12 +155,37 @@ def gpu_mem_info_bytes() -> Tuple[int, int]:
 
 
 def is_flash_attn_available() -> bool:
-    """True if the `flash-attn` package can be imported.
+    """True if flash-attn (v2 or v3) can be imported and used.
 
-    Note: importable is not the same as usable. Even when the wheel imports,
-    the CUDA extension inside is CUDA-only — passing `attn_implementation=
-    "flash_attention_2"` on ROCm will fail at from_pretrained() time.
+    Tries flash_attn_3 first (the current standard, installed via
+    `pip install flash-attn-3`), then flash_attn (v2, legacy).
+
+    flash_attn_3 needs torch CUDA libs on LD_LIBRARY_PATH at import
+    time. We set it here so the user doesn't have to.
     """
+    import os
+
+    # Ensure torch CUDA libs are findable (needed for flash_attn_3)
+    try:
+        import torch
+
+        torch_lib = os.path.join(os.path.dirname(torch.__file__), "lib")
+        if torch_lib not in os.environ.get("LD_LIBRARY_PATH", ""):
+            os.environ["LD_LIBRARY_PATH"] = (
+                torch_lib + ":" + os.environ.get("LD_LIBRARY_PATH", "")
+            )
+    except ImportError:
+        pass
+
+    # Try flash_attn_3 first (current standard)
+    try:
+        import flash_attn_3  # noqa: F401
+
+        return True
+    except ImportError:
+        pass
+
+    # Fall back to flash_attn v2 (legacy)
     try:
         import flash_attn  # noqa: F401
 
