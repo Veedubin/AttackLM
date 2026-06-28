@@ -138,9 +138,10 @@ Examples:
     parser.add_argument(
         "--early-stop-steps",
         type=int,
-        default=1000,
-        help="Stop training if eval_loss does not improve for N consecutive "
-        "steps (default: 1000). Set to 0 to disable step-based early stopping. "
+        default=50,
+        help="Stop training if loss hasn't beaten the best in N consecutive "
+        "log checks (default: 50, ~500 steps at logging_steps=10). "
+        "Set to 0 to disable. "
         "This is in addition to epoch-based early stopping — whichever fires "
         "first wins.",
     )
@@ -2443,6 +2444,10 @@ def main() -> None:
     # training without killing the process. Pause saves a checkpoint and
     # blocks the training loop until [R]esume is pressed. Quit saves a
     # checkpoint and exits cleanly.
+    #
+    # Uses termios to switch the terminal to raw mode so keystrokes are
+    # delivered immediately (no line buffering). Falls back gracefully
+    # if stdin is not a TTY (piped input, nohup, etc.).
     class InteractiveControl:
         """Thread-safe interactive control for long-running training.
 
@@ -2464,6 +2469,18 @@ def main() -> None:
             self._lock = threading.Lock()
             self._paused_event = threading.Event()
             self._paused_event.set()  # not paused initially
+            self._old_termios = None
+            self._is_tty = sys.stdin.isatty()
+            if self._is_tty:
+                try:
+                    import termios
+                    import tty
+
+                    self._fd = sys.stdin.fileno()
+                    self._old_termios = termios.tcgetattr(self._fd)
+                    tty.setraw(self._fd)
+                except (ImportError, termios.error, OSError):
+                    self._is_tty = False
             self._thread = threading.Thread(target=self._listen, daemon=True)
             self._thread.start()
 
@@ -2471,6 +2488,16 @@ def main() -> None:
         def state(self):
             with self._lock:
                 return self._state
+
+        def _restore_terminal(self):
+            """Restore terminal to original cooked mode."""
+            if self._old_termios is not None:
+                try:
+                    import termios
+
+                    termios.tcsetattr(self._fd, termios.TCSADRAIN, self._old_termios)
+                except Exception:
+                    pass
 
         def _listen(self):
             """Background thread: read stdin and update state."""
@@ -2498,11 +2525,16 @@ def main() -> None:
                         self._state = self.QUIT
                         self._paused_event.set()  # unblock if paused
                         print("\n  [QUIT] Saving checkpoint and exiting...")
+                        self._restore_terminal()
                         break
 
         def wait_if_paused(self):
             """Block until resumed or quit. Call from main thread."""
             self._paused_event.wait()
+
+        def shutdown(self):
+            """Restore terminal and stop the listener thread."""
+            self._restore_terminal()
 
     class PauseResumeCallback(TrainerCallback):
         """Check interactive control state on each optimizer step.
@@ -2537,45 +2569,77 @@ def main() -> None:
     # VRAM ceiling. Clearing after every eval prevents this accumulation.
 
     class StepEarlyStoppingCallback(TrainerCallback):
-        """Stop training if eval_loss doesn't improve for N consecutive steps.
+        """Stop training when loss stops improving — simple best-loss tracking.
 
-        Unlike HF's EarlyStoppingCallback (which checks per-epoch), this
-        checks on every eval step. Useful for catching plateaus early —
-        if loss hasn't budged in 1000 steps, the remaining epochs won't help.
+        Fires on every `on_log` (every 10 steps). Tracks the best training
+        loss seen so far. If the loss hasn't beaten the best in `patience`
+        consecutive log checks, training stops.
+
+        This is the standard "no improvement for N steps" approach used by
+        Keras, PyTorch Lightning, and every major framework. No sliding
+        windows, no delta math — just: has the model found a new low
+        recently? If not, it's done.
+
+        Also saves a checkpoint on every new best loss so we can load the
+        actual best model at the end.
         """
 
-        def __init__(self, patience_steps: int):
+        def __init__(
+            self,
+            patience_steps: int = 50,
+            output_dir: str = "",
+        ):
             self.patience_steps = patience_steps
-            self.best_loss = float("inf")
-            self.steps_without_improvement = 0
+            self.output_dir = output_dir
+            self._best_loss = float("inf")
+            self._best_step = 0
+            self._steps_since_best = 0
 
-        def on_evaluate(self, args, state, control, metrics=None, **kwargs):
-            if metrics is None:
+        def on_log(self, args, state, control, logs=None, **kwargs):
+            if logs is None:
                 return control
-            eval_loss = metrics.get("eval_loss")
-            if eval_loss is None:
+            loss = logs.get("loss")
+            if loss is None:
                 return control
             try:
-                eval_loss = float(eval_loss)
+                loss = float(loss)
             except (TypeError, ValueError):
                 return control
 
-            if eval_loss < self.best_loss:
-                self.best_loss = eval_loss
-                self.steps_without_improvement = 0
+            if loss < self._best_loss:
+                self._best_loss = loss
+                self._best_step = state.global_step
+                self._steps_since_best = 0
+                if self.output_dir:
+                    self._save_best_checkpoint(args, state)
             else:
-                self.steps_without_improvement += 1
+                self._steps_since_best += 1
 
-            if self.steps_without_improvement >= self.patience_steps:
+            if self._steps_since_best >= self.patience_steps:
                 print(
-                    f"\n  [StepEarlyStopping] No improvement for "
-                    f"{self.steps_without_improvement} steps "
-                    f"(best: {self.best_loss:.4f}, current: {eval_loss:.4f}). "
+                    f"\n  [StepEarlyStopping] No new best loss for "
+                    f"{self._steps_since_best} log checks. "
+                    f"Best: {self._best_loss:.4f} at step {self._best_step}. "
                     f"Stopping early."
                 )
                 control.should_training_stop = True
 
             return control
+
+        def _save_best_checkpoint(self, args, state):
+            """Save a checkpoint tagged as the best-so-far."""
+            import shutil
+            from pathlib import Path
+
+            best_dir = Path(self.output_dir) / "checkpoint-best"
+            try:
+                ckpt_dir = Path(args.output_dir) / f"checkpoint-{state.global_step}"
+                if ckpt_dir.exists():
+                    if best_dir.exists():
+                        shutil.rmtree(best_dir)
+                    shutil.copytree(ckpt_dir, best_dir)
+            except Exception:
+                pass  # best-effort, don't crash training for a copy failure
 
     class GCEpochCallback(TrainerCallback):
         """Run gc.collect() + empty_cache() after every eval to defragment VRAM.
@@ -3125,7 +3189,11 @@ def main() -> None:
                     early_stopping_patience=args.early_stopping_patience
                 ),
                 *(
-                    [StepEarlyStoppingCallback(args.early_stop_steps)]
+                    [
+                        StepEarlyStoppingCallback(
+                            args.early_stop_steps, output_dir=args.output
+                        )
+                    ]
                     if args.early_stop_steps > 0
                     else []
                 ),
@@ -3147,7 +3215,11 @@ def main() -> None:
                     early_stopping_patience=args.early_stopping_patience
                 ),
                 *(
-                    [StepEarlyStoppingCallback(args.early_stop_steps)]
+                    [
+                        StepEarlyStoppingCallback(
+                            args.early_stop_steps, output_dir=args.output
+                        )
+                    ]
                     if args.early_stop_steps > 0
                     else []
                 ),
@@ -3227,9 +3299,11 @@ def main() -> None:
     except SystemExit:
         # User pressed [Q]uit — trainer already saved a checkpoint
         # via the callback. Just exit cleanly.
+        interactive_control.shutdown()
         print("\n  Training stopped by user. Checkpoint saved.")
         sys.exit(0)
     except Exception as e:
+        interactive_control.shutdown()
         error_msg = str(e)
         if "CUDA out of memory" in error_msg or "OOM" in error_msg:
             print("\nERROR: GPU ran out of memory during training!")
@@ -3241,6 +3315,9 @@ def main() -> None:
         else:
             print(f"\nERROR: Training failed: {e}")
         sys.exit(1)
+    finally:
+        # Always restore terminal to cooked mode
+        interactive_control.shutdown()
 
     # --- Save the model ---
     # For GaLore: save the full model (all parameters were trained).
@@ -3258,6 +3335,27 @@ def main() -> None:
     else:
         print(f"\nSaving best LoRA adapter to: {args.output}")
     os.makedirs(args.output, exist_ok=True)
+
+    # If StepEarlyStoppingCallback saved a checkpoint-best, load it
+    # before saving. HF's load_best_model_at_end only works with
+    # epoch-boundary checkpoints — step-based early stopping can find
+    # a better model mid-epoch.
+    best_ckpt = Path(args.output) / "checkpoint-best"
+    if best_ckpt.exists() and (best_ckpt / "model.safetensors").exists():
+        print(f"  Loading best checkpoint from: {best_ckpt}")
+        if args.use_galore and _galore_available:
+            # GaLore: full model, reload from checkpoint
+            model = AutoModelForCausalLM.from_pretrained(
+                str(best_ckpt),
+                torch_dtype=torch_dtype,
+                device_map={"": 0} if is_cuda() else None,
+            )
+        else:
+            # QLoRA: reload adapter weights
+            from peft import PeftModel
+
+            model = PeftModel.from_pretrained(model, str(best_ckpt))
+
     model.save_pretrained(args.output)
     tokenizer.save_pretrained(args.output)
 
