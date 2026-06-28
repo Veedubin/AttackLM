@@ -389,15 +389,26 @@ Examples:
         action="store_true",
         default=False,
         help=(
-            "Use Q-GaLore (Quantized Gradient Low-Rank Projection) for "
-            "full-parameter fine-tuning. Q-GaLore quantizes gradient "
-            "projection matrices to INT4 with stochastic rounding, "
-            "enabling 7B full-parameter training on 16GB GPUs. "
-            "Mutually exclusive with --use-unsloth. "
+            "Use GaLore (Gradient Low-Rank Projection) for full-parameter "
+            "fine-tuning. GaLore projects gradients into a low-rank space "
+            "during optimization, enabling full-parameter learning on "
+            "consumer GPUs without LoRA adapters. Mutually exclusive with "
+            "--use-unsloth (GaLore trains ALL parameters, no LoRA needed). "
             "Requires 'uv pip install attacklm[galore]'. "
-            "Default: Q-GaLore (INT4 projections + 8-bit optimizer). "
-            "Use --galore-fp16 for vanilla GaLore (FP16 projections). "
+            "Default: 8-bit optimizer + per-layer hooks (fits 3B on 16GB). "
+            "Use --use-qgalore for INT4 projections (fits 7B on 16GB). "
             "Use --galore-32bit for full-precision (needs ~20GB+ for 3B)."
+        ),
+    )
+    parser.add_argument(
+        "--use-qgalore",
+        action="store_true",
+        default=False,
+        help=(
+            "Use Q-GaLore: INT4 quantized gradient projection matrices "
+            "with stochastic rounding. Cuts optimizer memory by ~4x vs "
+            "vanilla GaLore, enabling 7B full-parameter training on 16GB. "
+            "Requires --use-galore. Paper: arXiv:2407.08296."
         ),
     )
     parser.add_argument(
@@ -431,19 +442,6 @@ Examples:
             "GaLore projection rank (default: 64 for 3B/16GB, 128 for 7B/24GB). "
             "Higher = more capacity but more VRAM. SVD projection memory "
             "scales with rank². Only meaningful with --use-galore."
-        ),
-    )
-    parser.add_argument(
-        "--galore-fp16",
-        action="store_true",
-        default=False,
-        help=(
-            "Use vanilla GaLore with FP16 projection matrices instead of "
-            "the default Q-GaLore (INT4 quantized projections). "
-            "Q-GaLore cuts optimizer memory by ~4x vs vanilla GaLore, "
-            "enabling 7B models on 16GB. Use --galore-fp16 if you need "
-            "maximum precision (e.g., for a rented A100 with plenty of VRAM). "
-            "Only meaningful with --use-galore."
         ),
     )
     parser.add_argument(
@@ -3304,17 +3302,17 @@ def main() -> None:
         hpo_callbacks.append(HPOMetricsCSVCallback(args.hpo_metrics_csv, hpo_label))
         print(f"\n  HPO metrics CSV: {args.hpo_metrics_csv}  (label={hpo_label})")
 
-    # --- Q-GaLore / GaLore: full-parameter training with gradient projection ---
-    # Q-GaLore (default): INT4 quantized projection matrices + stochastic
-    # rounding + layer-adaptive SVD skipping. Cuts optimizer memory ~4x vs
-    # vanilla GaLore. Enables 7B on 16GB.
-    # Vanilla GaLore (--galore-fp16): FP16 projection matrices.
-    # Paper: arXiv:2407.08296
+    # --- GaLore / Q-GaLore: full-parameter training with gradient projection ---
+    # GaLore (--use-galore): FP16 projection matrices, 8-bit optimizer.
+    #   Fits 3B on 16GB, 7B on 24GB.
+    # Q-GaLore (--use-qgalore): INT4 quantized projection matrices with
+    #   stochastic rounding. Cuts optimizer memory ~4x vs vanilla GaLore.
+    #   Enables 7B on 16GB. Paper: arXiv:2407.08296.
     if args.use_galore and _galore_available:
         from transformers import Trainer
 
         _use_32bit = args.galore_32bit
-        _use_qgalore = not args.galore_fp16  # Q-GaLore is the default
+        _use_qgalore = args.use_qgalore
         _galore_rank = args.galore_rank
 
         if _use_qgalore:

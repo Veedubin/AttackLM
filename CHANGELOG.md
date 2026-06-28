@@ -8,13 +8,9 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ### Added
 
-- **Q-GaLore (default)**: INT4 quantized gradient projection matrices with stochastic rounding. Cuts optimizer memory ~4x vs vanilla GaLore. Enables 7B full-parameter training on 16GB GPUs. Paper: arXiv:2407.08296. Use `--galore-fp16` for vanilla GaLore.
-- **Spectrum**: SNR-based layer freezing. Computes signal-to-noise ratio per layer and freezes the lowest-SNR layers. `--spectrum` keeps top 50%, `--spectrum 0.25` keeps top 25%. Reduces VRAM proportionally. Compatible with any training method. Paper: arXiv:2406.06623.
-- **PiSSA init**: SVD-based LoRA initialization. `--pissa-init` initializes LoRA weights from the SVD of pre-trained weights instead of random Kaiming init. Faster convergence, lower final loss. Paper: arXiv:2404.02948.
-
-### Changed
-
-- **Default change**: `--use-galore` now defaults to Q-GaLore (INT4). Use `--galore-fp16` for vanilla GaLore.
+- **Q-GaLore** (`--use-qgalore`): INT4 quantized gradient projection matrices with stochastic rounding. Cuts optimizer memory ~4x vs vanilla GaLore. Enables 7B full-parameter training on 16GB GPUs. Requires `--use-galore`. Paper: arXiv:2407.08296.
+- **Spectrum** (`--spectrum`): SNR-based layer freezing. Computes signal-to-noise ratio per layer and freezes the lowest-SNR layers. `--spectrum` keeps top 50%, `--spectrum 0.25` keeps top 25%. Reduces VRAM proportionally. Compatible with any training method. Paper: arXiv:2406.06623.
+- **PiSSA init** (`--pissa-init`): SVD-based LoRA initialization. Initializes LoRA weights from the SVD of pre-trained weights instead of random Kaiming init. Faster convergence, lower final loss. Paper: arXiv:2404.02948.
 
 ---
 
