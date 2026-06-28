@@ -408,7 +408,8 @@ Examples:
             "Use Q-GaLore: INT4 quantized gradient projection matrices "
             "with stochastic rounding. Cuts optimizer memory by ~4x vs "
             "vanilla GaLore, enabling 7B full-parameter training on 16GB. "
-            "Requires --use-galore. Paper: arXiv:2407.08296."
+            "Mutually exclusive with --use-galore and --use-unsloth. "
+            "Paper: arXiv:2407.08296."
         ),
     )
     parser.add_argument(
@@ -479,6 +480,11 @@ Examples:
 # ---------------------------------------------------------------------------
 # Checks & Validation
 # ---------------------------------------------------------------------------
+
+
+def _is_galore(args) -> bool:
+    """True if either --use-galore or --use-qgalore is active."""
+    return args.use_galore or args.use_qgalore
 
 
 def _resolve_model_path(model_id_or_path: str) -> str:
@@ -1629,7 +1635,7 @@ def main() -> None:
     )
     _galore_display = (
         f"ON (full-parameter, rank={args.galore_rank}, update_proj_gap=200, scale=0.25)"
-        if args.use_galore
+        if _is_galore(args)
         else "OFF"
     )
 
@@ -1639,13 +1645,13 @@ def main() -> None:
     _plan.add_row("Model", args.base_model)
     if args.use_unsloth:
         _plan.add_row("Quantization", "4-bit (Unsloth internal)")
-    elif args.use_galore:
+    elif _is_galore(args):
         _plan.add_row("Quantization", "NONE (bf16 full-parameter for GaLore)")
     elif not args.moe_safe_target:
         _plan.add_row("Quantization", "4-bit NF4 (double quant)")
     else:
         _plan.add_row("Quantization", "NONE (bf16 full-precision for MoE)")
-    if args.use_galore:
+    if _is_galore(args):
         _plan.add_row("Training mode", "GaLore full-parameter (no LoRA)")
     else:
         _plan.add_row("LoRA rank", str(args.lora_r))
@@ -1698,7 +1704,7 @@ def main() -> None:
                 "~4-5 GB (batch=2, len=2048) / ~3-4 GB (batch=1, len=1024)",
             )
             _dry_tbl.add_row("Note", "13B model fits in 16GB with Unsloth QLoRA")
-        if args.use_galore:
+        if _is_galore(args):
             _dry_tbl.add_row(
                 "Est. VRAM (GaLore)",
                 "~10-12 GB (3B) / ~14-16 GB (7B), batch=1, len=2048",
@@ -1797,13 +1803,13 @@ def main() -> None:
     except Exception as e:
         console.print(f"  [dim](Skipped state.json write: {e})[/dim]")
 
-    # --- Mutual exclusivity: GaLore vs Unsloth ---
-    if args.use_galore and args.use_unsloth:
+    # --- Mutual exclusivity: GaLore/Q-GaLore vs Unsloth ---
+    if (args.use_galore or args.use_qgalore) and args.use_unsloth:
         console.print(
-            "[red]ERROR:[/red] --use-galore and --use-unsloth are mutually exclusive.\n"
-            "  GaLore is full-parameter training (no LoRA adapters).\n"
+            "[red]ERROR:[/red] --use-galore/--use-qgalore and --use-unsloth are mutually exclusive.\n"
+            "  GaLore/Q-GaLore is full-parameter training (no LoRA adapters).\n"
             "  Unsloth is optimized QLoRA (LoRA adapters on quantized base).\n"
-            "  Choose one: --use-galore OR --use-unsloth, not both."
+            "  Choose one: --use-galore/--use-qgalore OR --use-unsloth, not both."
         )
         sys.exit(1)
 
@@ -1828,7 +1834,7 @@ def main() -> None:
 
     # --- GaLore: import galore-torch for full-parameter training ---
     _galore_available = False
-    if args.use_galore:
+    if _is_galore(args):
         try:
             # Fix: bitsandbytes calls torch.utils._pytree.register_constant()
             # on Enum subclasses, which is deprecated in PyTorch 2.12+.
@@ -1862,7 +1868,7 @@ def main() -> None:
 
     # --multi-gpu + --use-galore: auto-enable 32-bit (per-layer hooks
     # are incompatible with DDP's gradient all-reduce).
-    if args.multi_gpu and args.use_galore and not args.galore_32bit:
+    if args.multi_gpu and _is_galore(args) and not args.galore_32bit:
         console.print(
             "  [yellow]GaLore:[/yellow] --multi-gpu detected — auto-enabling "
             "--galore-32bit (per-layer weight updates are incompatible with DDP)"
@@ -1918,7 +1924,9 @@ def main() -> None:
     # load_in_4bit parameter. We skip BitsAndBytes entirely.
     # --use-galore: GaLore is full-parameter training — no quantization
     # needed. Model is loaded in bf16/fp16 for full-parameter updates.
-    skip_quantization = args.moe_safe_target or args.use_unsloth or args.use_galore
+    skip_quantization = (
+        args.moe_safe_target or args.use_unsloth or args.use_galore or args.use_qgalore
+    )
 
     if skip_quantization:
         bnb_config = None  # No quantization for MoE-safe or Unsloth mode
@@ -2082,7 +2090,7 @@ def main() -> None:
                 # trust_remote_code=False — the model is architecturally
                 # identical to standard Qwen2.5-Coder, just abliterated weights.
                 # The standard Qwen2ForCausalLM class respects torch_dtype.
-                if args.use_galore:
+                if _is_galore(args):
                     # Standard models (Qwen, Llama, etc.) load in bf16 with
                     # dtype= directly. No config patching needed.
                     # Note: huihui-ai abliterated models have custom code
@@ -2275,8 +2283,8 @@ def main() -> None:
         sys.exit(1)
 
     # --- Apply LoRA (or skip for GaLore full-parameter training) ---
-    if args.use_galore and _galore_available:
-        # GaLore: full-parameter training — no LoRA adapter needed.
+    if _is_galore(args) and _galore_available:
+        # GaLore/Q-GaLore: full-parameter training — no LoRA adapter needed.
         # GaLore projects gradients into a low-rank space during optimization,
         # so ALL model parameters are trained directly. No PEFT wrapping.
         print("GaLore: full-parameter training (no LoRA adapter)")
@@ -3308,7 +3316,7 @@ def main() -> None:
     # Q-GaLore (--use-qgalore): INT4 quantized projection matrices with
     #   stochastic rounding. Cuts optimizer memory ~4x vs vanilla GaLore.
     #   Enables 7B on 16GB. Paper: arXiv:2407.08296.
-    if args.use_galore and _galore_available:
+    if _is_galore(args) and _galore_available:
         from transformers import Trainer
 
         _use_32bit = args.galore_32bit
@@ -3667,7 +3675,7 @@ def main() -> None:
     # use train_result.metrics["epoch"] for that because HF rounds it
     # to an int and we want the fractional value from log_history.
 
-    if args.use_galore and _galore_available:
+    if _is_galore(args) and _galore_available:
         print(f"\nSaving GaLore full-parameter model to: {args.output}")
     else:
         print(f"\nSaving best LoRA adapter to: {args.output}")
@@ -3680,7 +3688,7 @@ def main() -> None:
     best_ckpt = Path(args.output) / "checkpoint-best"
     if best_ckpt.exists() and (best_ckpt / "model.safetensors").exists():
         print(f"  Loading best checkpoint from: {best_ckpt}")
-        if args.use_galore and _galore_available:
+        if (args.use_galore or args.use_qgalore) and _galore_available:
             # GaLore: full model, reload from checkpoint
             model = AutoModelForCausalLM.from_pretrained(
                 str(best_ckpt),
@@ -3701,7 +3709,7 @@ def main() -> None:
         "base_model": args.base_model,
         "dataset": args.dataset,
         "training_mode": "galore_full_parameter"
-        if (args.use_galore and _galore_available)
+        if (_is_galore(args) and _galore_available)
         else "qlora",
         "lora_r": args.lora_r,
         "lora_alpha": args.lora_alpha,
@@ -3726,7 +3734,7 @@ def main() -> None:
         if not skip_quantization
         else (
             "none (bf16 full-parameter for GaLore)"
-            if (args.use_galore and _galore_available)
+            if (_is_galore(args) and _galore_available)
             else "none (bf16 full-precision for MoE)"
         ),
         "epochs": args.epochs,
@@ -3736,13 +3744,13 @@ def main() -> None:
         "packing": args.packing,
         "compute_dtype": compute_type,
         "optimizer": "galore_adamw"
-        if (args.use_galore and _galore_available)
+        if (_is_galore(args) and _galore_available)
         else args.optim,
         "final_loss": final_loss,
         "training_time_seconds": round(elapsed, 2),
         "num_examples": len(dataset),
     }
-    if args.use_galore and _galore_available:
+    if _is_galore(args) and _galore_available:
         config["galore_rank"] = 128
         config["galore_update_proj_gap"] = 200
         config["galore_scale"] = 0.25
@@ -3892,7 +3900,7 @@ def main() -> None:
     )
     summary_tbl.add_row("Config written to", config_path)
 
-    if args.use_galore and _galore_available:
+    if _is_galore(args) and _galore_available:
         code = f"""from transformers import AutoModelForCausalLM, AutoTokenizer
 
 model = AutoModelForCausalLM.from_pretrained("{args.output}", device_map="auto")
