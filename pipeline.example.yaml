@@ -6,7 +6,27 @@
 # Each job runs sequentially: train → merge → gguf → install.
 # If a stage fails, the pipeline skips to the next job.
 
-jobs:
+  # --- Job: Q-GaLore + Spectrum (7B on 16GB) ---
+  - name: qgalore-spectrum-7b
+    train:
+      dataset: data/datasets/balanced/balanced_1000cap.jsonl
+      base_model: Qwen/Qwen2.5-Coder-7B-Instruct
+      output: models/attacklm-qgalore-spectrum
+      use_galore: true
+      spectrum: 0.5
+      epochs: 20
+      max_length: 2048
+      batch_size: 4
+      packing: true
+      early_stop_steps: 5
+    merge:
+      output: models/attacklm-qgalore-spectrum-merged
+    gguf:
+      output: models/attacklm-qgalore-spectrum.gguf
+      quant: q4_k_m
+    install:
+      lmstudio: true
+
   # --- Job 1: GaLore full-parameter fine-tuning on balanced dataset ---
   - name: balanced-galore
     train:

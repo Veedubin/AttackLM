@@ -77,6 +77,12 @@ The full per-source map (on-disk counts as of v0.5.36):
 
 ## Quickstart
 
+### Recommended: MITRE ATT&CK Fine-Tuning (7B on 16GB VRAM)
+For the best balance of quality and hardware accessibility, we recommend using Q-GaLore with Spectrum layer freezing on Qwen2.5-Coder-7B:
+```bash
+attacklm-train --train --dataset data/datasets/balanced/balanced_1000cap.jsonl --base-model Qwen/Qwen2.5-Coder-7B-Instruct --output models/attacklm-v6 --use-galore --spectrum --epochs 20 --batch-size 4 --max-length 2048 --packing --early-stop-steps 5
+```
+
 ### Option A: Install from PyPI (fastest — 30 seconds)
 
 ```bash
@@ -132,6 +138,17 @@ The merged model goes to `models/merged/attacklm-single/`. See
 > Every `attacklm-*` command is a thin wrapper around a script. You can run
 > `uv run python scripts/train_all.py --help` directly — same behavior,
 > same flags, no install required.
+
+## Training Methods
+
+AttackLM supports a hierarchy of training methods to fit various VRAM budgets:
+
+- **Q-GaLore** (default with `--use-galore`): Full-parameter training using INT4 quantized gradient projection. Enables 7B models on 16GB GPUs.
+- **GaLore** (`--galore-fp16`): Full-parameter training using FP16 projections. Typically fits 3B models on 16GB GPUs.
+- **QLoRA** (default without `--use-galore`): 4-bit quantized base model + LoRA adapters. 7B models fit on 16GB GPUs.
+- **Spectrum** (`--spectrum`): SNR-based layer freezing. Reduces VRAM by freezing low-signal layers. Stacks with any method.
+- **PiSSA** (`--pissa-init`): SVD-based LoRA initialization. Faster convergence and lower final loss. Stacks with QLoRA.
+- **DoRA** (`--use-dora`): Weight-decomposed LoRA. Stacks with QLoRA.
 
 ---
 
@@ -431,6 +448,9 @@ The other 30 lines of the technique are documented at:
 | `--early-stop-steps` | 1000 | Stop training if eval_loss doesn't improve for N steps |
 | `--config` | none | Use a YAML pipeline config for multi-job training (e.g. `pipeline.yaml`) |
 | `--checkpoint-best` | (off) | Save the model with the lowest eval loss as the primary artifact |
+| `--galore-fp16` | (off) | Use vanilla FP16 GaLore instead of default Q-GaLore (INT4) |
+| `--spectrum` | (off) | Enable SNR-based layer freezing (default 0.5). Use `--spectrum 0.25` for 25% layers. |
+| `--pissa-init` | (off) | Use SVD-based initialization for LoRA weights |
 | `--include-tools` | (off) | **Deprecated in v0.2.0**: use `--dataset tools/` instead |
 | `--include-orchestrator` | (off) | **Deprecated in v0.2.0**: use `--dataset orchestrator` instead |
 | `--model-attacks` | (off) | **Deprecated in v0.2.0**: use `--dataset ai/` instead |
