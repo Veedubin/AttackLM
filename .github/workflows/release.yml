@@ -14,8 +14,26 @@ on:
       - "v*"
 
 jobs:
+  validate:
+    name: Validate version 🔍
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches __version__.py
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          FILE_VERSION=$(python3 -c "exec(open('src/attacklm/__version__.py').read()); print(__version__)")
+          if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
+            echo "ERROR: Tag v${TAG_VERSION} does not match __version__.py (${FILE_VERSION})"
+            echo "Bump src/attacklm/__version__.py to ${TAG_VERSION} before pushing the tag."
+            exit 1
+          fi
+          echo "Version validated: v${TAG_VERSION} == __version__.py (${FILE_VERSION})"
+
   build:
     name: Build distribution 📦
+    needs: validate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
