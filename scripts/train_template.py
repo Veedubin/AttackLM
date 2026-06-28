@@ -1905,9 +1905,14 @@ def main() -> None:
             dtype=torch_dtype,
             low_cpu_mem_usage=True,
         )
-        # OOM fix #13: FlashAttention 2 for varlen (padding-free) support
-        attn_impl = suggest_attn_implementation(args.packing)
+        # OOM fix #13: FlashAttention 2 for varlen (padding-free) support.
+        # If flash-attn is not available, packing is silently disabled to
+        # prevent cross-sample contamination. Training works correctly either
+        # way — just ~30% slower without packing.
+        attn_impl, packing_ok = suggest_attn_implementation(args.packing)
         load_kwargs["attn_implementation"] = attn_impl
+        if args.packing and not packing_ok:
+            args.packing = False
 
         # Decide whether to pass a quantization_config:
         #   - --moe-safe-target        → skip BnB, load in bf16
