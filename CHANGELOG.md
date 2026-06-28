@@ -4,6 +4,55 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
+## [0.5.35] — 2026-06-27 — GaLore full-parameter training, balanced datasets, interactive controls
+
+### Added
+
+- **GaLore full-parameter training** (`--use-galore`): Gradient Low-Rank Projection
+  enables full-parameter fine-tuning on consumer GPUs (3B model fits 16GB at
+  batch_size=8). Mutually exclusive with Unsloth QLoRA.
+  - `--galore-rank` (default 64): tunable projection rank
+  - `--galore-32bit`: full-precision optimizer (multi-GPU compatible)
+  - `--multi-gpu`: auto-enables 32-bit (per-layer hooks incompatible with DDP)
+  - 8-bit `GaLoreAdamW8bit` optimizer with per-layer hooks (~37 groups for Qwen 3B)
+  - `[galore]` extra in pyproject.toml: `galore-torch>=1.0`
+- **Interactive training controls**: `[P]ause` / `[Q]uit` / `[R]esume` during
+  training via background stdin listener. Pause saves checkpoint and blocks;
+  resume continues from where it left off; quit saves and exits cleanly.
+- **`attacklm-balance` uniform cap**: `--per-bucket-cap` now accepts a plain
+  integer (`'500'`) for uniform cap across all buckets, in addition to the
+  existing JSON dict format.
+- **`max_grad_norm=1.0`**: gradient clipping prevents GaLore loss explosion
+  (low-rank projection can amplify outlier gradients into numerical overflow).
+- **`load_best_model_at_end=True`**: trainer loads the checkpoint with lowest
+  eval_loss at end of training. Requires `save_strategy` to match `eval_strategy`
+  (both set to `"epoch"`).
+
+### Changed
+
+- **VRAM display**: progress bar now shows `used/total` instead of `free/total`
+  (e.g. `VRAM 14.5/15.6 GB` instead of `VRAM 1.1/15.6 GB`).
+- **Progress bar**: 80-char friendly format, removed HF PrinterCallback dict dump.
+- **GCEpochCallback threshold**: lowered from 2GB to 256MB for GaLore (per-layer
+  hooks free gradients after each layer's backward pass, so peak memory is lower).
+- **Tokenizer**: `bos_token_id` synced before model load to prevent HF warnings.
+- **Tied embeddings**: `model.config.tie_word_embeddings=True` set after load to
+  prevent `lm_head.weight` missing warnings on checkpoint load.
+
+### Fixed
+
+- **bitsandbytes Enum warnings**: monkey-patched `torch.utils._pytree.register_constant`
+  to no-op for Enum subclasses (natively supported in PyTorch 2.12+).
+- **Python 3.14 argparse**: escaped `%` in help strings.
+- **`Avg tok/s: 0`**: eval log events with `num_tokens=0` no longer reset the
+  cumulative token counter.
+- **GaLore OOM**: per-layer hooks grouped by layer prefix (~37 groups, not 434
+  individual optimizers). huihui-ai abliterated model identified as root cause
+  of fp32 loading (custom modeling code forces fp32 regardless of `dtype=`).
+  Standard `Qwen/Qwen2.5-Coder-3B-Instruct` loads in bf16 at 5.75GB.
+
+---
+
 ## [0.5.0] — 2026-06-24 — Blue-team data sources, team presets, defensive extractors
 
 ### Added
