@@ -169,50 +169,32 @@ def is_flash_attn_available() -> bool:
         return False
 
 
-def suggest_attn_implementation(packing: bool) -> str:
-    """Pick an attention implementation that works on the current device.
+def suggest_attn_implementation(packing: bool) -> tuple[str, bool]:
+    """Pick an attention implementation and determine if packing is usable.
 
     Args:
-        packing: True if the user requested --packing (which prefers
-            flash_attention_2 for the cu_seqlens boundary handling).
+        packing: True if the user requested --packing.
 
     Returns:
-        One of 'flash_attention_2' (CUDA + flash-attn installed),
-        'sdpa' (ROCm, MPS, CPU, or flash-attn not installed).
+        (attn_implementation, packing_enabled) tuple.
+        - attn_implementation: 'flash_attention_2' or 'sdpa'
+        - packing_enabled: True if packing is safe to use (flash-attn
+          available on CUDA), False otherwise.
 
-    The function emits a warning to stderr if the requested packing implies
-    flash_attention_2 but we have to fall back to sdpa — so the user knows
-    they're losing ~30% throughput.
+    When flash-attn is not available, packing is silently disabled to
+    prevent cross-sample contamination. The user doesn't need to know
+    or care — training works correctly either way, just ~30% slower
+    without packing.
     """
     if not packing:
-        # Eager / sdpa both work everywhere. sdpa is the PyTorch-native
-        # default and is what --no-packing would use anyway.
-        return "sdpa"
+        return ("sdpa", False)
 
     if is_cuda() and not is_rocm() and is_flash_attn_available():
-        return "flash_attention_2"
+        return ("flash_attention_2", True)
 
-    # We wanted flash-attn for packing's cu_seqlens boundary handling, but
-    # we can't get it. Be loud about the consequence.
-    if is_rocm():
-        print(
-            "\n  WARNING: --packing requested but flash-attn is not available "
-            "on ROCm. Falling back to sdpa. Packing will still work but is "
-            "~30% slower than with flash-attn. If you need the speedup, you "
-            "can try the community ROCm flash-attn fork at "
-            "https://github.com/ROCm/flash-attention — but it is not "
-            "officially supported.\n",
-            file=sys.stderr,
-        )
-    elif not is_flash_attn_available():
-        print(
-            "\n  WARNING: --packing requested but flash-attn is not installed. "
-            "Falling back to sdpa. On CUDA you can install with: "
-            "`uv pip install flash-attn --no-build-isolation` "
-            "(requires CUDA dev tools, takes ~5 min to compile).\n",
-            file=sys.stderr,
-        )
-    return "sdpa"
+    # flash-attn not available — packing would cause cross-sample
+    # contamination. Disable it silently.
+    return ("sdpa", False)
 
 
 # ---------------------------------------------------------------------------
