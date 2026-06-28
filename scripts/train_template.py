@@ -138,12 +138,12 @@ Examples:
     parser.add_argument(
         "--early-stop-steps",
         type=int,
-        default=50,
-        help="Stop training if loss hasn't beaten the best in N consecutive "
-        "log checks (default: 50, ~500 steps at logging_steps=10). "
-        "Set to 0 to disable. "
-        "This is in addition to epoch-based early stopping — whichever fires "
-        "first wins.",
+        default=5,
+        help="Check EMA-smoothed loss trend every N log calls "
+        "(default: 5, ~50 steps at logging_steps=10). "
+        "Compares first vs second half of smoothed window — stops "
+        "after 3 consecutive checks with no downward trend. "
+        "Set to 0 to disable.",
     )
     parser.add_argument(
         "--batch-size",
@@ -2569,31 +2569,45 @@ def main() -> None:
     # VRAM ceiling. Clearing after every eval prevents this accumulation.
 
     class StepEarlyStoppingCallback(TrainerCallback):
-        """Stop training when loss stops improving — simple best-loss tracking.
+        """EMA-smoothed trend-based early stopping for noisy training loss.
 
-        Fires on every `on_log` (every 10 steps). Tracks the best training
-        loss seen so far. If the loss hasn't beaten the best in `patience`
-        consecutive log checks, training stops.
+        Raw per-step loss oscillates wildly (0.71→0.89→0.72 in 3 steps).
+        Comparing against a single best-ever value is useless — a lucky
+        low batch doesn't mean the model improved, and noise can hide
+        genuine plateaus.
 
-        This is the standard "no improvement for N steps" approach used by
-        Keras, PyTorch Lightning, and every major framework. No sliding
-        windows, no delta math — just: has the model found a new low
-        recently? If not, it's done.
+        Instead:
+        1. Smooth loss with exponential moving average (EMA).
+        2. Every `check_every` log calls, compare first half vs second
+           half of the smoothed window. If the trend is no longer
+           downward, count a "stale" check.
+        3. After 3 consecutive stale checks, stop.
 
-        Also saves a checkpoint on every new best loss so we can load the
-        actual best model at the end.
+        Checkpoint saving is deferred until after epoch 1 to avoid
+        saving hundreds of checkpoints during the initial rapid descent.
+        After epoch 1, each new best EMA triggers a checkpoint-best save.
         """
 
         def __init__(
             self,
-            patience_steps: int = 50,
+            check_every: int = 5,
+            window_size: int = 20,
+            ema_decay: float = 0.9,
             output_dir: str = "",
         ):
-            self.patience_steps = patience_steps
+            from collections import deque
+
+            self.check_every = check_every
+            self.window_size = window_size
+            self.ema_decay = ema_decay
             self.output_dir = output_dir
-            self._best_loss = float("inf")
+
+            self._ema: float | None = None
+            self._window: deque[float] = deque(maxlen=window_size)
+            self._stale_checks = 0
+            self._best_ema = float("inf")
             self._best_step = 0
-            self._steps_since_best = 0
+            self._log_count = 0
 
         def on_log(self, args, state, control, logs=None, **kwargs):
             if logs is None:
@@ -2606,21 +2620,51 @@ def main() -> None:
             except (TypeError, ValueError):
                 return control
 
-            if loss < self._best_loss:
-                self._best_loss = loss
-                self._best_step = state.global_step
-                self._steps_since_best = 0
-                if self.output_dir:
-                    self._save_best_checkpoint(args, state)
+            # --- EMA smoothing ---
+            if self._ema is None:
+                self._ema = loss
             else:
-                self._steps_since_best += 1
+                self._ema = self.ema_decay * self._ema + (1.0 - self.ema_decay) * loss
+            self._window.append(self._ema)
 
-            if self._steps_since_best >= self.patience_steps:
+            # --- Track best smoothed loss ---
+            if self._ema < self._best_ema:
+                self._best_ema = self._ema
+                self._best_step = state.global_step
+                # Only save checkpoints after epoch 1 — during the first
+                # epoch, loss drops so fast that every step is a "new best"
+                # and we'd save hundreds of checkpoints.
+                if state.epoch is not None and state.epoch >= 1.0:
+                    if self.output_dir:
+                        self._save_best_checkpoint(args, state)
+
+            # --- Trend check: every `check_every` log calls ---
+            self._log_count += 1
+            if self._log_count % self.check_every != 0:
+                return control
+
+            if len(self._window) < self.window_size:
+                return control
+
+            # Split window: first half vs second half
+            mid = self.window_size // 2
+            window_list = list(self._window)
+            first_mean = sum(window_list[:mid]) / mid
+            second_mean = sum(window_list[mid:]) / mid
+
+            if second_mean < first_mean:
+                # Still trending down
+                self._stale_checks = 0
+            else:
+                self._stale_checks += 1
+
+            if self._stale_checks >= 3:
                 print(
-                    f"\n  [StepEarlyStopping] No new best loss for "
-                    f"{self._steps_since_best} log checks. "
-                    f"Best: {self._best_loss:.4f} at step {self._best_step}. "
-                    f"Stopping early."
+                    f"\n  [StepEarlyStopping] Trend flatlined: "
+                    f"EMA first-half={first_mean:.4f} → "
+                    f"second-half={second_mean:.4f}. "
+                    f"Best EMA: {self._best_ema:.4f} at step "
+                    f"{self._best_step}. Stopping early."
                 )
                 control.should_training_stop = True
 
