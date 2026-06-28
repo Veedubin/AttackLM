@@ -1,7 +1,7 @@
 # AttackLM
 
 > A fine-tuning pipeline for a MITRE ATT&CK-grounded red/blue-team AI assistant.
-> QLoRA + GaLore full-parameter · 24,664 training pairs · 3B–70B Qwen base · 16GB–128GB VRAM.
+> QLoRA + GaLore full-parameter · 16,027 training pairs · 3B–70B Qwen base · 16GB–128GB VRAM.
 
 [![License: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
 [![PyPI version](https://img.shields.io/pypi/v/attacklm.svg)](https://pypi.org/project/attacklm/)
@@ -20,10 +20,10 @@ open-source projects (Atomic Red Team, MITRE Caldera, Metasploit, Sigma,
 Elastic, Splunk, Mordor, ThreatHunter-Playbook, NIST IR, plus prompt-injection
 and jailbreak corpora for AI-security coverage).
 
-The pipeline ingests 10 MITRE tactic buckets, 3 defensive buckets, 3 tool
-buckets, 2 AI-security buckets, 1 orchestrator bucket, and 4 extended-category
-buckets (23 total) and produces either a QLoRA LoRA adapter or a GaLore
-full-parameter model you can drop on top of
+The pipeline ingests 9 MITRE tactic buckets, 1 tool bucket, 2 AI-security
+buckets, 1 orchestrator bucket, and 4 LLM-generated extended-category buckets
+(17 total with data on disk) and produces either a QLoRA LoRA adapter or a
+GaLore full-parameter model you can drop on top of
 `Qwen2.5-Coder-3B-Instruct`. Team presets (red/purple/blue) let you control
 the offensive/defensive mix.
 
@@ -52,22 +52,26 @@ its contribution to AttackLM's training mix is documented in
 [**`/ATTRIBUTION.md`**](ATTRIBUTION.md) and summarized in
 [**`/NOTICE`**](NOTICE).
 
-The full per-source map:
+The full per-source map (on-disk counts as of v0.5.36):
 
 | Source | Pairs | License | Repository |
 |---|---|---|---|
 | Metasploit Framework | 13,997 | BSD-3-Clause | [rapid7/metasploit-framework](https://github.com/rapid7/metasploit-framework) |
-| Sigma rules | 3,000 | DRL-1.1 | [SigmaHQ/sigma](https://github.com/SigmaHQ/sigma) |
-| Elastic detection rules | 1,200 | Elastic-2.0 | [elastic/detection-rules](https://github.com/elastic/detection-rules) |
-| Splunk security content | 800 | Apache-2.0 | [splunk/security_content](https://github.com/splunk/security_content) |
-| Mordor (OTRF) | 500 | Apache-2.0 | [OTRF/Security-Datasets](https://github.com/OTRF/Security-Datasets) |
 | Atomic Red Team | 1,115 | MIT | [redcanaryco/atomic-red-team](https://github.com/redcanaryco/atomic-red-team) |
 | MITRE Caldera / Stockpile | 390 | Apache-2.0 | [mitre/stockpile](https://github.com/mitre/stockpile) |
-| ThreatHunter-Playbook | 150 | Apache-2.0 | [OTRF/ThreatHunter-Playbook](https://github.com/OTRF/ThreatHunter-Playbook) |
-| NIST SP 800-61r3 | 200 | Public Domain | NIST (template-based extractor) |
+| AttackLM Synthetic (orchestrator) | 380 | MIT | this repo |
 | AI-security tools (garak, promptfoo, promptmap) | 113 | mixed MIT/Apache-2.0 | various (see [ATTRIBUTION.md](ATTRIBUTION.md)) |
-| Synthetic (orchestrator + extended categories) | 380 | MIT | this repo |
-| **Total** | **21,865** | | |
+| MITRE ATLAS Arsenal | 20 | Apache-2.0 | [mitre-atlas/arsenal](https://github.com/mitre-atlas/arsenal) |
+| Replay general (code/conversation/factual/reasoning) | 12 | MIT | this repo |
+| **Total permissive** | **16,027** | | |
+| LLM-generated (GPL-3.0, excluded) | 937 | GPL-3.0 | excluded from training |
+| **Total on disk** | **16,964** | | |
+
+> **Note:** Several source directories exist but contain no extracted pairs
+> (extractors not yet run or data not cloned): Sigma rules, Elastic detection
+> rules, Splunk security content, Mordor (OTRF), ThreatHunter-Playbook, NIST
+> SP 800-61r3, Azure PyRIT, CyberArk FuzzyAI. Run `attacklm-init` to populate
+> these sources.
 
 ---
 
