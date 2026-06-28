@@ -249,6 +249,7 @@ attacklm-collect-ref = "attacklm.cli:main_collect_ref"
 attacklm-score = "attacklm.cli:main_score"
 attacklm-compare = "attacklm.cli:main_compare"
 attacklm-golden = "attacklm.cli:main_golden"
+attacklm-pipeline = "attacklm.scripts.pipeline:main"
 
 # ── Hatch build configuration ─────────────────────────────────────────────────
 

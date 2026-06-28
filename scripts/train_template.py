@@ -136,6 +136,15 @@ Examples:
         help="Stop after N eval rounds without improvement, rollback to best checkpoint (default: 3)",
     )
     parser.add_argument(
+        "--early-stop-steps",
+        type=int,
+        default=1000,
+        help="Stop training if eval_loss does not improve for N consecutive "
+        "steps (default: 1000). Set to 0 to disable step-based early stopping. "
+        "This is in addition to epoch-based early stopping — whichever fires "
+        "first wins.",
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=2,
@@ -2527,6 +2536,47 @@ def main() -> None:
     # residual allocation is enough to push a borderline example over the
     # VRAM ceiling. Clearing after every eval prevents this accumulation.
 
+    class StepEarlyStoppingCallback(TrainerCallback):
+        """Stop training if eval_loss doesn't improve for N consecutive steps.
+
+        Unlike HF's EarlyStoppingCallback (which checks per-epoch), this
+        checks on every eval step. Useful for catching plateaus early —
+        if loss hasn't budged in 1000 steps, the remaining epochs won't help.
+        """
+
+        def __init__(self, patience_steps: int):
+            self.patience_steps = patience_steps
+            self.best_loss = float("inf")
+            self.steps_without_improvement = 0
+
+        def on_evaluate(self, args, state, control, metrics=None, **kwargs):
+            if metrics is None:
+                return control
+            eval_loss = metrics.get("eval_loss")
+            if eval_loss is None:
+                return control
+            try:
+                eval_loss = float(eval_loss)
+            except (TypeError, ValueError):
+                return control
+
+            if eval_loss < self.best_loss:
+                self.best_loss = eval_loss
+                self.steps_without_improvement = 0
+            else:
+                self.steps_without_improvement += 1
+
+            if self.steps_without_improvement >= self.patience_steps:
+                print(
+                    f"\n  [StepEarlyStopping] No improvement for "
+                    f"{self.steps_without_improvement} steps "
+                    f"(best: {self.best_loss:.4f}, current: {eval_loss:.4f}). "
+                    f"Stopping early."
+                )
+                control.should_training_stop = True
+
+            return control
+
     class GCEpochCallback(TrainerCallback):
         """Run gc.collect() + empty_cache() after every eval to defragment VRAM.
 
@@ -2553,7 +2603,7 @@ def main() -> None:
                 empty_cache_and_sync()
                 free_gb, total_gb = gpu_mem_info()
                 print(
-                    f"  [GCEpochCallback] Post-eval VRAM: "
+                    f"\n  [GCEpochCallback] Post-eval VRAM: "
                     f"{free_gb:.2f}GB free / {total_gb:.2f}GB total"
                 )
             return control
@@ -2579,7 +2629,7 @@ def main() -> None:
                 # implicitly if it needs to.
                 free_gb = free_bytes / (1024**3)
                 print(
-                    f"  [GCEpochCallback] Step {state.global_step} emergency "
+                    f"\n  [GCEpochCallback] Step {state.global_step} emergency "
                     f"cache clear: {free_gb:.2f}GB free"
                 )
             return control
@@ -2598,7 +2648,7 @@ def main() -> None:
         It prints a single live-updated line so the terminal never floods.
 
         Format:
-            Step  420/1200 | loss 1.234 |  8,192 tok/s |  42.0 pair/s | VRAM 12.3/16.0 GB
+            Epoch 5/20  45% | Step 9690/21500 | loss 0.8474 | 1,390 tok/s | 6.2 pairs/s | VRAM USED 14.5/15.6 GB
 
         If `num_tokens` is unavailable (very old TRL), it falls back to
         estimating tokens from steps × batch_size × max_length, which is
@@ -2613,6 +2663,7 @@ def main() -> None:
             self._last_step = 0
             self._last_tokens = 0
             self._max_steps = 0
+            self._total_epochs = 1
             self._pairs_per_step = 1
             self._total_tokens = 0  # cumulative, never reset by eval
 
@@ -2622,6 +2673,7 @@ def main() -> None:
             self._last_step = 0
             self._last_tokens = 0
             self._max_steps = getattr(args, "max_steps", 0) or 0
+            self._total_epochs = getattr(args, "num_train_epochs", 1) or 1
             bs = getattr(args, "per_device_train_batch_size", 1) or 1
             ga = getattr(args, "gradient_accumulation_steps", 1) or 1
             self._pairs_per_step = bs * ga
@@ -2638,6 +2690,10 @@ def main() -> None:
             now = time.time()
             window = max(1e-6, now - self._last_time)
             step_delta = max(1, step - self._last_step)
+
+            # --- Epoch tracking ---
+            current_epoch = int(state.epoch) + 1  # 1-indexed for display
+            pct = int(state.epoch / self._total_epochs * 100)
 
             # --- Tokens / second ---
             num_tokens = logs.get("num_tokens", 0)
@@ -2668,24 +2724,29 @@ def main() -> None:
                     free_b, total_b = gpu_mem_info_bytes()
                     used_gb = (total_b - free_b) / (1024**3)
                     total_gb = total_b / (1024**3)
-                    vram_str = f"VRAM {used_gb:.1f}/{total_gb:.1f} GB"
+                    vram_str = f"VRAM USED {used_gb:.1f}/{total_gb:.1f} GB"
                 except Exception:
                     pass
 
             # --- Progress bar line (80-char friendly) ---
+            # Print \n first so each update starts on a fresh line — this
+            # prevents GCEpochCallback messages from getting tangled.
             if self._max_steps > 0:
-                bar_len = 15
-                filled = int(bar_len * step / self._max_steps)
-                bar = "█" * filled + "░" * (bar_len - filled)
                 line = (
-                    f"\rStep {step:>5}/{self._max_steps} {bar} "
-                    f"loss {loss_val:.4f} {tok_per_sec:,.0f}t/s "
-                    f"{pair_per_sec:,.1f}p/s {vram_str}"
+                    f"\n\rEpoch {current_epoch}/{self._total_epochs} {pct:>3}% "
+                    f"| Step {step}/{self._max_steps} "
+                    f"| loss {loss_val:.4f} "
+                    f"| {tok_per_sec:,.0f} tok/s "
+                    f"| {pair_per_sec:,.1f} pairs/s "
+                    f"| {vram_str}"
                 )
             else:
                 line = (
-                    f"\rStep {step:>5} loss {loss_val:.4f} "
-                    f"{tok_per_sec:,.0f}t/s {pair_per_sec:,.1f}p/s {vram_str}"
+                    f"\n\rEpoch {current_epoch}/{self._total_epochs} {pct:>3}% "
+                    f"| loss {loss_val:.4f} "
+                    f"| {tok_per_sec:,.0f} tok/s "
+                    f"| {pair_per_sec:,.1f} pairs/s "
+                    f"| {vram_str}"
                 )
 
             # Pad to clear trailing junk from previous prints
@@ -3063,6 +3124,11 @@ def main() -> None:
                 EarlyStoppingCallback(
                     early_stopping_patience=args.early_stopping_patience
                 ),
+                *(
+                    [StepEarlyStoppingCallback(args.early_stop_steps)]
+                    if args.early_stop_steps > 0
+                    else []
+                ),
                 GCEpochCallback(),
                 LiveProgressCallback(),
                 PauseResumeCallback(interactive_control),
@@ -3079,6 +3145,11 @@ def main() -> None:
             callbacks=[
                 EarlyStoppingCallback(
                     early_stopping_patience=args.early_stopping_patience
+                ),
+                *(
+                    [StepEarlyStoppingCallback(args.early_stop_steps)]
+                    if args.early_stop_steps > 0
+                    else []
                 ),
                 GCEpochCallback(),
                 LiveProgressCallback(),
