@@ -2439,11 +2439,12 @@ def main() -> None:
 
     from transformers import TrainerCallback
 
-    # --- Interactive control: [P]ause / [Q]uit / [R]esume ---
+    # --- Interactive control: [P]ause / [Q]uit / [R]esume / [E]nd ---
     # Background thread reads stdin so the user can pause, quit, or resume
     # training without killing the process. Pause saves a checkpoint and
     # blocks the training loop until [R]esume is pressed. Quit saves a
-    # checkpoint and exits cleanly.
+    # checkpoint and exits cleanly. End waits for the next checkpoint save
+    # then exits — useful when you want to stop but not lose progress.
     #
     # Uses termios to switch the terminal to raw mode so keystrokes are
     # delivered immediately (no line buffering). Falls back gracefully
@@ -2458,11 +2459,13 @@ def main() -> None:
           [P]ause  — save checkpoint, block training loop
           [Q]uit   — save checkpoint, raise SystemExit
           [R]esume — unblock training loop (only when paused)
+          [E]nd    — exit at next checkpoint save (no lost progress)
         """
 
         RUNNING = "running"
         PAUSED = "paused"
         QUIT = "quit"
+        END_AT_CHECKPOINT = "end_at_checkpoint"
 
         def __init__(self):
             self._state = self.RUNNING
@@ -2527,6 +2530,12 @@ def main() -> None:
                         print("\r\n  [QUIT] Saving checkpoint and exiting...")
                         self._restore_terminal()
                         break
+                    elif ch == "e" and self._state == self.RUNNING:
+                        self._state = self.END_AT_CHECKPOINT
+                        print(
+                            "\r\n  [END] Will exit at next checkpoint save. "
+                            "Press [Q] to quit immediately instead."
+                        )
 
         def wait_if_paused(self):
             """Block until resumed or quit. Call from main thread."""
@@ -2541,6 +2550,7 @@ def main() -> None:
 
         If paused: blocks until resumed or quit.
         If quit: raises SystemExit to trigger clean shutdown.
+        If end_at_checkpoint: waits for next checkpoint save, then exits.
         """
 
         def __init__(self, control):
@@ -2558,6 +2568,17 @@ def main() -> None:
                 ctrl.wait_if_paused()
                 if ctrl.state == InteractiveControl.QUIT:
                     raise SystemExit(0)
+            return control
+
+        def on_save(self, args, state, control, **kwargs):
+            """Exit after checkpoint save when [E]nd was pressed."""
+            if self._control.state == InteractiveControl.END_AT_CHECKPOINT:
+                print(
+                    "\r\n  [END] Checkpoint saved at step "
+                    f"{state.global_step}. Exiting."
+                )
+                self._control._restore_terminal()
+                raise SystemExit(0)
             return control
 
     # --- OOM fix #4: Per-eval CUDA cache clear callback ---
@@ -2790,6 +2811,7 @@ def main() -> None:
             self._pairs_per_step = 1
             self._total_tokens = 0  # cumulative, never reset by eval
             self._early_stop = None  # set after both callbacks are created
+            self._interactive = None  # set after both callbacks are created
 
         def on_train_begin(self, args, state, control, **kwargs):
             self._start_time = time.time()
@@ -2879,6 +2901,20 @@ def main() -> None:
 
             # Pad to clear trailing junk from previous prints
             print(line.ljust(80), end="", flush=True)
+
+            # --- Status bar at bottom of terminal ---
+            # ANSI: \033[s saves cursor, \033[999B goes to bottom,
+            # \033[K clears line, \033[u restores cursor.
+            if self._interactive is not None and sys.stdout.isatty():
+                ctrl = self._interactive
+                if ctrl.state == InteractiveControl.PAUSED:
+                    status = "[R]esume  [Q]uit"
+                elif ctrl.state == InteractiveControl.END_AT_CHECKPOINT:
+                    status = "Waiting for next checkpoint save...  [Q]uit now"
+                else:
+                    status = "[P]ause  [E]nd at checkpoint  [Q]uit"
+                sys.stdout.write(f"\033[s\033[999B\033[K  {status}\033[u")
+                sys.stdout.flush()
 
             # Update anchors — only update _last_tokens when num_tokens
             # is increasing (eval logs have num_tokens=0, which would
@@ -3251,6 +3287,7 @@ def main() -> None:
         _live_progress = LiveProgressCallback()
         if _step_early_stop is not None:
             _live_progress._early_stop = _step_early_stop
+        _live_progress._interactive = interactive_control
 
         trainer = GaLoreTrainer(
             model=model,
@@ -3278,6 +3315,7 @@ def main() -> None:
         _live_progress = LiveProgressCallback()
         if _step_early_stop is not None:
             _live_progress._early_stop = _step_early_stop
+        _live_progress._interactive = interactive_control
 
         trainer = SFTTrainer(
             model=model,
