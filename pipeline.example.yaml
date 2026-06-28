@@ -1,0 +1,46 @@
+# AttackLM Training Pipeline — Example Configuration
+# 
+# Usage:
+#   attacklm-pipeline --config pipeline.example.yaml
+#
+# Each job runs sequentially: train → merge → gguf → install.
+# If a stage fails, the pipeline skips to the next job.
+
+jobs:
+  # --- Job 1: GaLore full-parameter fine-tuning on balanced dataset ---
+  - name: balanced-galore
+    train:
+      dataset: data/datasets/balanced/balanced_1000cap.jsonl
+      base_model: Qwen/Qwen2.5-Coder-3B-Instruct
+      output: models/attacklm-single-balanced
+      use_galore: true
+      epochs: 20
+      max_length: 2048
+      batch_size: 8
+      packing: true
+      early_stop_steps: 1000
+    merge:
+      output: models/attacklm-single-balanced-merged
+    gguf:
+      output: models/attacklm-single-balanced.gguf
+      quant: q4_k_m
+    install:
+      lmstudio: true
+
+  # --- Job 2: QLoRA experiment with higher rank ---
+  # - name: qlora-high-rank
+  #   train:
+  #     dataset: data/datasets/persistence_dataset.jsonl
+  #     base_model: Qwen/Qwen2.5-Coder-7B-Instruct
+  #     output: models/persistence-qlora
+  #     epochs: 10
+  #     batch_size: 2
+  #     max_length: 1024
+  #     lora_r: 32
+  #     lora_alpha: 64
+  #     early_stop_steps: 500
+  #   merge:
+  #     output: models/persistence-qlora-merged
+  #   gguf:
+  #     output: models/persistence-qlora.gguf
+  #     quant: q4_k_m
