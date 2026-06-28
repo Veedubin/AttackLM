@@ -2366,6 +2366,10 @@ def main() -> None:
         # Precision — driven by compute_type determined from GPU / CLI flags
         fp16=(compute_type == "fp16"),
         bf16=(compute_type == "bf16"),
+        # Gradient clipping: prevents loss explosion from a single bad batch.
+        # Critical for GaLore — low-rank gradient projection can amplify
+        # outlier gradients. 1.0 is the standard value (GPT, Llama, Qwen).
+        max_grad_norm=1.0,
         # Other
         gradient_checkpointing=True,
         logging_steps=10,
