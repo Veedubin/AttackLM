@@ -2514,17 +2514,17 @@ def main() -> None:
                         self._state = self.PAUSED
                         self._paused_event.clear()
                         print(
-                            "\n  [PAUSED] Training paused. "
+                            "\r\n  [PAUSED] Training paused. "
                             "Press [R] to resume, [Q] to quit."
                         )
                     elif ch == "r" and self._state == self.PAUSED:
                         self._state = self.RUNNING
                         self._paused_event.set()
-                        print("\n  [RESUMED] Training continuing...")
+                        print("\r\n  [RESUMED] Training continuing...")
                     elif ch == "q":
                         self._state = self.QUIT
                         self._paused_event.set()  # unblock if paused
-                        print("\n  [QUIT] Saving checkpoint and exiting...")
+                        print("\r\n  [QUIT] Saving checkpoint and exiting...")
                         self._restore_terminal()
                         break
 
@@ -2550,7 +2550,7 @@ def main() -> None:
             ctrl = self._control
             if ctrl.state == InteractiveControl.QUIT:
                 print(
-                    "\n  [QUIT] Shutting down — checkpoint will be saved "
+                    "\r\n  [QUIT] Shutting down — checkpoint will be saved "
                     "by the training loop wrapper."
                 )
                 raise SystemExit(0)
@@ -2660,7 +2660,7 @@ def main() -> None:
 
             if self._stale_checks >= 3:
                 print(
-                    f"\n  [StepEarlyStopping] Trend flatlined: "
+                    f"\r\n  [StepEarlyStopping] Trend flatlined: "
                     f"EMA first-half={first_mean:.4f} → "
                     f"second-half={second_mean:.4f}. "
                     f"Best EMA: {self._best_ema:.4f} at step "
@@ -2711,7 +2711,7 @@ def main() -> None:
                 empty_cache_and_sync()
                 free_gb, total_gb = gpu_mem_info()
                 print(
-                    f"\n  [GCEpochCallback] Post-eval VRAM: "
+                    f"\r\n  [GCEpochCallback] Post-eval VRAM: "
                     f"{free_gb:.2f}GB free / {total_gb:.2f}GB total"
                 )
             return control
@@ -2737,7 +2737,7 @@ def main() -> None:
                 # implicitly if it needs to.
                 free_gb = free_bytes / (1024**3)
                 print(
-                    f"\n  [GCEpochCallback] Step {state.global_step} emergency "
+                    f"\r\n  [GCEpochCallback] Step {state.global_step} emergency "
                     f"cache clear: {free_gb:.2f}GB free"
                 )
             return control
@@ -2837,11 +2837,10 @@ def main() -> None:
                     pass
 
             # --- Progress bar line (80-char friendly) ---
-            # Print \n first so each update starts on a fresh line — this
-            # prevents GCEpochCallback messages from getting tangled.
+            # \r\n: CR resets column to 0 (needed in raw mode), LF moves down.
             if self._max_steps > 0:
                 line = (
-                    f"\n\rEpoch {current_epoch}/{self._total_epochs} {pct:>3}% "
+                    f"\r\nEpoch {current_epoch}/{self._total_epochs} {pct:>3}% "
                     f"| Step {step}/{self._max_steps} "
                     f"| loss {loss_val:.4f} "
                     f"| {tok_per_sec:,.0f} tok/s "
@@ -2850,7 +2849,7 @@ def main() -> None:
                 )
             else:
                 line = (
-                    f"\n\rEpoch {current_epoch}/{self._total_epochs} {pct:>3}% "
+                    f"\r\nEpoch {current_epoch}/{self._total_epochs} {pct:>3}% "
                     f"| loss {loss_val:.4f} "
                     f"| {tok_per_sec:,.0f} tok/s "
                     f"| {pair_per_sec:,.1f} pairs/s "
@@ -2874,7 +2873,7 @@ def main() -> None:
             # Final newline so the shell prompt doesn't overwrite the bar
             total_s = time.time() - self._start_time
             print(
-                f"\n  Total time: {total_s:.1f}s | Avg tok/s: {self._total_tokens / max(1, total_s):,.0f}"
+                f"\r\n  Total time: {total_s:.1f}s | Avg tok/s: {self._total_tokens / max(1, total_s):,.0f}"
             )
             return control
 

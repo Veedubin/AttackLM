@@ -4,37 +4,55 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
-## [0.5.39] — 2026-06-28 — Progress bar overhaul, step-based early stopping, YAML pipeline
+## [0.5.40] — 2026-06-28 — EMA early stopping, terminal raw mode, best-model checkpointing
+ 
+ ### Added
+ 
+ - **EMA-smoothed early stopping**: Implemented trend-based loss monitoring to reduce sensitivity to noisy gradients in early stopping decisions.
+ - **Terminal raw mode**: Training controls (`[P]ause`, `[Q]uit`, `[R]esume`) now utilize raw TTY mode for instant response without requiring Enter.
+ - **Best-model checkpointing** (`--checkpoint-best`): Automatically saves the model weights from the step with the lowest recorded eval loss as the primary output.
+ 
+ ---
+ 
+ ## [0.5.39] — 2026-06-28 — Progress bar overhaul, step-based early stopping, YAML pipeline
+ 
+ ### Changed
+ 
+ - **Progress bar reformat**: `LiveProgressCallback` now shows epoch counter
+   (`Epoch 5/20  45%`), percentage complete, `tok/s` and `pairs/s` (instead of
+   cryptic `t/s`/`p/s`), and `VRAM USED` (instead of ambiguous `VRAM`).
+   Each update starts on a fresh line to prevent GCEpochCallback messages
+   from getting tangled in the output.
+ - **GCEpochCallback**: emergency cache clear and post-eval messages now
+   always start on a new line (`\n` prefix) for readability.
+ 
+ ### Added
+ 
+ - **Step-based early stopping** (`--early-stop-steps`, default 1000):
+   `StepEarlyStoppingCallback` stops training if `eval_loss` doesn't improve
+   for N consecutive steps. Complements epoch-based early stopping — whichever
+   fires first wins. Set to 0 to disable.
+ - **YAML pipeline config** (`--config pipeline.yaml`): IaC for model training.
+   Define one or more jobs, each with optional stages: `train` → `merge` →
+   `gguf` → `install`. Jobs run sequentially; if a stage fails, the pipeline
+   skips to the next job. All train args are supported as YAML keys.
+   - New CLI: `attacklm-pipeline --config pipeline.yaml`
+   - Example config: `pipeline.example.yaml`
+ 
+ ---
+ 
+ ## [0.5.38] — 2026-06-28 — Auto-disable packing
+ 
+ ### Added
+ 
+ - **Auto-disable packing**: `--packing` is now a best-effort hint.
+   When flash-attn is not installed, packing is silently disabled to prevent
+   cross-sample contamination. No warnings, no errors, no user intervention.
+ 
+ ---
+ 
+ ## [0.5.35] — 2026-06-27 — GaLore full-parameter training, balanced datasets, interactive controls
 
-### Changed
-
-- **Progress bar reformat**: `LiveProgressCallback` now shows epoch counter
-  (`Epoch 5/20  45%`), percentage complete, `tok/s` and `pairs/s` (instead of
-  cryptic `t/s`/`p/s`), and `VRAM USED` (instead of ambiguous `VRAM`).
-  Each update starts on a fresh line to prevent GCEpochCallback messages
-  from getting tangled in the output.
-- **GCEpochCallback**: emergency cache clear and post-eval messages now
-  always start on a new line (`\n` prefix) for readability.
-
-### Added
-
-- **Step-based early stopping** (`--early-stop-steps`, default 1000):
-  `StepEarlyStoppingCallback` stops training if `eval_loss` doesn't improve
-  for N consecutive steps. Complements epoch-based early stopping — whichever
-  fires first wins. Set to 0 to disable.
-- **YAML pipeline config** (`--config pipeline.yaml`): IaC for model training.
-  Define one or more jobs, each with optional stages: `train` → `merge` →
-  `gguf` → `install`. Jobs run sequentially; if a stage fails, the pipeline
-  skips to the next job. All train args are supported as YAML keys.
-  - New CLI: `attacklm-pipeline --config pipeline.yaml`
-  - Example config: `pipeline.example.yaml`
-- **Auto-disable packing** (v0.5.38): `--packing` is now a best-effort hint.
-  When flash-attn is not installed, packing is silently disabled to prevent
-  cross-sample contamination. No warnings, no errors, no user intervention.
-
----
-
-## [0.5.35] — 2026-06-27 — GaLore full-parameter training, balanced datasets, interactive controls
 
 ### Added
 

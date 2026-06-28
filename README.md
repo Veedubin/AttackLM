@@ -4,7 +4,7 @@
 > QLoRA + GaLore full-parameter · 16,027 training pairs · 3B–70B Qwen base · 16GB–128GB VRAM.
 
 [![License: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
-[![PyPI version](https://img.shields.io/pypi/v/attacklm.svg)](https://pypi.org/project/attacklm/)
+[![PyPI version](https://img.shields.io/pypi/v/attacklm.svg?label=version&color=blue)](https://pypi.org/project/attacklm/)
 [![Training data: mixed](https://img.shields.io/badge/data-mixed%20%28see%20ATTRIBUTION%29-orange.svg)](ATTRIBUTION.md)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](requirements.txt)
 [![Model: 3B-7B Qwen2.5](https://img.shields.io/badge/base%20model-Qwen2.5--Coder--3B--Instruct-green.svg)](https://huggingface.co/unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit)
@@ -427,8 +427,10 @@ The other 30 lines of the technique are documented at:
 | `--lora-r` | 16 | LoRA rank; 8 / 16 / 32 are good starting points |
 | `--lora-alpha` | 32 | Conventionally `2 × lora_r` |
 | `--lora-dropout` | 0.05 | Try 0.0 for less regularization |
-| `--no-packing` | (packing off) | Default is OFF because flash-attn is hard to install |
-| `--packing` | (off) | Enable for ~30% speedup; requires `flash_attn` |
+| `--packing` | (off) | Enable for ~30% speedup; requires `flash_attn` (auto-disables if missing) |
+| `--early-stop-steps` | 1000 | Stop training if eval_loss doesn't improve for N steps |
+| `--config` | none | Use a YAML pipeline config for multi-job training (e.g. `pipeline.yaml`) |
+| `--checkpoint-best` | (off) | Save the model with the lowest eval loss as the primary artifact |
 | `--include-tools` | (off) | **Deprecated in v0.2.0**: use `--dataset tools/` instead |
 | `--include-orchestrator` | (off) | **Deprecated in v0.2.0**: use `--dataset orchestrator` instead |
 | `--model-attacks` | (off) | **Deprecated in v0.2.0**: use `--dataset ai/` instead |
