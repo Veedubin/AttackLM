@@ -4,6 +4,16 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
+## [0.6.1] — 2026-06-28 — Fix --use-galore API
+
+### Fixed
+
+- **`--use-galore` restored to vanilla GaLore** (FP16 projections). Q-GaLore is now `--use-qgalore` (separate flag). This preserves backward compatibility — existing `--use-galore` commands continue to work.
+- **Removed `--galore-fp16`** (redundant — `--use-galore` is FP16 by default).
+- **CI validation**: added version check job that fails the workflow if the git tag doesn't match `__version__.py`, preventing duplicate PyPI uploads.
+
+---
+
 ## [0.6.0] — 2026-06-28 — Q-GaLore, Spectrum, PiSSA init
 
 ### Added
