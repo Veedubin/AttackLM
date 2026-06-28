@@ -1,7 +1,7 @@
 # AttackLM
 
-> A QLoRA fine-tuning pipeline for a MITRE ATT&CK-grounded red/blue-team AI assistant.
-> 21,865 training pairs · 3B–70B Qwen base · 16GB–128GB VRAM.
+> A fine-tuning pipeline for a MITRE ATT&CK-grounded red/blue-team AI assistant.
+> QLoRA + GaLore full-parameter · 24,664 training pairs · 3B–70B Qwen base · 16GB–128GB VRAM.
 
 [![License: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
 [![PyPI version](https://img.shields.io/pypi/v/attacklm.svg)](https://pypi.org/project/attacklm/)
@@ -22,17 +22,24 @@ and jailbreak corpora for AI-security coverage).
 
 The pipeline ingests 10 MITRE tactic buckets, 3 defensive buckets, 3 tool
 buckets, 2 AI-security buckets, 1 orchestrator bucket, and 4 extended-category
-buckets (23 total) and produces a QLoRA LoRA adapter you can drop on top of
+buckets (23 total) and produces either a QLoRA LoRA adapter or a GaLore
+full-parameter model you can drop on top of
 `Qwen2.5-Coder-3B-Instruct`. Team presets (red/purple/blue) let you control
 the offensive/defensive mix.
 
 What makes it different:
+- **Two training modes**: QLoRA (4-bit quantized, LoRA adapters) for speed,
+  and GaLore (full-parameter, gradient low-rank projection) for quality.
+  Both fit 3B on a 16GB GPU.
 - **No LLM in the data pipeline.** Every training pair is deterministically
   extracted from upstream sources — no hallucinated content, no API costs.
 - **Coordinate-descent HPO** built in. Sweeps `lora_r` (8→512) and
   `lora_dropout` (0→0.5) and picks the winner before final training.
-- **16GB → 128GB VRAM friendly.** 3B QLoRA at `--max-length 2048` fits
-  a 4080 SUPER. 70B+ on a 128GB card with packing.
+- **16GB → 128GB VRAM friendly.** 3B GaLore at `--max-length 2048` fits
+  a 4080 SUPER at batch_size=8. 70B+ on a 128GB card with packing.
+- **Interactive controls**: `[P]ause`, `[Q]uit`, `[R]esume` during training.
+- **Balanced datasets**: `attacklm-balance` caps per-bucket pairs for
+  even category coverage. `--strategy head` takes highest-quality first.
 
 ---
 
