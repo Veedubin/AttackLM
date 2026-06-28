@@ -2586,6 +2586,9 @@ def main() -> None:
         Checkpoint saving is deferred until after epoch 1 to avoid
         saving hundreds of checkpoints during the initial rapid descent.
         After epoch 1, each new best EMA triggers a checkpoint-best save.
+
+        Exposes a `status_str` property for the progress bar to display
+        live trend info: direction arrow, delta, and stale countdown.
         """
 
         def __init__(
@@ -2605,9 +2608,22 @@ def main() -> None:
             self._ema: float | None = None
             self._window: deque[float] = deque(maxlen=window_size)
             self._stale_checks = 0
+            self._max_stale = 3
             self._best_ema = float("inf")
             self._best_step = 0
             self._log_count = 0
+
+            # Public fields for progress bar display
+            self.trend_delta: float = 0.0
+            self.trend_direction: str = ""  # "↓" "→" "↑" or "" (not ready)
+
+        @property
+        def status_str(self) -> str:
+            """One-line trend status for the progress bar."""
+            if not self.trend_direction:
+                return ""  # window not full yet
+            stale = f"{self._stale_checks}/{self._max_stale}"
+            return f"trend {self.trend_direction} {self.trend_delta:+.4f} ({stale})"
 
         def on_log(self, args, state, control, logs=None, **kwargs):
             if logs is None:
@@ -2631,9 +2647,6 @@ def main() -> None:
             if self._ema < self._best_ema:
                 self._best_ema = self._ema
                 self._best_step = state.global_step
-                # Only save checkpoints after epoch 1 — during the first
-                # epoch, loss drops so fast that every step is a "new best"
-                # and we'd save hundreds of checkpoints.
                 if state.epoch is not None and state.epoch >= 1.0:
                     if self.output_dir:
                         self._save_best_checkpoint(args, state)
@@ -2651,14 +2664,16 @@ def main() -> None:
             window_list = list(self._window)
             first_mean = sum(window_list[:mid]) / mid
             second_mean = sum(window_list[mid:]) / mid
+            self.trend_delta = second_mean - first_mean
 
             if second_mean < first_mean:
-                # Still trending down
+                self.trend_direction = "↓"
                 self._stale_checks = 0
             else:
+                self.trend_direction = "↑" if second_mean > first_mean else "→"
                 self._stale_checks += 1
 
-            if self._stale_checks >= 3:
+            if self._stale_checks >= self._max_stale:
                 print(
                     f"\r\n  [StepEarlyStopping] Trend flatlined: "
                     f"EMA first-half={first_mean:.4f} → "
@@ -2756,7 +2771,7 @@ def main() -> None:
         It prints a single live-updated line so the terminal never floods.
 
         Format:
-            Epoch 5/20  45% | Step 9690/21500 | loss 0.8474 | 1,390 tok/s | 6.2 pairs/s | VRAM USED 14.5/15.6 GB
+            Epoch 5/20  45% | Step 9690/21500 | loss 0.8474 | 1,390 tok/s | 6.2 pairs/s | VRAM USED 14.5/15.6 GB | trend ↓ -0.0012 (0/3)
 
         If `num_tokens` is unavailable (very old TRL), it falls back to
         estimating tokens from steps × batch_size × max_length, which is
@@ -2774,6 +2789,7 @@ def main() -> None:
             self._total_epochs = 1
             self._pairs_per_step = 1
             self._total_tokens = 0  # cumulative, never reset by eval
+            self._early_stop = None  # set after both callbacks are created
 
         def on_train_begin(self, args, state, control, **kwargs):
             self._start_time = time.time()
@@ -2838,6 +2854,9 @@ def main() -> None:
 
             # --- Progress bar line (80-char friendly) ---
             # \r\n: CR resets column to 0 (needed in raw mode), LF moves down.
+            trend_str = ""
+            if self._early_stop is not None:
+                trend_str = f" | {self._early_stop.status_str}"
             if self._max_steps > 0:
                 line = (
                     f"\r\nEpoch {current_epoch}/{self._total_epochs} {pct:>3}% "
@@ -2846,6 +2865,7 @@ def main() -> None:
                     f"| {tok_per_sec:,.0f} tok/s "
                     f"| {pair_per_sec:,.1f} pairs/s "
                     f"| {vram_str}"
+                    f"{trend_str}"
                 )
             else:
                 line = (
@@ -2854,6 +2874,7 @@ def main() -> None:
                     f"| {tok_per_sec:,.0f} tok/s "
                     f"| {pair_per_sec:,.1f} pairs/s "
                     f"| {vram_str}"
+                    f"{trend_str}"
                 )
 
             # Pad to clear trailing junk from previous prints
@@ -3221,6 +3242,16 @@ def main() -> None:
         # Start interactive control (background stdin listener)
         interactive_control = InteractiveControl()
 
+        # Create callbacks — wire early_stop into progress bar for trend display
+        _step_early_stop = (
+            StepEarlyStoppingCallback(args.early_stop_steps, output_dir=args.output)
+            if args.early_stop_steps > 0
+            else None
+        )
+        _live_progress = LiveProgressCallback()
+        if _step_early_stop is not None:
+            _live_progress._early_stop = _step_early_stop
+
         trainer = GaLoreTrainer(
             model=model,
             train_dataset=train_dataset,
@@ -3231,22 +3262,23 @@ def main() -> None:
                 EarlyStoppingCallback(
                     early_stopping_patience=args.early_stopping_patience
                 ),
-                *(
-                    [
-                        StepEarlyStoppingCallback(
-                            args.early_stop_steps, output_dir=args.output
-                        )
-                    ]
-                    if args.early_stop_steps > 0
-                    else []
-                ),
+                *([_step_early_stop] if _step_early_stop is not None else []),
                 GCEpochCallback(),
-                LiveProgressCallback(),
+                _live_progress,
                 PauseResumeCallback(interactive_control),
                 *hpo_callbacks,
             ],
         )
     else:
+        _step_early_stop = (
+            StepEarlyStoppingCallback(args.early_stop_steps, output_dir=args.output)
+            if args.early_stop_steps > 0
+            else None
+        )
+        _live_progress = LiveProgressCallback()
+        if _step_early_stop is not None:
+            _live_progress._early_stop = _step_early_stop
+
         trainer = SFTTrainer(
             model=model,
             train_dataset=train_dataset,
@@ -3257,17 +3289,9 @@ def main() -> None:
                 EarlyStoppingCallback(
                     early_stopping_patience=args.early_stopping_patience
                 ),
-                *(
-                    [
-                        StepEarlyStoppingCallback(
-                            args.early_stop_steps, output_dir=args.output
-                        )
-                    ]
-                    if args.early_stop_steps > 0
-                    else []
-                ),
+                *([_step_early_stop] if _step_early_stop is not None else []),
                 GCEpochCallback(),
-                LiveProgressCallback(),
+                _live_progress,
                 PauseResumeCallback(interactive_control),
                 *hpo_callbacks,
             ],
