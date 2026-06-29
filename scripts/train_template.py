@@ -2296,10 +2296,21 @@ def main() -> None:
         if "CUDA out of memory" in error_msg or "OOM" in error_msg:
             print("\nERROR: GPU ran out of memory during model loading!")
             print("  Suggestions:")
-            print("    1. Reduce batch size:      --batch-size 1")
-            print("    2. Reduce sequence length:  --max-length 1024")
+            if args.batch_size > 1:
+                print(
+                    "    1. Reduce batch size:      --batch-size 1"
+                    "  (currently {})".format(args.batch_size)
+                )
+            print(
+                "    2. Reduce sequence length:  --max-length 1024"
+                "  (currently {})".format(args.max_length)
+            )
             print("    3. Use a smaller model (e.g., Qwen2.5-3B-Instruct)")
-            print("    4. Use Google Colab T4 or RunPod A100")
+            print(
+                "    4. Use gradient_accumulation_steps to simulate"
+                " larger batches without VRAM cost"
+            )
+            print("    5. Try --use-qgalore for INT4 projections (fits 7B on 16GB)")
         else:
             print(f"\nERROR: Failed to load model: {e}")
         sys.exit(1)
@@ -3738,10 +3749,21 @@ def main() -> None:
         if "CUDA out of memory" in error_msg or "OOM" in error_msg:
             print("\nERROR: GPU ran out of memory during training!")
             print("  Suggestions:")
-            print("    1. Reduce batch size:      --batch-size 1")
-            print("    2. Reduce sequence length:  --max-length 1024")
+            if args.batch_size > 1:
+                print(
+                    "    1. Reduce batch size:      --batch-size 1"
+                    "  (currently {})".format(args.batch_size)
+                )
+            print(
+                "    2. Reduce sequence length:  --max-length 1024"
+                "  (currently {})".format(args.max_length)
+            )
             print("    3. Use a smaller model (e.g., Qwen2.5-3B-Instruct)")
-            print("    4. Use gradient_accumulation_steps to simulate larger batches")
+            print(
+                "    4. Use gradient_accumulation_steps to simulate"
+                " larger batches without VRAM cost"
+            )
+            print("    5. Try --use-qgalore for INT4 projections (fits 7B on 16GB)")
         else:
             print(f"\nERROR: Training failed: {e}")
         sys.exit(1)
