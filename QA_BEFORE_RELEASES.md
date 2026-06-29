@@ -12,7 +12,7 @@
 **Threshold**: 0 errors, 0 warnings
 
 **Checks**:
-- All 21,865 records present across 23 buckets
+- All 24,652 records present across 21 buckets
 - No duplicate records
 - All required fields present (messages, source, license, attribution)
 - License attribution complete for all records
@@ -84,7 +84,7 @@ python scripts/domain_bench.py \
 - Model does not over-refuse legitimate red-team prompts
 - Abliteration still effective after fine-tuning
 
-**Notes**: If refusal rate increases after fine-tuning, the training may have reintroduced alignment. Consider re-abliterating or using a different base model.
+**Notes**: If refusal rate increases after fine-tuning, the training may have reintroduced alignment. Consider adjusting the training mix or using a different base model.
 
 ---
 

@@ -67,32 +67,9 @@ BSD 3-Clause License components
   The full text is available at:
   https://opensource.org/licenses/BSD-3-Clause
 
-================================================================================
-GPL-3.0 / AGPL-3.0 components
-================================================================================
-
-- Guardicore Infection Monkey
-  (https://github.com/guardicore/monkey) — GPL-3.0
-
-- RTA — Red Team Automation by Endgame (now Elastic)
-  (https://github.com/endgameinc/RTA) — AGPL-3.0
-
-The GPL/AGPL licenses have network-distribution implications. See
-/ATTRIBUTION.md §8 for the AGPLv3 analysis specific to RTA. The full
-texts are at:
-  GPL-3.0:    https://www.gnu.org/licenses/gpl-3.0.txt
-  AGPL-3.0:   https://www.gnu.org/licenses/agpl-3.0.txt
-
-================================================================================
-DRL 1.1 components
-================================================================================
-
-- Sigma rules by SigmaHQ (https://github.com/SigmaHQ/sigma) — Detection
-  Rule License 1.1. The Sigma specification itself is public domain.
-
-  DRL 1.1: https://github.com/SigmaHQ/Detection-Rule-License
-
-================================================================================
+For the complete attribution story (per-pair source mapping, per-bucket
+license summary, and re-distribution guidance), see /ATTRIBUTION.md
+at the root of this repository.
 
 For the complete attribution story (per-pair source mapping, per-bucket
 license summary, and re-distribution guidance), see /ATTRIBUTION.md

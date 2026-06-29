@@ -21,13 +21,13 @@ artifact* learned from these sources; they are not a verbatim copy.
 
 ---
 
-## Training Data Sources (21,865 pairs across 23 buckets)
+## Training Data Sources (24,652 pairs across 21 buckets)
 
 ### 1. Atomic Red Team (redcanaryco)
 
 | Field | Value |
 |---|---|
-| **Pairs** | 2,506 |
+| **Pairs** | 1,115 |
 | **Buckets** | 9 MITRE tactics + tools/atomic |
 | **Repository** | <https://github.com/redcanaryco/atomic-red-team> |
 | **License** | MIT License |
@@ -40,7 +40,7 @@ Copyright (c) Red Canary, LLC. All rights reserved.
 
 | Field | Value |
 |---|---|
-| **Pairs** | 608 |
+| **Pairs** | 390 |
 | **Buckets** | All 10 MITRE tactics (re-routed via T-IDs) |
 | **Repository** | <https://github.com/mitre/stockpile> |
 | **License** | Apache License 2.0 |
@@ -76,11 +76,11 @@ the prose of the ATT&CK website directly.
 
 | Field | Value |
 |---|---|
-| **Pairs** | (used as auxiliary context, not direct training) |
+| **Pairs** | 3,132 |
 | **Repository** | <https://github.com/SigmaHQ/sigma> |
 | **License** | Detection Rule License (DRL) 1.1 for rules; public domain for spec |
 | **Source file** | `data/sigma/LICENSE` |
-| **Used for** | Sigma's 30+ detection rule fields (title, description, logsource, detection) inform the structure of triples |
+| **Used for** | Detection rule-based triples |
 
 DRL 1.1 permits use, modification, and distribution with attribution.
 
@@ -88,7 +88,7 @@ DRL 1.1 permits use, modification, and distribution with attribution.
 
 | Field | Value |
 |---|---|
-| **Pairs** | 8,349 |
+| **Pairs** | 13,997 |
 | **Buckets** | `tools/metasploit` (15 module categories consolidated) + re-routed to 5 MITRE tactics |
 | **Repository** | <https://github.com/rapid7/metasploit-framework> |
 | **License** | BSD 3-Clause License |
@@ -98,113 +98,96 @@ DRL 1.1 permits use, modification, and distribution with attribution.
 Copyright (c) 2006-2026, Rapid7, Inc. All rights reserved.
 Redistribution permitted under BSD-3-Clause terms.
 
-### 7. Infection Monkey (guardicore)
+### 7. Elastic Security Rules (Elastic)
 
 | Field | Value |
 |---|---|
-| **Pairs** | 36 |
-| **Buckets** | `tools/infection_monkey` |
-| **Repository** | <https://github.com/guardicore/monkey> |
-| **License** | GNU General Public License v3.0 |
-| **Source file** | `data/infection_monkey/LICENSE` |
-| **Used for** | Plugin manifests + MITRE mapping |
+| **Pairs** | 1,908 |
+| **Repository** | <https://github.com/elastic/detection-rules> |
+| **License** | Elastic License 2.0 |
+| **Used for** | EQL/KQL rule-based triples |
 
-Copyright (C) 2007 Free Software Foundation, Inc.
-
-### 8. RTA — Red Team Automation (endgameinc)
+### 8. Splunk Security Content (Splunk)
 
 | Field | Value |
 |---|---|
-| **Pairs** | 76 |
-| **Buckets** | `tools/rta` |
-| **Repository** | <https://github.com/endgameinc/RTA> |
-| **License** | GNU Affero General Public License v3.0 |
-| **Source file** | `data/RTA/LICENSE.txt` |
-| **Used for** | Python TTP scripts (`# ATT&CK: TXXXX` headers) |
+| **Pairs** | 2,114 |
+| **Repository** | <https://github.com/splunk/security_content> |
+| **License** | Apache License 2.0 |
+| **Used for** | SPL search-based triples |
 
-**⚠️ AGPLv3 IMPLICATION FOR RTA DATA**
-
-RTA is licensed under the **GNU Affero General Public License v3.0**,
-which is significantly more restrictive than the other sources:
-
-> *"If you modify the Program, your modified version must prominently
-> offer all users interacting with it remotely an opportunity to
-> receive the Corresponding Source of your version by providing access
-> to the Corresponding Source from a network server."*
-> — AGPLv3 §13 (Remote Network Interaction; Use with the GNU General
-> Public License v3)
-
-The RTA-derived triples in our dataset are transformations of the
-upstream RTA scripts. If you distribute a model trained on this data
-over a network (e.g., as a hosted API), the AGPLv3 may require you to
-also provide the modified RTA source. **We are providing the modified
-training script and intermediate JSONL files in this repository, which
-satisfies the source-availability requirement.**
-
-The trained **model weights are a new statistical artifact** and are not
-a verbatim copy of the RTA scripts. Whether the model is a "derivative
-work" of RTA in the copyright sense is an unsettled legal question; we
-make no representation either way. **If you need an AGPL-clean
-deployment, retrain the model after removing the `tools/rta` bucket.**
-
-Copyright (C) 2018 info@endgame.com. Used with permission under
-AGPLv3 terms.
-
-### 9. promptfoo (promptfoo)
+### 9. Mordor (OTRF)
 
 | Field | Value |
 |---|---|
-| **Pairs** | (varies; AI security category) |
+| **Pairs** | 339 |
+| **Repository** | <https://github.com/OTRF/Security-Datasets> |
+| **License** | Apache License 2.0 |
+| **Used for** | Event log scenario triples |
+
+### 10. ThreatHunter Playbook (OTRF)
+
+| Field | Value |
+|---|---|
+| **Pairs** | 27 |
+| **Repository** | <https://github.com/OTRF/ThreatHunter-Playbook> |
+| **License** | Apache License 2.0 |
+| **Used for** | Hunting playbook triples |
+
+### 11. NIST IR Guidelines (NIST)
+
+| Field | Value |
+|---|---|
+| **Pairs** | 168 |
+| **Source** | NIST SP 800-61r3 |
+| **License** | Public Domain |
+| **Used for** | Incident response procedure triples |
+
+### 12. promptfoo (promptfoo)
+
+| Field | Value |
+|---|---|
+| **Pairs** | 33 |
 | **Buckets** | `ai/prompt-injection` |
 | **Repository** | <https://github.com/promptfoo/promptfoo> |
 | **License** | MIT License |
 | **Used for** | Red-team TypeScript plugin definitions |
 
-### 10. garak (NVIDIA)
+### 13. garak (NVIDIA)
 
 | Field | Value |
 |---|---|
-| **Pairs** | (varies; AI security category) |
+| **Pairs** | 50 |
 | **Buckets** | `ai/jailbreaking` |
 | **Repository** | <https://github.com/NVIDIA/garak> |
 | **License** | Apache License 2.0 |
 | **Used for** | DAN/probe JSON & TXT resources |
 
-### 11. TheBigPromptLibrary (Resident-Falker)
+### 14. promptmap (utkusen)
 
 | Field | Value |
 |---|---|
-| **Pairs** | (varies; AI security category) |
-| **Buckets** | `ai/jailbreaking` |
-| **Repository** | <https://github.com/Resident-Falker/TheBigPromptLibrary> |
-| **License** | Mixed (per-file; mostly MIT or MPL-2.0) |
-| **Used for** | Jailbreak prompts, system prompts, security-focused markdown |
-
-### 12. promptmap (utkusen)
-
-| Field | Value |
-|---|---|
-| **Pairs** | (varies; AI security category) |
+| **Pairs** | 30 |
 | **Buckets** | `ai/prompt-injection` |
 | **Repository** | <https://github.com/utkusen/promptmap> |
 | **License** | MIT License |
 | **Used for** | Prompt injection YAML rule files |
 
-### 13. PyRIT (Azure)
+### 15. PyRIT (Azure)
 
 | Field | Value |
 |---|---|
-| **Pairs** | (varies; AI security category) |
+| **Pairs** | 0 (reserved) |
 | **Buckets** | `ai/jailbreaking` |
 | **Repository** | <https://github.com/Azure/PyRIT> |
 | **License** | MIT License |
 | **Used for** | Jailbreak template definitions |
 
-### 14. FuzzyAI (CyberArk)
+### 16. FuzzyAI (CyberArk)
 
 | Field | Value |
 |---|---|
-| **Pairs** | (varies; AI security category) |
+| **Pairs** | 0 (reserved) |
 | **Buckets** | `ai/jailbreaking` |
 | **Repository** | <https://github.com/cyberark/FuzzyAI> |
 | **License** | Apache License 2.0 |
@@ -224,15 +207,15 @@ AGPLv3 terms.
 | **License** | Same as this repository (MIT) |
 | **Used for** | Agent routing decisions across 6 sub-agents |
 
-### Prompt Injection (synthesized)
+### LLM-generated (synthesized)
 
 | Field | Value |
 |---|---|
-| **Pairs** | 687 |
-| **Buckets** | `ai/prompt-injection` |
-| **Source** | Generated procedurally by `scripts/generate_prompt_injection.py` |
+| **Pairs** | 937 |
+| **Buckets** | cloud, ics, social_engineering, wireless |
+| **Source** | Generated via `scripts/llm_generate_wrapper.py` |
 | **License** | Same as this repository (MIT) |
-| **Used for** | Augmenting upstream promptfoo/promptmap data |
+| **Used for** | High-quality synthetic triples for scarce domains |
 
 ---
 
@@ -240,7 +223,7 @@ AGPLv3 terms.
 
 The full per-bucket manifest is at `data/datasets/buckets/manifest.json`.
 It records which pairs come from which upstream source (via the
-`source_file` field). Total: **21,865 pairs across 23 buckets**.
+`source_file` field). Total: **24,652 pairs across 21 buckets**.
 
 | Bucket | Pairs | Upstream sources |
 |---|---|---:|
@@ -257,10 +240,11 @@ It records which pairs come from which upstream source (via the
 | orchestrator | 380 | synthetic |
 | ai/jailbreaking | 50 | garak |
 | ai/prompt-injection | 687 | promptfoo, promptmap, synthetic |
-| tools/metasploit | 8,349 | rapid7/metasploit-framework |
-| defensive/detection_engineering | 5,000 | sigma-hq, elastic-rules, splunk-content |
-| defensive/threat_hunting | 650 | mordor, threathunter-playbook |
-| defensive/incident_response | 200 | nist-ir |
+| tools/metasploit | 13,997 | rapid7/metasploit-framework |
+| defensive/detection_engineering | 7,154 | sigma, elastic, splunk |
+| defensive/threat_hunting | 366 | mordor, threathunter |
+| defensive/incident_response | 168 | nist-ir |
+| synthetic/domain_specific | 937 | llm-generated |
 
 ---
 

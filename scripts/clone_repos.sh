@@ -30,9 +30,14 @@ REPOS=(
   "https://github.com/mitre/stockpile.git stockpile                       -- Apache-2.0"
   "https://github.com/SigmaHQ/sigma.git sigma                             -- DRL-1.1"
   "https://github.com/rapid7/metasploit-framework.git metasploit-framework -- BSD-3-Clause"
-  "https://github.com/guardicore/monkey.git infection_monkey              -- GPL-3.0"
-  "https://github.com/endgameinc/RTA.git RTA                              -- AGPL-3.0"
+  "https://github.com/elastic/detection-rules.git elastic-detection-rules -- Apache-2.0"
+  "https://github.com/splunk/security_content.git splunk-security-content  -- Apache-2.0"
+  "https://github.com/OTRF/Security-Datasets.git mordor                   -- Apache-2.0"
+  "https://github.com/OTRF/ThreatHunter-Playbook.git threathunter-playbook -- Apache-2.0"
 )
+# NOTE: nist-sp800-61r3 is a PDF download, not a git repo.
+# Download manually from: https://csrc.nist.gov/pubs/sp/800-61/r3/final
+# and place at data/nist-sp800-61r3/NIST.SP.800-61r3.pdf
 
 # ---------------------------------------------------------------------------
 # Ensure the data directory exists

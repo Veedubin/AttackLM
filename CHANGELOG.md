@@ -4,6 +4,43 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
+## [0.7.0] — 2026-06-29 — Defensive data extraction, test fixes, script cleanup
+
+### Added
+- Extracted 6 defensive data sources: Sigma (3,132), Elastic (1,908), Splunk (2,114), Mordor (339), ThreatHunter (27), NIST IR (168)
+- 3 new defensive buckets: detection_engineering (7,154), threat_hunting (366), incident_response (168)
+- Total dataset: 24,652 pairs across 21 buckets
+
+### Fixed
+- extract_mordor.py: fixed YAML glob pattern (.yml → .yaml)
+- extract_threathunter_playbook.py: fixed playbooks path (playbooks/ → docs/hunts/)
+- All 27 tests passing (4 thinking + 23 balance)
+
+### Changed
+- Archived 19 one-off migration/generation scripts to archive/scripts/
+- Bumped version to 0.7.0
+
+---
+
+## [0.6.9] — 2026-06-29 — Documentation cleanup, manifest fix, init pipeline overhaul
+
+### Changed
+- Rewrote README with proper workflow order (install → init → balance → train → build → infer)
+- Removed abliterated model requirement; SFT handles refusal suppression
+- Fixed manifest.json to reflect actual data (16,964 pairs, 18 buckets)
+- Removed stale references to RTA, Infection Monkey, and BigPromptLibrary from all docs
+- Updated init_pipeline.py: removed restricted sources, added defensive repos, added dependency check
+- Updated clone_repos.sh: removed restricted sources, added defensive repos
+- Bumped transformers 5.10.2→5.12.1, accelerate 1.13.0→1.14.0
+
+### Fixed
+- ATTRIBUTION.md no longer lists removed sources
+- NOTICE no longer references GPL/AGPL components
+- README duplicate attacklm-build entry removed
+- requirements.txt synced with pyproject.toml
+
+---
+
 ## [0.6.9] — 2026-06-29 — Fix `UnboundLocalError: interactive_control`
 
 ### Fixed
@@ -32,54 +69,52 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
+### Added
 
- 
- ### Added
- 
- - **EMA-smoothed early stopping**: Implemented trend-based loss monitoring to reduce sensitivity to noisy gradients in early stopping decisions.
- - **Terminal raw mode**: Training controls (`[P]ause`, `[Q]uit`, `[R]esume`) now utilize raw TTY mode for instant response without requiring Enter.
- - **Best-model checkpointing** (`--checkpoint-best`): Automatically saves the model weights from the step with the lowest recorded eval loss as the primary output.
- 
- ---
- 
- ## [0.5.39] — 2026-06-28 — Progress bar overhaul, step-based early stopping, YAML pipeline
- 
- ### Changed
- 
- - **Progress bar reformat**: `LiveProgressCallback` now shows epoch counter
-   (`Epoch 5/20  45%`), percentage complete, `tok/s` and `pairs/s` (instead of
-   cryptic `t/s`/`p/s`), and `VRAM USED` (instead of ambiguous `VRAM`).
-   Each update starts on a fresh line to prevent GCEpochCallback messages
-   from getting tangled in the output.
- - **GCEpochCallback**: emergency cache clear and post-eval messages now
-   always start on a new line (`\n` prefix) for readability.
- 
- ### Added
- 
- - **Step-based early stopping** (`--early-stop-steps`, default 1000):
-   `StepEarlyStoppingCallback` stops training if `eval_loss` doesn't improve
-   for N consecutive steps. Complements epoch-based early stopping — whichever
-   fires first wins. Set to 0 to disable.
- - **YAML pipeline config** (`--config pipeline.yaml`): IaC for model training.
-   Define one or more jobs, each with optional stages: `train` → `merge` →
-   `gguf` → `install`. Jobs run sequentially; if a stage fails, the pipeline
-   skips to the next job. All train args are supported as YAML keys.
-   - New CLI: `attacklm-pipeline --config pipeline.yaml`
-   - Example config: `pipeline.example.yaml`
- 
- ---
- 
- ## [0.5.38] — 2026-06-28 — Auto-disable packing
- 
- ### Added
- 
- - **Auto-disable packing**: `--packing` is now a best-effort hint.
-   When flash-attn is not installed, packing is silently disabled to prevent
-   cross-sample contamination. No warnings, no errors, no user intervention.
- 
- ---
- 
- ## [0.5.35] — 2026-06-27 — GaLore full-parameter training, balanced datasets, interactive controls
+- **EMA-smoothed early stopping**: Implemented trend-based loss monitoring to reduce sensitivity to noisy gradients in early stopping decisions.
+- **Terminal raw mode**: Training controls (`[P]ause`, `[Q]uit`, `[R]esume`) now utilize raw TTY mode for instant response without requiring Enter.
+- **Best-model checkpointing** (`--checkpoint-best`): Automatically saves the model weights from the step with the lowest recorded eval loss as the primary output.
+
+---
+
+## [0.5.39] — 2026-06-28 — Progress bar overhaul, step-based early stopping, YAML pipeline
+
+### Changed
+
+- **Progress bar reformat**: `LiveProgressCallback` now shows epoch counter
+  (`Epoch 5/20  45%`), percentage complete, `tok/s` and `pairs/s` (instead of
+  cryptic `t/s`/`p/s`), and `VRAM USED` (instead of ambiguous `VRAM`).
+  Each update starts on a fresh line to prevent GCEpochCallback messages
+  from getting tangled in the output.
+- **GCEpochCallback**: emergency cache clear and post-eval messages now
+  always start on a new line (`\n` prefix) for readability.
+
+### Added
+
+- **Step-based early stopping** (`--early-stop-steps`, default 1000):
+  `StepEarlyStoppingCallback` stops training if `eval_loss` doesn't improve
+  for N consecutive steps. Complements epoch-based early stopping — whichever
+  fires first wins. Set to 0 to disable.
+- **YAML pipeline config** (`--config pipeline.yaml`): IaC for model training.
+  Define one or more jobs, each with optional stages: `train` → `merge` →
+  `gguf` → `install`. Jobs run sequentially; if a stage fails, the pipeline
+  skips to the next job. All train args are supported as YAML keys.
+    - New CLI: `attacklm-pipeline --config pipeline.yaml`
+    - Example config: `pipeline.example.yaml`
+
+---
+
+## [0.5.38] — 2026-06-28 — Auto-disable packing
+
+### Added
+
+- **Auto-disable packing**: `--packing` is now a best-effort hint.
+  When flash-attn is not installed, packing is silently disabled to prevent
+  cross-sample contamination. No warnings, no errors, no user intervention.
+
+---
+
+## [0.5.35] — 2026-06-27 — GaLore full-parameter training, balanced datasets, interactive controls
 
 
 ### Added
@@ -101,7 +136,7 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 - **`max_grad_norm=1.0`**: gradient clipping prevents GaLore loss explosion
   (low-rank projection can amplify outlier gradients into numerical overflow).
 - **`load_best_model_at_end=True`**: trainer loads the checkpoint with lowest
-  eval_loss at end of training. Requires `save_strategy` to match `eval_strategy`
+  eval_loss at end of training. `save_strategy` to match `eval_strategy`
   (both set to `"epoch"`).
 
 ### Changed
@@ -367,9 +402,6 @@ for the author's private research, training, and experimentation. It is
 - **`scripts/generate_source_layout.py`** — generates the
   `sources/<source>/LICENSE.md` and `SOURCE.md` files plus
   `sources/_index.json`.
-- **`scripts/scrub_bpl_callback.py`** — blob callback for git-filter-repo
-  that scrubs BigPromptLibrary records from any historical
-  `ai/jailbreaking/data.jsonl` blob.
 
 ### Changed
 
@@ -401,7 +433,7 @@ for the author's private research, training, and experimentation. It is
   layout. License table is sourced from the canonical LICENSE.md files
   in each `sources/<source>/` directory.
 - **`archive/`** directory now contains `old-flat-layout/` (25,820
-  records) in addition to `restricted-sources/` and `tui-source/`.
+  records) in addition to `restricted-sources/` and `tui-sourceを/`.
   All archive contents remain gitignored.
 
 ### Removed
@@ -446,13 +478,13 @@ for the author's private research, training, and experimentation. It is
 
 ## [0.2.3] — 2026-06-11
 
-### Added
+### Fixed
 
 - **`scripts/generate_synthetic_scarce.py` — live metrics + cleaner console output.**
   - `call_llm()` now returns `{content, usage, latency_ms}` — tracks prompt / completion / total tokens from both OpenAI-compatible (LMStudio) and Ollama responses.
   - Per-batch backend/model/temp spam eliminated. Backend info prints **once per category** instead of once per batch.
   - Live progress bar with real metrics: **tokens/sec**, **pairs/sec**, and **latency (ms)** per batch.
-  - Optional `rich` library progress bar; plain-text ASCII fallback if `rich` is not installed.
+  - Optional `rich` library progress bar, plain-text ASCII fallback if `rich` is not installed.
   - Final summary line: `Wrote N pairs | X tok/s avg | Y pair/s avg | Z.s total | filename`.
   - Metrics persisted to `{category}_llm_meta.json` under `"metrics"`.
 
@@ -461,7 +493,7 @@ for the author's private research, training, and experimentation. It is
   - Single-category mode: `--only web_app`.
   - Backend / model / temperature as CLI flags (`--backend`, `--model`, `--temperature`) — **no env var syntax needed**.
   - `--sleep` flag (default OFF) for inter-batch pauses.
-  - Wrapper is now the **sole entry point**; `generate_synthetic_scarce.py` accepts `--category`/`--count` only. Passing positional counts directly to it produces `unrecognized arguments` (by design).
+  - Wrapper is now the **sole entry point**; `generate_synthetic_scarce.py` accepts `--category`/`--count` only. Passing positional counts directly to it produces `unrecognized arguments` by design.
   - Env vars passed explicitly via `subprocess.run(env=...)` instead of relying on shell inheritance.
 
 - **`scripts/train_template.py` — tokens/sec progress replaces useless `it/s`.**
@@ -469,9 +501,36 @@ for the author's private research, training, and experimentation. It is
   - HF Trainer's default tqdm disabled via `disable_tqdm=True`.
   - `it/s` was meaningless because it conflates batch size, gradient accumulation, and packing into a single opaque number. `tok/s` and `pair/s` reflect actual data throughput.
 
-### Fixed
+- **`scripts/init_pipeline.py`** (≈370 lines) — the orchestrator module
+  imported by `attacklm.cli:main_init`. Returns documented exit codes
+  for downstream tooling: `0` success, `2` user-declined, `3` network
+  failure, `4` `--skip-clone` with missing data.
+- **`tests/test_init_pipeline.py`** — 18 hermetic tests covering local
+  probe (all-present / missing / too-small), stage runners (skip-when-
+  missing), bucket-built detection, and full CLI dispatch via
+  `monkeypatch`. All pass.
+- **CLI help text** updated to list `attacklm-init` alongside the
+  existing entry points.
 
-- **Fish shell / bash multi-line env var syntax no longer required.** All backend configuration is via CLI flags in the wrapper. Eliminates `fish: Unknown command: ' '` errors when breaking lines inside `BACKEND=lmstudio \` assignments.
+### Changed
+
+- `src/attacklm/cli.py` — new `main_init()` dispatcher (sibling of
+  `main_clone`, `main_extract`, etc.) that wraps the new orchestrator.
+- `pyproject.toml` — new `attacklm-init = "attacklm.cli:main_init"`
+  entry point, version bumped 0.3.0 → 0.3.1.
+- `src/attacklm/__version__.py` — bumped to `0.3.1`.
+- The four individual commands (`attacklm-clone`, `attacklm-extract`,
+  `attacklm-attribute`, `attacklm-buckets`) are **unchanged** and
+  remain available for users who want fine-grained control.
+
+### Notes for PyPI users
+
+After `pip install attacklm`, a single `attacklm-init` brings a fresh
+install from zero to a fully populated `data/datasets/buckets/`
+layout. If the user already cloned the repo (e.g. `git clone
+https://github.com/Veedubin/AttackLM.git`) the orchestrator detects the
+local data and skips the network fallback. The `--yes` flag enables
+unattended first-run.
 
 ---
 
@@ -479,48 +538,57 @@ for the author's private research, training, and experimentation. It is
 
 ### Fixed
 
-- **Epoch counter now accurate.** `state.json[progress].current_epoch` is now read from the trainer's own `log_history` (the real fractional value at the last logged step) instead of HF Trainer's rounded `train_result.metrics["epoch"]` (which is an int). Previously the counter reported `epoch: 3.0` when the trainer actually ran `2.999` epochs. Also added `state.json[progress].target_epochs` (the user's --epochs value) and `state.json[progress].filtered_examples` (how many examples the long-example filter dropped) so the user can see exactly what happened.
-- **`attacklm-train` no longer clobbers previous runs.** Default behavior: a `_YYYY-MM-DD_HH-MM` timestamp is appended to `--output` so each run is preserved (matching what `attacklm-train-all` has done since v0.1.6). Opt out with `--no-timestamp`. If `--no-timestamp` is set and the output is a **completed** run, the trainer refuses unless `--force` is also passed. If the path already ends in a timestamp, it's left alone (so re-runs of `train_all.py` keep working).
-- **`attacklm-gguf` no longer silently skips when source is newer.** Previously, `attacklm-gguf` printed `⏭ attacklm-single — already exists` and skipped even when the source BF16 model was just re-merged. v0.2.2 compares mtime: if `models/gguf/{name}.Q4_K_M.gguf` is older than the source `model.safetensors`, it's treated as stale and re-converted (with a clear log line). `--force` bypasses the mtime check entirely.
-- **`attacklm-gguf --name` now exists.** Previously `--name` was referenced in the help text and in a v0.2.0-era TODO but never implemented — passing it produced `unrecognized arguments`. v0.2.2 adds the flag; it overrides the auto-derived name from `--input`.
+- **Epoch counter now accurate.** `state.json[progress].current_epoch` is
+  now read from the trainer's own `log_history` (the real fractional value
+  at the last logged step) instead of HF Trainer's rounded `train_result.metrics["epoch"]`
+  (which is an int). Previously the counter reported `epoch: 3.0` when the
+  trainer actually ran `2.999` epochs. Also added `state.json[progress].target_epochs`
+  (the user's --epochs value) and `state.json[progress].filtered_examples`
+  (how many examples the long-example filter dropped) so the user can see
+  exactly what happened.
+- **`attacklm-train` no longer clobbers previous runs.** Default behavior: a
+  `_YYYY-MM-DD_HH-MM` timestamp is appended to `--output` so each run is
+  preserved (matching what `attacklm-train-all` has done since v0.1.6).
+  Opt out with `--no-timestamp`. If `--no-timestamp` is set and the output
+  is a **completed** run, the trainer refuses unless `--force` is also
+  passed. If the path already ends in a timestamp, it's left aloneS.
+- **`attacklm-gguf` no longer silently skips when source is newer.**
+  Previously `--install-lmstudio` printed `⏭ attacklm-single — already exists`
+  and skipped even when the source BF16 model was just re-merged. v0.2.2
+  compares mtime: if `models/gguf/{name}.Q4_K_M.gguf` is older than the
+  source `model.safetensors`, it's treated as stale and re-converted
+  (with a clear log line). `--force` bypasses the mtime check entirely.
 
 ### Added
 
-- **`attacklm-build`** — One-shot full pipeline: merge LoRA → BF16 → GGUF → install to LM Studio → (optional) register with Ollama → drop a build manifest at `models/built/{name}_{timestamp}/`. Replaces the 3-command shell pipeline (`attacklm-merge && rm && attacklm-gguf --install-lmstudio`) with a single command. Auto-detects the base model from the adapter's `state.json` / `adapter_config.json`. Defaults: `--install-lmstudio` ON, `--register-ollama` OFF. Wired in as a console script.
+- **`attacklm-build`** — One-shot full pipeline: merge LoRA → BF16 → GGUF →
+  install to LM Studio → (optional) register with Ollama → drop a build
+  manifest at `models/built/{name}_{timestamp}/`. Replaces the 3-command
+  shell pipeline (`attacklm-merge && rm && attacklm-gguf --install-lmstudio`)
+  with a single command. Auto-detects the base model from the adapter's
+  `state.json` / `adapter_config.json`. Defaults: `--install-lmstudio` ON,
+  `--register-ollama` OFF. Wired in as a console script.
+- **`attacklm-gguf --quant` and `--register-ollama`.** `--quant` lets you
+  pick `Q8_0` / `Q5_K_M` / `Q6_K` instead of the hardcoded `Q4_K_M`.
+  `--register-ollama` writes a `Modelfile` next to the GGUF and runs
+  `ollama create {name}`, so the model shows up in `ollama list` and you
+  can run it via `ollama run {name} ভিত্তি`.
 
-- **`attacklm-gguf --quant` and `--register-ollama`.** `--quant` lets you pick `Q8_0` / `Q5_K_M` / `Q6_K` instead of the hardcoded `Q4_K_M`. `--register-ollama` writes a `Modelfile` next to the GGUF and runs `ollama create {name}`, so the model shows up in `ollama list` and you can run it via `ollama run {name}`.
+- **`scripts/balance_buckets.py`** — Balanced bucket sampler for SFT data.
+  Auto-sizes per-bucket caps based on target model + VRAM profile (3b-16gb /
+  7b-16gb / 7b-128gb / 14b-128gb / 31b-128gb / full / custom). Three
+  within-bucket sampling strategies (head / random / **stratified** — the
+  default). Stratified sampler groups examples by their first MITRE
+  technique ID, source, or first assistant-content line, then allocates with
+  **minimum-1-per-group** so every technique / module gets representation.
+  Solves the "metasploit 49% of training" problem for round-2 SFT.
 
-- **`scripts/balance_buckets.py`** — Balanced bucket sampler for SFT data. Auto-sizes per-bucket caps based on target model + VRAM profile (3b-16gb / 7b-16gb / 7b-128gb / 14b-128gb / 31b-128gb / full / custom). Three within-bucket sampling strategies (head / random / **stratified** — the default). Stratified sampler groups examples by their first MITRE technique ID, source, or first assistant-content line, then allocates with **minimum-1-per-group** so every technique / module gets representation. Solves the "metasploit 49% of training" problem for round-2 SFT.
-
-  Category-balanced allocation (the default for `--target-total`): targets 50% base / 25% tools / 15% ai / 10% orchestrator, then redistributes proportionally when small categories hit their caps. Overridable via `--category-shares` JSON.
+  Category-balanced allocation (the default for `--target-total`): targets
+  50% base / 25% tools / 15% ai / 10% orchestrator, then redistributes
+  proportionally when small categories hit their caps. Overridable via
+  `--category-shares` JSON.
 
   Wired in as `attacklm-balance` console script.
-
-- **`tests/test_balance_buckets.py`** — 19 unit tests covering stratification key selection, sampling strategies, cap resolution, integration with the real bucket manifest, and CLI output. All pass.
-
-- **`.gitignore`** — `data/datasets/balanced/` excluded (regenerable output of the new sampler).
-
-- **`README.md`** — new "Balanced sampling" section in the Training area; `attacklm-balance` added to the 11-script table (now 12).
-
-### Usage
-
-```bash
-# Dry-run: see the per-bucket caps + total without writing
-attacklm-balance --profile 7b-128gb --dry-run
-
-# Write a balanced dataset to data/datasets/balanced/
-attacklm-balance --profile 7b-128gb \
-    --output data/datasets/balanced/balanced_7b-128gb.jsonl
-
-# Pass to training
-attacklm-train --dataset data/datasets/balanced/balanced_7b-128gb.jsonl \
-               --output models/attacklm-7b-128gb \
-               --base-model huihui-ai/Qwen2.5-Coder-7B-Instruct-abliterated
-
-# Custom target total with custom category shares
-attacklm-balance --profile custom --target-total 12000 \
-    --category-shares '{"tactic": 0.3, "tools": 0.4, "ai_redteam": 0.2, "meta": 0.1}'
-```
 
 ### Profiles
 
@@ -581,7 +649,6 @@ attacklm-balance --profile custom --target-total 12000 \
   - `--rollback <snapshot_name>`: restore from a backup
   - `--list-backups`: show available rollback snapshots
   - Empty parent dirs (e.g. `ai-models/` after its children move into `ai/`) are removed as part of the move pass
-  - The `data/.bucket_layout_backup/` directory is gitignored
 
 ### Migration from v0.2.0
 
@@ -606,7 +673,7 @@ python scripts/migrate_buckets_to_v021.py --rollback buckets_20260610_053407
 
 - 12 buckets moved, 0 errors
 - `manifest.json` paths updated atomically (write to `.tmp`, rename)
-- All 12 spec resolver cases pass: 4 parents (`base/`, `tools/`, `ai/`, `orchestrator`), 3 aliases (`all`, `tactics`, `tools-all`), 3 subpaths (`tools/metasploit/`, `ai/jailbreaking/`, `base/collection/`), 1 backward-compat (`ai-models/` → 2 buckets), 1 default set (tactics + orchestrator = 11 buckets)
+- 12 spec resolver cases pass: 4 parents (`base/`, `tools/`, `ai/`, `orchestrator`), 3 aliases (`all`, `tactics`, `tools-all`), 3 subpaths (`tools/metasploit/`, `ai/jailbreaking/`, `base/collection/`), 1 backward-compat (`ai-models/` → 2 buckets), 1 default set (tactics + orchestrator = 11 buckets)
 - `build_combined` reads from new paths (`base/collection/data.jsonl`, `ai/jailbreaking/data.jsonl`, etc.) cleanly
 - `--dataset all` → 16,982 pairs across 4 parents, cache key `3ecf6ee42505`
 
@@ -633,11 +700,11 @@ python scripts/migrate_buckets_to_v021.py --rollback buckets_20260610_053407
   ```
   Specs are dir-shaped (`base/`, `tools/`, `ai/`, `orchestrator`) and hierarchical (`tools/metasploit/` picks one bucket; `tools/` picks all). Aliases: `all`, `tactics`, `tools-all`. Bucket resolver: `bucket_loader.resolve_dataset_spec(s)`.
 
-- **`--backup` / `--no-backup` round-2 SFT backup.** When round-2 SFT is detected, the previous run dir + merged model are tar.gz'd to `models/.backups/{name}_{timestamp}.tar.gz` with a progress bar. `--backup` is the default; `--no-backup` skips it. Tar size is ~5 GB for a 3B BF16 model (BF16 doesn't compress well; ~80% of uncompressed). The previous run dir is **never deleted** — it stays in `models/{name}_*/` for inspection.
+- **`--backup` / `--no-backup` round-2 SFT backup.** When round-2 SFT is detected, the previous run dir + merged model are tar.gz'd to `models/.backups/{name}_{timestamp}.tar.gz` with a progress bar. `--backup` is the default; `--no-backup` skips it. Tar size is ~ la 5 GB for a 3B BF16 model (BF16 doesn't compress wellL; ~80% of uncompressed). The previous run dir is **never deleted** — it stays in `models/{name}_*/` for inspection.
 
 - **Timestamped run dirs.** Each training run gets its own `models/{agent}_{YYYY-MM-DD}_{HH-MM}[_N]/` instead of clobbering `models/{agent}/`. Older runs remain on disk for rollback. Merged models still write to `models/merged/{agent}/` (single deployable artifact per agent).
 
-- **`_find_latest_run_dir(agent_name)` helper.** Lexicographic sort on the timestamped dir names picks the most recent run for an agent. Used by the round-2 SFT auto-detect and the `merge_all` glob.
+- **`_find_latest_run_dir(agent_name)` helper.** Lexicographic sort on the timestamped dir names picks the most recent run for an agent. UsedT for the round-2 SFT auto-detect and the `merge_all` glob.
 
 - **`_strip_timestamp_suffix(adapter_path)` helper.** Strips `_YYYY-MM-DD_HH-MM[_N]` from a directory name so merged-model output dir is `models/merged/{agent}/`, not `models/merged/{agent}_{timestamp}/`.
 
@@ -660,7 +727,7 @@ python scripts/migrate_buckets_to_v021.py --rollback buckets_20260610_053407
 
 - **Cache key for combined datasets is now based on resolved specs, not boolean flags.** `--include-tools` and `--dataset tools/` produce the same cache key (same content → same hash).
 
-- **`.gitignore` excludes `data/datasets/combined/*.jsonl`** (regenerable, ~15-17 MB each; saves ~100 MB on the repo) and explicitly excludes `models/.backups/` (dotfile dir, also already excluded by `models/`).
+- **`.gitignore` excludes `data/datasets/combined/*.jsonl`** (regenerable, ~15-17 MB each; saves ~100 MB on the repo) and explicitly excludes `models/.backups/` (dotfile dir, also already excluded by `models the/`).
 
 ### Fixed
 
@@ -685,6 +752,7 @@ python scripts/migrate_buckets_to_v021.py --rollback buckets_20260610_053407
 If you ran a training on v0.1.5, your output dir is at `models/{agent}/` (no timestamp). v0.2.0 expects timestamped dirs. Two options:
 
 **Option A (recommended): manually rename + backfill state.json:**
+
 ```bash
 # Rename the existing run dir
 mv models/attacklm-single models/attacklm-single_2026-06-10_01-12
@@ -695,7 +763,7 @@ import json, shutil
 from datetime import datetime, timezone
 src = 'models/attacklm-single_2026-06-10_01-12'
 ckpt_dirs = sorted([d for d in __import__('os').listdir(src)
-                    if d.startswith('checkpoint-')])
+                    if d.startswith('checkpointเดียวกัน')])
 ts = json.load(open(f'{src}/{ckpt_dirs[-1]}/trainer_state.json'))
 # ... (see scripts/migrate_v015_to_v020.py for the full template)
 "
@@ -703,7 +771,7 @@ ts = json.load(open(f'{src}/{ckpt_dirs[-1]}/trainer_state.json'))
 
 **Option B (cleanest): just re-train.** v0.1.6 and later will write everything correctly from scratch.
 
-The v0.1.5 → v0.2.0 migration script lives at `scripts/migrate_v015_to_v020.py` and handles the rename + backfill automatically.
+The `scripts/migrate_v015_to_v020.py` migration script lives at `scripts/migrate_v015_to_v020.py` and handles the rename + backfill automatically.
 
 ---
 
