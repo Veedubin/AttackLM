@@ -2701,7 +2701,8 @@ def main() -> None:
             self,
             check_every: int = 5,
             window_size: int = 20,
-            ema_decay: float = 0.9,
+            ema_decay: float = 0.5,
+            min_delta: float = 0.005,
             output_dir: str = "",
         ):
             from collections import deque
@@ -2709,6 +2710,7 @@ def main() -> None:
             self.check_every = check_every
             self.window_size = window_size
             self.ema_decay = ema_decay
+            self.min_delta = min_delta
             self.output_dir = output_dir
 
             self._ema: float | None = None
@@ -2772,11 +2774,14 @@ def main() -> None:
             second_mean = sum(window_list[mid:]) / mid
             self.trend_delta = second_mean - first_mean
 
-            if second_mean < first_mean:
+            if second_mean < first_mean - self.min_delta:
                 self.trend_direction = "↓"
                 self._stale_checks = 0
+            elif second_mean > first_mean + self.min_delta:
+                self.trend_direction = "↑"
+                self._stale_checks += 1
             else:
-                self.trend_direction = "↑" if second_mean > first_mean else "→"
+                self.trend_direction = "→"
                 self._stale_checks += 1
 
             if self._stale_checks >= self._max_stale:
