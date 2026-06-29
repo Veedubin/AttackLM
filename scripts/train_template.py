@@ -3639,6 +3639,9 @@ def main() -> None:
     # Q-GaLore (--use-qgalore): INT4 quantized projection matrices with
     #   stochastic rounding. Cuts optimizer memory ~4x vs vanilla GaLore.
     #   Enables 7B on 16GB. Paper: arXiv:2407.08296.
+    # Start interactive control (background stdin listener) — needed in both GaLore and SFTTrainer paths
+    interactive_control = InteractiveControl()
+
     if _is_galore(args) and _galore_available:
         from transformers import Trainer
 
@@ -3854,9 +3857,6 @@ def main() -> None:
                             [{"params": []}], lr=self.args.learning_rate
                         )
                     return self.optimizer
-
-        # Start interactive control (background stdin listener)
-        interactive_control = InteractiveControl()
 
         # Create callbacks — wire early_stop into progress bar for trend display
         _step_early_stop = (

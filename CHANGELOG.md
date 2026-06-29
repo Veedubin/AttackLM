@@ -4,6 +4,14 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
+## [0.6.9] — 2026-06-29 — Fix `UnboundLocalError: interactive_control`
+
+### Fixed
+
+- **Moved `interactive_control` initialization before the `_is_galore` branch.** Fixes `UnboundLocalError` when training without GaLore (standard LoRA fine-tuning) because `interactive_control` was previously only initialized inside the GaLore-specific `if` block but used in the `else` block.
+
+---
+
 ## [0.6.1] — 2026-06-28 — Fix --use-galore API
 
 ### Fixed
