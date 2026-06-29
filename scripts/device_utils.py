@@ -103,14 +103,16 @@ def setup_allocator_env() -> None:
         return
     os.environ.setdefault(
         "PYTORCH_CUDA_ALLOC_CONF",
-        "expandable_segments:True,max_split_size_mb:128",
+        "expandable_segments:True,max_split_size_mb:512,"
+        "garbage_collection_threshold:0.8",
     )
     if is_rocm():
         # Older ROCm builds read PYTORCH_HIP_ALLOC_CONF instead.
         # Setting it is harmless on newer builds that ignore it.
         os.environ.setdefault(
             "PYTORCH_HIP_ALLOC_CONF",
-            "expandable_segments:True,max_split_size_mb:128",
+            "expandable_segments:True,max_split_size_mb:512,"
+            "garbage_collection_threshold:0.8",
         )
 
 
@@ -147,6 +149,59 @@ def gpu_mem_info_bytes() -> Tuple[int, int]:
     if is_cuda():
         return torch.cuda.mem_get_info()
     return 0, 0
+
+
+def gpu_mem_allocated_bytes() -> int:
+    """Bytes currently allocated to tensors (excludes cached pool).
+
+    This is the number that matters for OOM risk — it counts only
+    tensors that are actually in use, not blocks the caching allocator
+    is holding for reuse.  Compare with gpu_mem_reserved_bytes() to
+    see how much is cached vs. active.
+    """
+    if is_cuda():
+        return torch.cuda.memory_allocated()
+    return 0
+
+
+def gpu_mem_reserved_bytes() -> int:
+    """Bytes reserved from the CUDA driver (allocated + cached pool)."""
+    if is_cuda():
+        return torch.cuda.memory_reserved()
+    return 0
+
+
+def gpu_mem_cached_bytes() -> int:
+    """Bytes in the allocator cache (reserved - allocated).
+
+    This is what empty_cache() can release back to the driver.
+    """
+    if is_cuda():
+        return torch.cuda.memory_reserved() - torch.cuda.memory_allocated()
+    return 0
+
+
+def gpu_fragmentation_report() -> dict:
+    """Return detailed allocator stats for diagnosing fragmentation.
+
+    Key metrics:
+      inactive_split_bytes — memory that is free but can't be used
+        because it's split across segment boundaries (fragmentation).
+      num_alloc_retries — how many times the allocator had to flush
+        the cache and retry.  >0 means fragmentation is hurting.
+    """
+    if not is_cuda():
+        return {}
+    stats = torch.cuda.memory_stats()
+    return {
+        "allocated_mb": stats.get("allocated_bytes.all.current", 0) / (1024**2),
+        "reserved_mb": stats.get("reserved_bytes.all.current", 0) / (1024**2),
+        "active_mb": stats.get("active_bytes.all.current", 0) / (1024**2),
+        "inactive_split_mb": stats.get("inactive_split_bytes.all.current", 0)
+        / (1024**2),
+        "num_alloc_retries": stats.get("num_alloc_retries", 0),
+        "num_ooms": stats.get("num_ooms", 0),
+    }
 
 
 # ---------------------------------------------------------------------------

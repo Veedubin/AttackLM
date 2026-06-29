@@ -67,6 +67,10 @@ from device_utils import (  # noqa: E402  (import after sys.path tweak)
     empty_cache_and_sync,
     gpu_mem_info,
     gpu_mem_info_bytes,
+    gpu_mem_allocated_bytes,
+    gpu_mem_reserved_bytes,
+    gpu_mem_cached_bytes,
+    gpu_fragmentation_report,
     suggest_attn_implementation,
     print_hardware_banner,
 )
@@ -1317,7 +1321,7 @@ def detect_assistant_loss_support(tokenizer, dataset_sample: dict) -> dict:
     return result
 
 
-def _stochastic_round_projections(optimizer):
+def _stochastic_round_projections(optimizer, buffers=None):
     """Re-quantize projection matrices with stochastic rounding.
 
     Stochastic rounding preserves gradient information that would be
@@ -1327,6 +1331,10 @@ def _stochastic_round_projections(optimizer):
 
     This is called after every optimizer step to maintain INT4 precision
     while preventing quantization drift.
+
+    If ``buffers`` is provided (a dict of pre-allocated tensors), reuses
+    those instead of allocating new temporaries.  This eliminates ~168
+    temporary allocations per step for a 24-layer model.
     """
     import torch
 
@@ -1338,16 +1346,30 @@ def _stochastic_round_projections(optimizer):
             continue
         scale = group["proj_scale"]
         with torch.no_grad():
-            # Dequantize current INT4 for the forward pass
-            proj.copy_(group["proj_int4"].to(proj.dtype) * scale)
-            # Stochastic rounding: re-quantize with probability-based rounding
-            fp = proj / scale
-            floor_val = fp.floor()
-            frac = fp - floor_val
-            # Random rounding: round up with probability = fractional part
-            rand = torch.rand_like(frac)
-            rounded = floor_val + (rand < frac).to(fp.dtype)
-            group["proj_int4"] = rounded.clamp(-7, 7).to(torch.int8)
+            if buffers is not None:
+                # --- Pre-allocated path: zero temporary allocations ---
+                b = buffers
+                b["dequant"].copy_(group["proj_int4"].to(proj.dtype) * scale)
+                proj.copy_(b["dequant"])
+                torch.div(proj, scale, out=b["fp"])
+                torch.floor(b["fp"], out=b["floor"])
+                torch.sub(b["fp"], b["floor"], out=b["frac"])
+                b["rand"].uniform_()  # in-place random, no allocation
+                # lt returns bool; convert to float for addition
+                torch.lt(b["rand"], b["frac"], out=b["rounded_bool"])
+                b["rounded"].copy_(b["rounded_bool"].to(proj.dtype))
+                b["rounded"].add_(b["floor"])
+                b["rounded"].clamp_(-7, 7)
+                group["proj_int4"] = b["rounded"].to(torch.int8)
+            else:
+                # --- Fallback: allocates temporaries (legacy path) ---
+                proj.copy_(group["proj_int4"].to(proj.dtype) * scale)
+                fp = proj / scale
+                floor_val = fp.floor()
+                frac = fp - floor_val
+                rand = torch.rand_like(frac)
+                rounded = floor_val + (rand < frac).to(fp.dtype)
+                group["proj_int4"] = rounded.clamp(-7, 7).to(torch.int8)
 
 
 def main() -> None:
@@ -2913,22 +2935,30 @@ def main() -> None:
             return control
 
     class GCEpochCallback(TrainerCallback):
-        """Run gc.collect() + empty_cache() after every eval to defragment VRAM.
+        """Aggressive VRAM management: periodic clears + emergency threshold.
 
-        Also monitors VRAM after every optimizer step and triggers an
-        emergency cache clear if free memory drops below 2GB — this
-        catches the case where peak transient allocations during a
-        forward pass push us close to the ceiling.
+        PyTorch's CUDA caching allocator holds freed blocks in a pool for
+        reuse.  ``mem_get_info()`` (the driver-level query) counts those
+        cached blocks as "used", so the old 256MB threshold fired on cache
+        bloat, not genuine OOM risk.
+
+        This callback now uses ``memory_allocated()`` (tensors actually in
+        use) for the emergency threshold, and clears the cache *periodically*
+        (every 50 steps) to prevent the pool from growing large enough to
+        trigger spurious emergencies.
+
+        Also monitors fragmentation (inactive_split_bytes) and allocation
+        retries — if the allocator is struggling to find contiguous blocks,
+        we log a warning.
         """
 
-        # OOM fix #10: VRAM threshold for emergency cache clear
-        # (in bytes). If free VRAM drops below this after an optimizer
-        # step, force a gc.collect + empty_cache. 256MB is the "we're
-        # about to OOM" threshold — below this, PyTorch can't allocate
-        # a single large tensor. GaLore's per-layer hooks free gradients
-        # after each layer's backward pass, so peak memory is much lower
-        # than QLoRA and we rarely need to clear.
-        EMERGENCY_CLEAR_THRESHOLD_BYTES = 256 * (1024**2)
+        # Fraction of total VRAM that triggers an emergency clear.
+        # 0.92 = 14.3GB on a 15.6GB card, leaving ~1.3GB for transients.
+        EMERGENCY_ALLOCATED_FRACTION = 0.92
+
+        # Clear the cache every N optimizer steps to prevent pool bloat.
+        # Cost: ~1-2ms per clear, negligible vs. step time (~350ms).
+        PERIODIC_CLEAR_EVERY_N_STEPS = 50
 
         def on_evaluate(self, args, state, control, **kwargs):
             import gc
@@ -2937,36 +2967,53 @@ def main() -> None:
             if is_cuda():
                 empty_cache_and_sync()
                 free_gb, total_gb = gpu_mem_info()
+                allocated_gb = gpu_mem_allocated_bytes() / (1024**3)
+                cached_gb = gpu_mem_cached_bytes() / (1024**3)
                 print(
                     f"\r\n  [GCEpochCallback] Post-eval VRAM: "
-                    f"{free_gb:.2f}GB free / {total_gb:.2f}GB total"
+                    f"{free_gb:.2f}GB free / {total_gb:.2f}GB total "
+                    f"(alloc {allocated_gb:.1f}GB, cached {cached_gb:.1f}GB)"
                 )
             return control
 
         def on_optimizer_step(self, args, state, control, **kwargs):
-            """Emergency VRAM clear when free memory gets dangerously low.
+            """Periodic cache clear + emergency threshold check.
 
-            Fires after every optimizer step (per `on_optimizer_step`
-            callback event). We DO NOT unconditionally clear cache here
-            (that would cost 5-10% throughput). Instead, we only clear
-            if free VRAM is below the emergency threshold.
+            Periodic clears prevent the cached pool from growing large
+            enough to trigger the emergency threshold.  The emergency
+            check uses ``memory_allocated()`` (tensors in use), not
+            ``mem_get_info()`` (which includes the cached pool).
             """
             if not is_cuda():
                 return control
-            free_bytes, _total_bytes = gpu_mem_info_bytes()
-            if free_bytes < self.EMERGENCY_CLEAR_THRESHOLD_BYTES:
+
+            # --- Periodic clear: prevent cache bloat ---
+            if state.global_step % self.PERIODIC_CLEAR_EVERY_N_STEPS == 0:
                 import gc
 
                 gc.collect()
                 torch.cuda.empty_cache()
-                # Don't sync here — that defeats the purpose of the
-                # threshold check. The next forward pass will sync
-                # implicitly if it needs to.
-                free_gb = free_bytes / (1024**3)
+
+            # --- Emergency check: actual OOM risk ---
+            allocated = gpu_mem_allocated_bytes()
+            total = torch.cuda.get_device_properties(0).total_memory
+            if allocated / total > self.EMERGENCY_ALLOCATED_FRACTION:
+                import gc
+
+                gc.collect()
+                torch.cuda.empty_cache()
+                cached_mb = gpu_mem_cached_bytes() / (1024**2)
+                frag = gpu_fragmentation_report()
                 print(
-                    f"\r\n  [GCEpochCallback] Step {state.global_step} emergency "
-                    f"cache clear: {free_gb:.2f}GB free"
+                    f"\r\n  [GCEpochCallback] Step {state.global_step} "
+                    f"EMERGENCY: alloc {allocated / (1024**3):.1f}GB "
+                    f"(>{self.EMERGENCY_ALLOCATED_FRACTION:.0%} of "
+                    f"{total / (1024**3):.1f}GB), "
+                    f"cached {cached_mb:.0f}MB freed, "
+                    f"frag {frag.get('inactive_split_mb', 0):.0f}MB, "
+                    f"retries {frag.get('num_alloc_retries', 0)}"
                 )
+
             return control
 
     class LiveProgressCallback(TrainerCallback):
@@ -3054,14 +3101,20 @@ def main() -> None:
             except (TypeError, ValueError):
                 loss_val = 0.0
 
-            # --- VRAM (used/total) ---
+            # --- VRAM (allocated + cached / total) ---
             vram_str = ""
             if is_cuda():
                 try:
-                    free_b, total_b = gpu_mem_info_bytes()
-                    used_gb = (total_b - free_b) / (1024**3)
-                    total_gb = total_b / (1024**3)
-                    vram_str = f"VRAM USED {used_gb:.1f}/{total_gb:.1f} GB"
+                    allocated_gb = gpu_mem_allocated_bytes() / (1024**3)
+                    cached_gb = gpu_mem_cached_bytes() / (1024**3)
+                    total_gb = torch.cuda.get_device_properties(0).total_memory / (
+                        1024**3
+                    )
+                    vram_str = (
+                        f"VRAM alloc {allocated_gb:.1f} "
+                        f"cache {cached_gb:.1f} "
+                        f"/{total_gb:.1f} GB"
+                    )
                 except Exception:
                     pass
 
@@ -3451,9 +3504,33 @@ def main() -> None:
                     # Q-GaLore: quantize projection matrices to INT4
                     if _use_qgalore:
                         self._quantize_projections()
+                        # Pre-allocate reusable buffers for stochastic
+                        # rounding.  Without this, every optimizer step
+                        # creates 7 temporary tensors per layer (168
+                        # allocs/step for 24 layers), each of which
+                        # leaves a cached block in the allocator pool.
+                        self._sr_buffers: dict[str, dict] = {}
+                        for prefix, opt in self._galore_optimizers.items():
+                            for group in opt.param_groups:
+                                proj = group.get("projection_matrix")
+                                if proj is None or proj.numel() == 0:
+                                    continue
+                                self._sr_buffers[prefix] = {
+                                    "dequant": torch.empty_like(proj),
+                                    "fp": torch.empty_like(proj),
+                                    "floor": torch.empty_like(proj),
+                                    "frac": torch.empty_like(proj),
+                                    "rand": torch.empty_like(proj),
+                                    "rounded_bool": torch.empty(
+                                        proj.shape,
+                                        dtype=torch.bool,
+                                        device=proj.device,
+                                    ),
+                                    "rounded": torch.empty_like(proj),
+                                }
 
                     # Register per-layer hooks
-                    def _make_hook(opt):
+                    def _make_hook(opt, prefix=""):
                         def hook(p):
                             if p.grad is None:
                                 return
@@ -3461,14 +3538,17 @@ def main() -> None:
                             opt.zero_grad()
                             # Q-GaLore: stochastic rounding after step
                             if _use_qgalore:
-                                _stochastic_round_projections(opt)
+                                bufs = self._sr_buffers.get(prefix)
+                                _stochastic_round_projections(opt, bufs)
 
                         return hook
 
                     for prefix, opt in self._galore_optimizers.items():
                         for group in opt.param_groups:
                             for p in group["params"]:
-                                p.register_post_accumulate_grad_hook(_make_hook(opt))
+                                p.register_post_accumulate_grad_hook(
+                                    _make_hook(opt, prefix)
+                                )
 
                 def _quantize_projections(self):
                     """Quantize GaLore projection matrices to INT4.
