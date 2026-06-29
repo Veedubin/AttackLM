@@ -39,6 +39,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+from transformers.trainer_callback import TrainerCallback
 
 # ---------------------------------------------------------------------------
 # OOM fix #1: PyTorch CUDA / ROCm allocator configuration
@@ -2809,8 +2810,6 @@ def main() -> None:
 
     # --- Create trainer ---
     # EarlyStoppingCallback handles "stop after N rounds without improvement"
-
-    from transformers import TrainerCallback
 
     # --- Interactive control: [P]ause / [Q]uit / [R]esume / [E]nd ---
     # Background thread reads stdin so the user can pause, quit, or resume
