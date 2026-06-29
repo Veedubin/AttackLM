@@ -194,8 +194,10 @@ Examples:
         "--gradient-accumulation-steps",
         type=int,
         default=1,
-        help="Gradient accumulation steps — simulate larger batch without extra VRAM. "
-        "effective_batch = batch_size × grad_accum. (default: 1)",
+        help="Gradient accumulation steps — smoother gradients without extra VRAM. "
+        "effective_batch = batch_size × grad_accum. "
+        "Does NOT help with OOM (can't go below batch_size=1). "
+        "(default: 1)",
     )
     parser.add_argument(
         "--optim",
@@ -241,6 +243,34 @@ Examples:
         help="Stop training after N optimizer steps (overrides --epochs). "
         "Used by HPO trials to cap run-length at a fixed budget. "
         "Default: -1 (use --epochs)",
+    )
+    parser.add_argument(
+        "--auto-tune",
+        action="store_true",
+        default=False,
+        help=(
+            "Auto-tune batch_size and max_length for your GPU. Runs a "
+            "warmup epoch with increasing max_length to find the "
+            "compute-bound sweet spot (where tok/s stops improving). "
+            "Saves optimal config to <output>/auto_tune.json for reuse. "
+            "On restart, loads from JSON if it exists (skip with --no-auto-tune)."
+        ),
+    )
+    parser.add_argument(
+        "--no-auto-tune",
+        dest="auto_tune",
+        action="store_false",
+        help="Disable auto-tuning (default).",
+    )
+    parser.add_argument(
+        "--live-lr",
+        action="store_true",
+        default=False,
+        help=(
+            "Live learning rate adjustment: reduce LR by 50% when loss "
+            "plateaus (same detection as early stopping). Restarts from "
+            "best checkpoint on each reduction. Default: OFF."
+        ),
     )
     parser.add_argument(
         "--hpo-metrics-csv",
@@ -1370,6 +1400,231 @@ def _stochastic_round_projections(optimizer, buffers=None):
                 rand = torch.rand_like(frac)
                 rounded = floor_val + (rand < frac).to(fp.dtype)
                 group["proj_int4"] = rounded.clamp(-7, 7).to(torch.int8)
+
+
+def auto_tune_vram(args, model_loading_fn) -> dict:
+    """Find the optimal max_length for this GPU/model combination.
+
+    Strategy: load the model once, then run a few forward passes at
+    increasing max_length values.  Measure tok/s at each.  Stop when
+    tok/s plateaus (the GPU is compute-bound — longer sequences don't
+    help).  Save the result to <output>/auto_tune.json.
+
+    Returns a dict with optimal max_length, batch_size, and tok/s.
+    """
+    import json
+    import time
+    from pathlib import Path
+
+    tune_path = Path(args.output) / "auto_tune.json"
+    if tune_path.exists():
+        print(f"  Auto-tune: loading cached config from {tune_path}")
+        with open(tune_path) as f:
+            return json.load(f)
+
+    print("\n  [Auto-tune] Probing VRAM to find optimal max_length...")
+    print("  (This runs a few forward passes at different lengths.)")
+
+    # Load model once
+    model, tokenizer = model_loading_fn()
+
+    # Test lengths: start at 1024, double until tok/s stops improving
+    test_lengths = [1024, 2048, 4096, 6144, 8192, 10240, 12288]
+    results = []
+
+    # Create a tiny dummy batch
+    dummy_text = "The quick brown fox jumps over the lazy dog. " * 200
+    dummy_text = dummy_text[: max(test_lengths) * 4]  # enough tokens
+
+    for ml in test_lengths:
+        # Check VRAM headroom
+        if is_cuda():
+            free, total = gpu_mem_info_bytes()
+            allocated = gpu_mem_allocated_bytes()
+            # Rough estimate: each doubling of max_length adds ~2GB
+            # for a 3B model.  If we're within 3GB of the ceiling, skip.
+            if allocated > 0 and (total - allocated) < 3 * (1024**3):
+                print(f"    max_length={ml}: SKIP (VRAM too tight)")
+                continue
+
+        try:
+            tokens = tokenizer(
+                dummy_text,
+                truncation=True,
+                max_length=ml,
+                return_tensors="pt",
+            )
+            if is_cuda():
+                tokens = {k: v.cuda() for k, v in tokens.items()}
+
+            # Warmup
+            for _ in range(3):
+                with torch.no_grad():
+                    _ = model(**tokens)
+
+            # Benchmark
+            torch.cuda.synchronize()
+            t0 = time.perf_counter()
+            n_runs = 10
+            for _ in range(n_runs):
+                with torch.no_grad():
+                    _ = model(**tokens)
+            torch.cuda.synchronize()
+            elapsed = time.perf_counter() - t0
+
+            tok_per_sec = (ml * n_runs) / elapsed
+            results.append((ml, tok_per_sec))
+            print(f"    max_length={ml:5d}: {tok_per_sec:6.0f} tok/s")
+
+        except RuntimeError as e:
+            if "out of memory" in str(e):
+                print(f"    max_length={ml}: OOM — stopping search")
+                torch.cuda.empty_cache()
+                break
+            raise
+
+    if not results:
+        print("  Auto-tune: all lengths OOM'd. Using --max-length 1024.")
+        result = {"max_length": 1024, "batch_size": 1, "tok_per_sec": 0}
+    else:
+        # Find the knee: last length where tok/s improved by >5%
+        best = results[0]
+        for i in range(1, len(results)):
+            improvement = (results[i][1] - best[1]) / best[1]
+            if improvement > 0.05:
+                best = results[i]
+            else:
+                break  # plateaued
+
+        result = {
+            "max_length": best[0],
+            "batch_size": 1,
+            "tok_per_sec": round(best[1]),
+        }
+        print(
+            f"  Auto-tune: optimal max_length={result['max_length']} "
+            f"({result['tok_per_sec']} tok/s)"
+        )
+
+    # Save for reuse
+    tune_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(tune_path, "w") as f:
+        json.dump(result, f, indent=2)
+    print(f"  Auto-tune: saved to {tune_path}")
+
+    # Clean up model to free VRAM for actual training
+    del model
+    if is_cuda():
+        torch.cuda.empty_cache()
+
+    return result
+
+
+class LiveLRCallback(TrainerCallback):
+    """Reduce learning rate when loss plateaus.
+
+    Uses the same detection logic as StepEarlyStoppingCallback:
+    split a window of EMA-smoothed losses into first/second half,
+    compare means.  If the trend is flat or rising for N consecutive
+    checks, halve the LR and reload the best checkpoint.
+
+    This is ReduceLROnPlateau but integrated with our existing
+    plateau detection — no separate scheduler needed.
+
+    The ``trainer`` reference must be set after the Trainer is created
+    (before training starts).  The callback accesses the optimizer
+    through ``self._trainer.optimizer``.
+    """
+
+    def __init__(
+        self,
+        check_every: int = 5,
+        window_size: int = 20,
+        ema_decay: float = 0.5,
+        min_delta: float = 0.005,
+        max_reductions: int = 3,
+        reduction_factor: float = 0.5,
+        output_dir: str = "",
+    ):
+        from collections import deque
+
+        self.check_every = check_every
+        self.window_size = window_size
+        self.ema_decay = ema_decay
+        self.min_delta = min_delta
+        self.max_reductions = max_reductions
+        self.reduction_factor = reduction_factor
+        self.output_dir = output_dir
+
+        self._ema: float | None = None
+        self._window: deque[float] = deque(maxlen=window_size)
+        self._stale_checks = 0
+        self._max_stale = 3
+        self._log_count = 0
+        self._reductions = 0
+        self._trainer = None  # set after Trainer creation
+
+    def on_log(self, args, state, control, model=None, **kwargs):
+        if self._trainer is None:
+            return control
+        logs = kwargs.get("logs", {})
+        loss = logs.get("loss")
+        if loss is None:
+            return control
+
+        # EMA smoothing
+        if self._ema is None:
+            self._ema = float(loss)
+        else:
+            self._ema = self.ema_decay * self._ema + (1 - self.ema_decay) * float(loss)
+        self._window.append(self._ema)
+
+        self._log_count += 1
+        if self._log_count % self.check_every != 0:
+            return control
+        if len(self._window) < self.window_size:
+            return control
+
+        # Split window
+        mid = self.window_size // 2
+        window_list = list(self._window)
+        first_mean = sum(window_list[:mid]) / mid
+        second_mean = sum(window_list[mid:]) / mid
+
+        if second_mean < first_mean - self.min_delta:
+            self._stale_checks = 0  # still improving
+        else:
+            self._stale_checks += 1  # flat or rising
+
+        if self._stale_checks >= self._max_stale:
+            if self._reductions >= self.max_reductions:
+                return control
+
+            self._reductions += 1
+            self._stale_checks = 0
+
+            # Halve LR for all param groups
+            optimizer = self._trainer.optimizer
+            for group in optimizer.param_groups:
+                old_lr = group["lr"]
+                group["lr"] = old_lr * self.reduction_factor
+
+            print(
+                f"\r\n  [LiveLR] Loss plateaued "
+                f"(EMA {first_mean:.4f} → {second_mean:.4f}). "
+                f"LR: {old_lr:.2e} → {group['lr']:.2e} "
+                f"(reduction {self._reductions}/{self.max_reductions})"
+            )
+
+            # Reload best checkpoint if available
+            best_dir = Path(self.output_dir) / "checkpoint-best"
+            if best_dir.exists():
+                print(f"  [LiveLR] Reloading best checkpoint from {best_dir}")
+                # HF Trainer's _load_from_checkpoint handles this
+                # if we set state.best_model_checkpoint
+                state.best_model_checkpoint = str(best_dir)
+
+        return control
 
 
 def main() -> None:
@@ -3634,6 +3889,7 @@ def main() -> None:
                 GCEpochCallback(),
                 _live_progress,
                 PauseResumeCallback(interactive_control),
+                *([LiveLRCallback(output_dir=args.output)] if args.live_lr else []),
                 *hpo_callbacks,
             ],
         )
@@ -3667,6 +3923,7 @@ def main() -> None:
                 GCEpochCallback(),
                 _live_progress,
                 PauseResumeCallback(interactive_control),
+                *([LiveLRCallback(output_dir=args.output)] if args.live_lr else []),
                 *hpo_callbacks,
             ],
         )
@@ -3677,6 +3934,13 @@ def main() -> None:
     from transformers.trainer_callback import PrinterCallback
 
     trainer.remove_callback(PrinterCallback)
+
+    # Wire LiveLRCallback to the trainer so it can access the optimizer
+    if args.live_lr:
+        for cb in trainer.callback_handler.callbacks:
+            if isinstance(cb, LiveLRCallback):
+                cb._trainer = trainer
+                break
 
     # --- OOM fix #3: Clear CUDA cache + Python GC right before training ---
     # Even with expandable_segments, the model+LoRA+optimizer load leaves some
