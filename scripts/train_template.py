@@ -3366,19 +3366,19 @@ def main() -> None:
             except (TypeError, ValueError):
                 loss_val = 0.0
 
-            # --- VRAM (allocated + cached / total) ---
+            # --- VRAM (used/total with alloc+cache breakdown) ---
             vram_str = ""
             if is_cuda():
                 try:
                     allocated_gb = gpu_mem_allocated_bytes() / (1024**3)
                     cached_gb = gpu_mem_cached_bytes() / (1024**3)
+                    used_gb = allocated_gb + cached_gb
                     total_gb = torch.cuda.get_device_properties(0).total_memory / (
                         1024**3
                     )
                     vram_str = (
-                        f"VRAM alloc {allocated_gb:.1f} "
-                        f"cache {cached_gb:.1f} "
-                        f"/{total_gb:.1f} GB"
+                        f"VRAM {used_gb:.1f}/{total_gb:.1f} GB"
+                        f" ({allocated_gb:.1f} alloc + {cached_gb:.1f} cache)"
                     )
                 except Exception:
                     pass
