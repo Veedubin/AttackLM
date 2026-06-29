@@ -125,7 +125,7 @@ def main() -> int:
         from transformers import AutoModelForCausalLM, AutoTokenizer
     except ImportError as e:
         print(f"ERROR: missing dependency: {e}")
-        print("  Run: uv sync")
+        print("  Run: pip install attacklm[all]")
         return 1
 
     if args.adapter:

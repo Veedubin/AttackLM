@@ -35,7 +35,6 @@ The top 3-4 candidates are selected based on:
 | **Model size** | Gate | Must fit in 16GB VRAM with QLoRA (4-bit NF4 + LoRA adapter). Practical limit: 3B-7B parameters. |
 | **Architecture** | High | Qwen2.5 family preferred — proven with AttackLM training, LoRA target modules well-known, chat template compatible. |
 | **License** | High | Permissive (Apache 2.0, MIT) preferred for distribution. Llama Community License acceptable for research. |
-| **Abliteration** | Medium | Abliterated/uncensored variants preferred — lower refusal rates on security content. Non-abliterated models can be tested but may need Heretic abliteration. |
 | **Code specialization** | Medium | Code-specialized variants (Qwen2.5-Coder, DeepSeek-Coder) may perform better on Metasploit command generation. |
 | **Novelty** | Low | At least one candidate from a different architecture family (Phi, Llama) for comparison diversity. |
 
@@ -45,10 +44,10 @@ The top 3-4 candidates are selected based on:
 
 | Rank | Model | Size | VRAM (QLoRA) | Rationale |
 |------|-------|------|-------------|-----------|
-| 1 | `huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated` | 3B | ~6 GB | **Current default.** Proven with AttackLM training. Abliterated, code-specialized, comfortable VRAM. |
-| 2 | `huihui-ai/Qwen2.5-Coder-7B-Instruct-abliterated` | 7B | ~12 GB | Larger capacity may improve quality on complex tasks (phishing generation, multi-step Metasploit). Tight VRAM — may need `--max-length 1024`. |
-| 3 | `Qwen/Qwen3-4B` | 4B | ~8 GB | Next-gen Qwen architecture with `assistant_only_loss` support (~2x training efficiency). Needs Heretic abliteration. |
-| 4 | `microsoft/Phi-4-mini-instruct` | 3.8B | ~7 GB | Alternative architecture (Microsoft Phi). MIT license. Strong reasoning benchmark scores. Not abliterated. |
+| 1 | `Qwen/Qwen2.5-Coder-3B-Instruct` | 3B | ~6 GB | **Current default.** Proven with AttackLM training. Apache-2.0. |
+| 2 | `Qwen/Qwen2.5-Coder-7B-Instruct` | 7B | ~12 GB | Larger capacity. Tight VRAM. |
+| 3 | `Qwen/Qwen3-4B` | 4B | ~8 GB | Next-gen Qwen architecture with `assistant_only_loss` support (~2x training efficiency). |
+| 4 | `microsoft/Phi-4-mini-instruct` | 3.8B | ~7 GB | Alternative architecture (Microsoft Phi). MIT license. Strong reasoning benchmark scores. |
 
 ### Candidate Rotation Policy
 
@@ -113,16 +112,16 @@ For each candidate, run these 4 patterns in order:
 
 | Candidate | Golden Vectors | Ref NLL | Domain Score | Speed (2048 ctx) | Decision |
 |-----------|---------------|---------|-------------|------------------|----------|
-| 3B-abliterated | PASS | 0.342 | 0.78 | 34.2 t/s | **DEFAULT** — keep as primary |
-| 7B-abliterated | PASS | 0.298 | 0.82 | 22.1 t/s | **UPGRADE** — if quality matters more than speed |
-| Qwen3-4B | WARN | 0.401 | 0.71 | 28.5 t/s | **EXPERIMENTAL** — needs abliteration, monitor |
+| 3B | PASS | 0.342 | 0.78 | 34.2 t/s | **DEFAULT** — keep as primary |
+| 7B | PASS | 0.298 | 0.82 | 22.1 t/s | **UPGRADE** — if quality matters more than speed |
+| Qwen3-4B | WARN | 0.401 | 0.71 | 28.5 t/s | **EXPERIMENTAL** — monitor |
 | Phi-4-mini | FAIL | — | — | — | **REJECTED** — tokenizer/logits incompatible |
 
 ### Decision Rules
 
 - **DEFAULT**: Best overall balance of quality, speed, and reliability. Used for all production training.
 - **UPGRADE**: Better quality but slower or larger. Offered as an alternative for users with more VRAM.
-- **EXPERIMENTAL**: Shows promise but has issues (WARN on golden vectors, low domain score, needs abliteration). Tracked for future re-evaluation.
+- **EXPERIMENTAL**: Shows promise but has issues (WARN on golden vectors, low domain score). Tracked for future re-evaluation.
 - **REJECTED**: Fails golden vectors or scores below 0.60 on domain benchmark. Not suitable for AttackLM.
 
 ---

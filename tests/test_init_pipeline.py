@@ -37,6 +37,8 @@ def fake_data_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(ip, "BASE_DIR", fake_root)
     monkeypatch.setattr(ip, "DATA_DIR", data_dir)
     monkeypatch.setattr(ip, "DATASETS_DIR", data_dir / "datasets")
+    # Disable the dependency check — tests don't need torch/transformers/peft
+    monkeypatch.setattr(ip, "_check_dependencies", lambda: None)
     # Re-bind the probe list to use the rebased DATA_DIR
     monkeypatch.setattr(
         ip,
@@ -62,12 +64,35 @@ def fake_data_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
                 1024,
             ),
             (
-                "infection_monkey",
-                data_dir / "infection_monkey",
-                data_dir / "infection_monkey" / "monkey",
+                "mordor",
+                data_dir / "mordor",
+                data_dir / "mordor" / "datasets",
                 1024,
             ),
-            ("RTA", data_dir / "RTA", data_dir / "RTA", 1024),
+            (
+                "threathunter-playbook",
+                data_dir / "threathunter-playbook",
+                data_dir / "threathunter-playbook" / "playbooks",
+                1024,
+            ),
+            (
+                "elastic-detection-rules",
+                data_dir / "elastic-detection-rules",
+                data_dir / "elastic-detection-rules" / "rules",
+                1024,
+            ),
+            (
+                "splunk-security-content",
+                data_dir / "splunk-security-content",
+                data_dir / "splunk-security-content" / "detections",
+                1024,
+            ),
+            (
+                "nist-sp800-61r3",
+                data_dir / "nist-sp800-61r3",
+                data_dir / "nist-sp800-61r3" / "NIST.SP.800-61r3.pdf",
+                1024,
+            ),
         ],
     )
     return fake_root, data_dir
@@ -102,12 +127,15 @@ def test_probe_all_present(fake_data_tree) -> None:
         ("stockpile", "README.md"),
         ("sigma", "rules"),
         ("metasploit-framework", "modules"),
-        ("infection_monkey", "monkey"),
-        ("RTA", ""),  # whole-dir probe
+        ("mordor", "datasets"),
+        ("threathunter-playbook", "playbooks"),
+        ("elastic-detection-rules", "rules"),
+        ("splunk-security-content", "detections"),
+        ("nist-sp800-61r3", "NIST.SP.800-61r3.pdf"),
     ]:
         _populate(data_dir, name, marker, 4096)
     probes = ip.probe_local()
-    assert len(probes) == 6
+    assert len(probes) == 9
     assert all(p.present for p in probes), [p.detail for p in probes]
 
 
@@ -204,8 +232,11 @@ def test_main_dry_run_with_all_present(
         ("stockpile", "README.md"),
         ("sigma", "rules"),
         ("metasploit-framework", "modules"),
-        ("infection_monkey", "monkey"),
-        ("RTA", ""),
+        ("mordor", "datasets"),
+        ("threathunter-playbook", "playbooks"),
+        ("elastic-detection-rules", "rules"),
+        ("splunk-security-content", "detections"),
+        ("nist-sp800-61r3", "NIST.SP.800-61r3.pdf"),
     ]:
         _populate(data_dir, name, marker, 4096)
     rc = ip.main(["--dry-run", "--yes"])
@@ -271,8 +302,11 @@ def test_main_skip_attribute_runs(
         ("stockpile", "README.md"),
         ("sigma", "rules"),
         ("metasploit-framework", "modules"),
-        ("infection_monkey", "monkey"),
-        ("RTA", ""),
+        ("mordor", "datasets"),
+        ("threathunter-playbook", "playbooks"),
+        ("elastic-detection-rules", "rules"),
+        ("splunk-security-content", "detections"),
+        ("nist-sp800-61r3", "NIST.SP.800-61r3.pdf"),
     ]:
         _populate(data_dir, name, marker, 4096)
     rc = ip.main(["--yes", "--skip-attribute", "--skip-buckets", "--dry-run"])
@@ -290,8 +324,11 @@ def test_main_skip_buckets_runs(
         ("stockpile", "README.md"),
         ("sigma", "rules"),
         ("metasploit-framework", "modules"),
-        ("infection_monkey", "monkey"),
-        ("RTA", ""),
+        ("mordor", "datasets"),
+        ("threathunter-playbook", "playbooks"),
+        ("elastic-detection-rules", "rules"),
+        ("splunk-security-content", "detections"),
+        ("nist-sp800-61r3", "NIST.SP.800-61r3.pdf"),
     ]:
         _populate(data_dir, name, marker, 4096)
     rc = ip.main(["--yes", "--skip-buckets", "--skip-attribute", "--dry-run"])

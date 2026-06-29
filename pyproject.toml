@@ -70,16 +70,16 @@ Documentation = "https://github.com/Veedubin/AttackLM#readme"
 train-base = [
     "peft==0.19.1",
     "trl==1.5.1",
-    "accelerate==1.13.0",
+    "accelerate==1.14.0",
     "datasets==5.0.0",
-    "transformers==5.10.2",
+    "transformers==5.12.1",
     # ─────────────────────────────────────────────────────────────────────
     # `kernels` package version pin
     # ─────────────────────────────────────────────────────────────────────
-    # transformers==5.10.2 declares `kernels<0.13,>=0.12.0` in its
+    # transformers==5.12.1 declares `kernels<0.14,>=0.12.0` in its
     # [integrations] extras. The heretic-llm CLI pulls `kernels` in
     # transitively, and a fresh `pip install` will otherwise resolve to
-    # `kernels==0.15.x` (latest as of mid-2026), which breaks:
+    # `kernels>=0.14` (latest as of mid-2026), which breaks:
     #
     #   File ".../transformers/integrations/hub_kernels.py", line 89
     #     "cuda": LayerRepository(
@@ -88,27 +88,26 @@ train-base = [
     #     )
     #   ValueError: Either a revision or a version must be specified.
     #
-    # This is an upstream API break in `kernels>=0.13` that the older
-    # `transformers` 5.10.2 doesn't know about (LayerRepository in
-    # kernels 0.13+ requires a `revision` or `version` kwarg, but the
-    # transformers integration code passes neither).
+    # This is an upstream API break in `kernels>=0.14` that the
+    # `transformers` 5.12.1 integration code passes neither `revision`
+    # nor `version` to the newer LayerRepository constructor.
     #
     # WHEN TO REMOVE THIS PIN:
-    #   - When transformers 5.11+ is released and the upper bound on
+    #   - When transformers 5.13+ is released and the upper bound on
     #     `kernels` is bumped to a compatible range, OR
-    #   - When we upgrade our `transformers` pin past whatever release
-    #     fixed the LayerRepository integration.
+    #   - When the `transformers` integration code is patched to pass
+    #     `revision`/`version` kwargs to LayerRepository.
     #
     # Symptom if you remove this pin prematurely: any code that triggers
     # a `from transformers import ...` will crash with the
     # `LayerRepository` ValueError above. Easy to recognize.
-    "kernels>=0.12,<0.13",
+    "kernels>=0.12,<0.14",
     "huggingface-hub==1.18.0",
     "tokenizers==0.22.2",
     "safetensors==0.7.0",
 ]
 infer-base = [
-    "transformers==5.10.2",
+    "transformers==5.12.1",
     "peft==0.19.1",
     "huggingface-hub==1.18.0",
     "tokenizers==0.22.2",
@@ -187,15 +186,12 @@ convert = [
     "llama-cpp-python",
 ]
 # Unsloth: 2-5x faster training, 70% less VRAM.
-# NOTE: Unsloth requires trl<=0.24.0 which conflicts with our trl==1.5.1.
-# Install Unsloth in a separate venv or let pip resolve the conflict:
-#   pip install unsloth  # will downgrade trl automatically
+# NOT INCLUDED as an extra because it requires trl<=0.24.0 which conflicts
+# with our trl==1.5.1. Install in a separate venv:
+#   uv venv .venv-unsloth && source .venv-unsloth/bin/activate
+#   uv pip install unsloth  # will pull its own trl
+#   uv pip install attacklm[train-base,extract,convert]
 # Then use: attacklm-train-all --use-unsloth ...
-# The [unsloth] extra is provided for convenience but is NOT included
-# in [all] due to the trl version conflict.
-unsloth = [
-    "unsloth>=2026.6",
-]
 # GaLore: Gradient Low-Rank Projection for full-parameter fine-tuning.
 # Enables full-parameter learning on consumer GPUs by projecting
 # gradients into a low-rank space during optimization.

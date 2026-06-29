@@ -84,7 +84,7 @@ def find_scenarios() -> list[dict[str, Any]]:
     if not MORDOR_DIR.exists():
         return scenarios
 
-    for yaml_path in sorted(MORDOR_DIR.rglob("*.yml")):
+    for yaml_path in sorted(MORDOR_DIR.rglob("*.yaml")):
         try:
             with open(yaml_path, "r", encoding="utf-8") as f:
                 metadata = yaml.safe_load(f)

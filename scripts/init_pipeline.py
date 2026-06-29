@@ -40,6 +40,7 @@ Exit codes:
   2   user declined network fallback
   3   network fallback attempted but every fetch strategy failed
   4   a local data source is missing AND ``--skip-clone`` was passed
+   5   missing Python dependencies (run ``pip install attacklm[all]``)
 """
 
 from __future__ import annotations
@@ -52,9 +53,53 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
-# --- Paths --------------------------------------------------------------------
+# --- Dependency check ----------------------------------------------------------
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+
+class DependencyError(SystemExit):
+    """Raised when core ML dependencies are missing."""
+
+    def __init__(self, missing: list[str]) -> None:
+        self.missing = missing
+        super().__init__(5)
+
+
+def _check_dependencies() -> None:
+    """Verify that core ML dependencies are installed.
+
+    When installed from PyPI, the user may have only the base package
+    without training extras.  Print a clear message and raise
+    DependencyError if any required import is missing.
+    """
+    missing: list[str] = []
+    for mod in ("torch", "transformers", "peft"):
+        try:
+            __import__(mod)
+        except ImportError:
+            missing.append(mod)
+    if missing:
+        print(
+            "\n!!! Missing Python dependencies: " + ", ".join(missing) + "\n"
+            "    Run: pip install attacklm[all]\n"
+            "    and then re-run attacklm-init.\n",
+            file=sys.stderr,
+        )
+        raise DependencyError(missing)
+
+
+# --- Paths --------------------------------------------------------------------
+#
+# When installed from PyPI, this script lives in
+# site-packages/attacklm/scripts/ — but the data/ tree should be in
+# the user's working directory.  We try the repo-root layout first
+# (development), then fall back to cwd.
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if (_REPO_ROOT / "data").is_dir():
+    BASE_DIR = _REPO_ROOT
+else:
+    BASE_DIR = Path.cwd()
+
 DATA_DIR = BASE_DIR / "data"
 DATASETS_DIR = DATA_DIR / "datasets"
 
@@ -90,18 +135,6 @@ _LOCAL_PROBES: list[tuple[str, Path, Path, int]] = [
         "metasploit-framework",
         DATA_DIR / "metasploit-framework",
         DATA_DIR / "metasploit-framework" / "modules",
-        1024,
-    ),
-    (
-        "infection_monkey",
-        DATA_DIR / "infection_monkey",
-        DATA_DIR / "infection_monkey" / "monkey",
-        1024,
-    ),
-    (
-        "RTA",
-        DATA_DIR / "RTA",
-        DATA_DIR / "RTA",  # the whole dir is the marker; just check size
         1024,
     ),
     (
@@ -158,16 +191,9 @@ _REMOTE_REPOS: list[tuple[str, str, Path]] = [
         "https://github.com/rapid7/metasploit-framework.git",
         DATA_DIR / "metasploit-framework",
     ),
-    (
-        "infection_monkey",
-        "https://github.com/guardicore/monkey.git",
-        DATA_DIR / "infection_monkey",
-    ),
-    (
-        "RTA",
-        "https://github.com/endgameinc/RTA.git",
-        DATA_DIR / "RTA",
-    ),
+    # NOTE: nist-sp800-61r3 is a PDF download, not a git repo — excluded
+    # from remote repos. Users must download it manually from
+    # https://csrc.nist.gov/pubs/sp/800-61/r3/final
     (
         "mordor",
         "https://github.com/OTRF/Security-Datasets.git",
@@ -309,8 +335,6 @@ def stage_extract(force: bool = False) -> int:
         "extract_atomic_red_team_to_jsonl.py",
         "extract_caldera_plugins_to_jsonl.py",
         "parse_metasploit_to_jsonl.py",
-        "extract_rta_to_jsonl.py",
-        "extract_infection_monkey_to_jsonl.py",
         "extract_ai_tools_to_jsonl.py",
         "extract_sigma_defensive.py",
         "extract_mordor.py",
@@ -321,14 +345,40 @@ def stage_extract(force: bool = False) -> int:
     ]
     for script in extractors:
         path = BASE_DIR / "scripts" / script
+        # When installed from PyPI, scripts are in site-packages/attacklm/scripts/
         if not path.exists():
-            print(f"  [skip] {script}: not present in scripts/", file=sys.stderr)
-            continue
+            # Fallback: check the installed package location
+            import attacklm
+
+            pkg_scripts = Path(attacklm.__file__).parent / "scripts" / script
+            if pkg_scripts.exists():
+                path = pkg_scripts
+            else:
+                print(f"  [skip] {script}: not present in scripts/", file=sys.stderr)
+                continue
         print(f"  [run]  {script}", file=sys.stderr)
         result = subprocess.run([sys.executable, str(path)], check=False)
         if result.returncode != 0:
             return result.returncode
     return 0
+
+
+def _resolve_script(name: str) -> Path | None:
+    """Resolve a script path, handling both dev and PyPI installs."""
+    # Development layout: scripts/ at repo root
+    path = BASE_DIR / "scripts" / name
+    if path.exists():
+        return path
+    # PyPI layout: scripts in site-packages/attacklm/scripts/
+    try:
+        import attacklm
+
+        pkg_path = Path(attacklm.__file__).parent / "scripts" / name
+        if pkg_path.exists():
+            return pkg_path
+    except ImportError:
+        pass
+    return None
 
 
 def stage_attribute() -> int:
@@ -339,8 +389,8 @@ def stage_attribute() -> int:
     ``augment_attribution.py`` script so users upgrading from v0.2.x see
     the friendly notice and aren't confused.
     """
-    path = BASE_DIR / "scripts" / "augment_attribution.py"
-    if not path.exists():
+    path = _resolve_script("augment_attribution.py")
+    if path is None:
         return 0
     print(
         "  [note] augment_attribution.py is a no-op in v0.3.0+ (per-source layout "
@@ -353,10 +403,10 @@ def stage_attribute() -> int:
 
 def stage_buckets(clean: bool = False) -> int:
     """Run ``setup_buckets.py`` + ``reorganize_buckets.py``."""
-    setup = BASE_DIR / "scripts" / "setup_buckets.py"
-    reorg = BASE_DIR / "scripts" / "reorganize_buckets.py"
-    if not setup.exists():
-        print(f"  [skip] {setup.name}: not present", file=sys.stderr)
+    setup = _resolve_script("setup_buckets.py")
+    reorg = _resolve_script("reorganize_buckets.py")
+    if setup is None:
+        print("  [skip] setup_buckets.py: not present", file=sys.stderr)
         return 0
     setup_args: list[str] = []
     if clean:
@@ -367,8 +417,8 @@ def stage_buckets(clean: bool = False) -> int:
     ).returncode
     if rc != 0:
         return rc
-    if not reorg.exists():
-        print(f"  [skip] {reorg.name}: not present", file=sys.stderr)
+    if reorg is None:
+        print("  [skip] reorganize_buckets.py: not present", file=sys.stderr)
         return 0
     print(f"  [run]  {reorg.name}", file=sys.stderr)
     return subprocess.run(
@@ -465,6 +515,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("=" * 72, file=sys.stderr)
     print("attacklm-init: one-shot dataset initialization", file=sys.stderr)
     print("=" * 72, file=sys.stderr)
+
+    # -- Stage 0a: dependency check --
+    _check_dependencies()
 
     # -- Stage 0: probe local data --
     need_clone = False

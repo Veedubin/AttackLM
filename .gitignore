@@ -177,6 +177,11 @@ data/manifests/
 data/tool_knowledge.json
 data/DATASET_EXPANSION_REPORT.md
 data/sigma/
+data/elastic-detection-rules/
+data/splunk-security-content/
+data/mordor/
+data/threathunter-playbook/
+data/nist-sp800-61r3/
 # Bucket layout backup snapshots (created by migrate_buckets_to_v021.py)
 data/.bucket_layout_backup/
 

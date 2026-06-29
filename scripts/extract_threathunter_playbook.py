@@ -35,7 +35,7 @@ from mitre_tactic_lookup import get_tactic_for_technique, get_tactic_name
 # Paths
 # ---------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
-PLAYBOOKS_DIR = BASE_DIR / "data" / "threathunter-playbook" / "playbooks"
+PLAYBOOKS_DIR = BASE_DIR / "data" / "threathunter-playbook" / "docs" / "hunts"
 OUTPUT_DIR = (
     BASE_DIR
     / "data"
