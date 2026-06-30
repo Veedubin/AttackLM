@@ -249,6 +249,33 @@ def is_flash_attn_available() -> bool:
         return False
 
 
+def enable_mem_efficient_attention() -> None:
+    """Enable PyTorch's built-in memory-efficient SDPA backend.
+
+    PyTorch >= 2.0 ships a tiled attention kernel that uses O(1) memory
+    (same algorithm as flash-attn). It's already compiled into your
+    PyTorch — zero install needed. We disable the math backend (which
+    materializes the full N×N attention matrix and causes OOM at long
+    sequences) and the flash backend (which requires the flash-attn
+    package). The memory-efficient backend is the only one left, so
+    SDPA always uses it.
+
+    Must be called BEFORE model loading. Safe to call multiple times.
+    """
+    if not is_cuda():
+        return
+    # Disable the math backend — it materializes the full N×N matrix
+    # and is the #1 cause of OOM at seq_len > 4096.
+    torch.backends.cuda.enable_math_sdp(False)
+    # Disable flash backend — requires the flash-attn package which
+    # can't be installed on CUDA 13.0 (no pre-built wheels, source
+    # build OOMs on machines with < 32GB RAM).
+    torch.backends.cuda.enable_flash_sdp(False)
+    # Enable memory-efficient backend — tiled O(1) memory, same
+    # algorithm as flash-attn, built into PyTorch since 2.0.
+    torch.backends.cuda.enable_mem_efficient_sdp(True)
+
+
 def suggest_attn_implementation(packing: bool) -> tuple[str, bool]:
     """Pick an attention implementation and determine if packing is usable.
 
@@ -267,13 +294,19 @@ def suggest_attn_implementation(packing: bool) -> tuple[str, bool]:
     without packing.
     """
     if not packing:
+        # Enable memory-efficient SDPA so sdpa uses O(1) memory attention
+        # instead of the O(n²) math backend. This is the fix for OOM at
+        # long sequences when flash-attn can't be installed.
+        enable_mem_efficient_attention()
         return ("sdpa", False)
 
     if is_cuda() and not is_rocm() and is_flash_attn_available():
         return ("flash_attention_2", True)
 
     # flash-attn not available — packing would cause cross-sample
-    # contamination. Disable it silently.
+    # contamination. Disable it silently. Still enable memory-efficient
+    # SDPA so the fallback doesn't OOM.
+    enable_mem_efficient_attention()
     return ("sdpa", False)
 
 

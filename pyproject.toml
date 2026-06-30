@@ -191,13 +191,13 @@ convert = [
 #   uv venv .venv-unsloth && source .venv-unsloth/bin/activate
 #   uv pip install unsloth  # will pull its own trl
 #   uv pip install attacklm[train-base,extract,convert]
-# Then use: attacklm-train-all --use-unsloth ...
+# Then use: attacklm train --all --use-unsloth ...
 # GaLore: Gradient Low-Rank Projection for full-parameter fine-tuning.
 # Enables full-parameter learning on consumer GPUs by projecting
 # gradients into a low-rank space during optimization.
 # Mutually exclusive with Unsloth and QLoRA — GaLore trains ALL parameters.
 # Install: uv pip install attacklm[galore]
-# Then use: attacklm-train-all --use-galore ...
+# Then use: attacklm train --all --use-galore ...
 galore = [
     "galore-torch>=1.0",
 ]
@@ -223,8 +223,17 @@ all-cuda = ["attacklm[train-cuda,extract,convert]"]
 all-rocm = ["attacklm[train-rocm,extract,convert]"]
 
 # ── Console script entry points ───────────────────────────────────────────────
+#
+# v0.8.0+: The unified ``attacklm`` command (subcommand-based) is the primary
+# interface.  The old hyphenated commands are DEPRECATED but kept for one
+# release cycle.  They print a deprecation warning and delegate to the new
+# subcommand.  They will be removed in v0.9.0.
 
 [project.scripts]
+# New unified CLI
+attacklm = "attacklm.cli:main"
+
+# Deprecated (v0.8.x) — to be removed in v0.9.0
 attacklm-train = "attacklm.cli:main_train"
 attacklm-train-all = "attacklm.cli:main_train_all"
 attacklm-hpo = "attacklm.cli:main_hpo"

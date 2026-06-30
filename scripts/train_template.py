@@ -1161,7 +1161,14 @@ def get_qlora_config(
 
 
 def get_quantization_config() -> Any:
-    """Build 4-bit NF4 quantization config — FP32 compute to avoid AMP conflicts."""
+    """Build 4-bit NF4 quantization config — BF16 compute for VRAM efficiency.
+
+    Using bfloat16 compute dtype halves the dequantized weight memory during the
+    forward pass (~3.5 GB instead of ~7 GB for a 7B model). BF16 compute is the
+    standard for QLoRA training and works correctly with mixed-precision (AMP)
+    on all modern GPUs (Ampere+). FP32 compute was previously used to avoid AMP
+    conflicts, but modern transformers + bitsandbytes handle bf16 seamlessly.
+    """
     from transformers import BitsAndBytesConfig
 
     # Set TF32 for faster matmul (Ampere/Ada/Blackwell on CUDA, CDNA/RDNA on ROCm)
@@ -1170,7 +1177,7 @@ def get_quantization_config() -> Any:
     return BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float32,  # no AMP/ BF16 conflicts
+        bnb_4bit_compute_dtype=torch.bfloat16,  # bf16 compute halves dequant memory
         bnb_4bit_use_double_quant=True,
     )
 
@@ -1271,6 +1278,82 @@ def detect_quantization_scheme(model_id_or_path: str) -> str | None:
         pass
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# Pre-flight VRAM check
+# ---------------------------------------------------------------------------
+
+
+def check_vram_headroom(
+    model_config: Any,
+    max_length: int,
+    batch_size: int,
+    free_vram_gb: float,
+) -> tuple[bool, str]:
+    """Estimate attention + activation memory and compare against free VRAM.
+
+    The dominant OOM risk at long sequence lengths is the O(n²) attention score
+    matrix. For a 7B model (28 heads, max_length=12000):
+        28 × 12000² × 2 bytes (bf16) ≈ 8.06 GB just for attention scores.
+
+    With gradient checkpointing (only 1 layer of activations stored at a time):
+        activations ≈ batch_size × max_length × hidden_size × 2 bytes
+
+    Returns (ok, warning) where ok=True if estimated usage fits in free VRAM.
+    """
+    num_heads = getattr(model_config, "num_attention_heads", 0)
+    hidden_size = getattr(model_config, "hidden_size", 0)
+    num_layers = getattr(model_config, "num_hidden_layers", 0)
+    # For GQA models, num_key_value_heads may differ from num_attention_heads.
+    # The attention score matrix size is based on num_attention_heads (Q heads).
+    if num_heads == 0 or hidden_size == 0:
+        return True, ""  # Unknown config, skip check
+
+    seq_len = max_length
+    # Attention scores: num_heads × seq_len² × 2 bytes (bf16)
+    attn_bytes = num_heads * seq_len * seq_len * 2
+    attn_gb = attn_bytes / (1024**3)
+
+    # Activations with gradient checkpointing: only 1 layer stored at a time.
+    # Each activation: batch × seq × hidden × 2 bytes (bf16)
+    act_bytes = batch_size * seq_len * hidden_size * 2
+    act_gb = act_bytes / (1024**3)
+
+    total_estimated_gb = attn_gb + act_gb
+    # Leave 10% headroom for optimizer states, gradients, fragmentation
+    needed_gb = total_estimated_gb * 1.1
+
+    ok = needed_gb < free_vram_gb
+    if not ok:
+        warning_lines = [
+            f"\n{'=' * 70}",
+            "WARNING: Estimated VRAM usage may exceed available memory!",
+            f"  Attention scores:  {attn_gb:.2f} GB  ({num_heads} heads × {seq_len}² × 2 bytes)",
+            f"  Activations:       {act_gb:.2f} GB  (batch={batch_size}, hidden={hidden_size})",
+            f"  Total estimated:   {total_estimated_gb:.2f} GB  (with 10% headroom: {needed_gb:.2f} GB)",
+            f"  Available VRAM:    {free_vram_gb:.2f} GB",
+            f"{'=' * 70}",
+            "",
+            "Suggestions to reduce VRAM usage:",
+            "  1. Install flash-attn for O(1) attention memory:",
+            "     uv pip install flash-attn --no-build-isolation",
+            f"  2. Reduce --max-length (current: {seq_len}, try: {max(seq_len // 2, 512)})",
+            f"  3. Reduce --batch-size (current: {batch_size})",
+            "  4. Use --use-qgalore for GaLore projection (reduces optimizer states)",
+            "",
+            "Continuing anyway — training may OOM at this configuration.",
+        ]
+        warning = "\n".join(warning_lines)
+    else:
+        headroom = free_vram_gb - needed_gb
+        warning = (
+            f"  Pre-flight OK: estimated {total_estimated_gb:.2f} GB "
+            f"({needed_gb:.2f} GB w/ headroom) fits in {free_vram_gb:.2f} GB free "
+            f"({headroom:.2f} GB remaining)"
+        )
+
+    return ok, warning
 
 
 # ---------------------------------------------------------------------------
@@ -2436,9 +2519,15 @@ def main() -> None:
                     sys.exit(1)
                 else:
                     print(
-                        "\nWARNING: flash_attention_2 not installed, using sdpa. "
-                        "This is fine for --no-packing mode."
+                        "\nWARNING: flash_attention_2 not installed — "
+                        "using sdpa (slower, higher VRAM)."
                     )
+                    print(
+                        "  Without flash-attn, attention uses O(n²) memory. "
+                        "At long sequence lengths (8K+), this can cause OOM."
+                    )
+                    print("  Install flash-attn for O(1) attention memory:")
+                    print("    uv pip install flash-attn --no-build-isolation")
                     load_kwargs["attn_implementation"] = "sdpa"
                     model = AutoModelForCausalLM.from_pretrained(
                         base_model_resolved, **load_kwargs
@@ -4002,6 +4091,26 @@ def main() -> None:
             empty_cache_and_sync()
             free_gb, total_gb = gpu_mem_info()
             print(f"  Pre-train VRAM: {free_gb:.2f}GB free / {total_gb:.2f}GB total")
+
+            # OOM fix #14: Pre-flight VRAM check for long sequences.
+            # The O(n²) attention matrix is the dominant memory cost at long
+            # sequence lengths. Without flash-attn (which computes attention
+            # in O(1) memory), a 7B model at max_length=12000 needs ~8 GB
+            # just for attention scores, which exceeds typical free VRAM
+            # after model loading (~7 GB on a 16 GB card). Warn the user
+            # before training starts so they can adjust parameters.
+            vram_ok, vram_warning = check_vram_headroom(
+                model_config=model.config,
+                max_length=args.max_length,
+                batch_size=args.batch_size,
+                free_vram_gb=free_gb,
+            )
+            print(vram_warning)
+            if not vram_ok:
+                console.print(
+                    "[bold red]Pre-flight VRAM check FAILED — "
+                    "training will likely OOM.[/bold red]"
+                )
     except Exception as e:
         print(f"  (Skipped cache clear: {e})")
 

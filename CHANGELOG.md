@@ -4,6 +4,33 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
+## [0.8.0] — 2026-06-30 — Unified CLI with subcommands
+
+### Added
+- **Unified CLI**: New `attacklm` command with argparse subcommands replaces 21 hyphenated commands
+  - `attacklm train [--dataset all] [--hpo]` — consolidates `attacklm-train`, `attacklm-train-all`, `attacklm-train-lora`, `attacklm-hpo`
+  - `attacklm init [--extract-only|--buckets-only|--attribute-only|--clone-only]` — consolidates `attacklm-init`, `attacklm-extract`, `attacklm-buckets`, `attacklm-attribute`, `attacklm-clone`
+  - `attacklm build [--merge-only|--gguf-only|--register-ollama]` — consolidates `attacklm-build`, `attacklm-merge`, `attacklm-gguf`, `attacklm-register-ollama`
+  - `attacklm eval [--collect-ref|--score|--compare|--golden]` — consolidates `attacklm-eval`, `attacklm-collect-ref`, `attacklm-score`, `attacklm-compare`, `attacklm-golden`
+  - `attacklm balance` — replaces `attacklm-balance`
+  - `attacklm infer` — replaces `attacklm-infer`
+  - `attacklm gui` — replaces `attacklm-gui`
+  - `attacklm demo` — replaces `attacklm-demo`
+- **`attacklm --version`**: Shows version number
+- **Evaluation screen in GUI**: New `EvalFormScreen` with buttons for all eval subcommands (Retention, Collect Ref, Score, Compare, Golden)
+- **Build screen in GUI**: Consolidated buttons for Full Build, Merge Only, GGUF Only
+
+### Changed
+- **GUI main menu**: Consolidated from 8 buttons to 6 (Train, Init, Balance, Build, Infer, Eval) — removed separate Extract/Merge/Pipeline buttons
+- **GUI train form**: Now calls `attacklm train` instead of `attacklm-train`
+- **GUI command forms**: All commands now use `attacklm <subcommand>` format instead of `attacklm-<command>`
+- **Deprecation warnings**: All old hyphenated commands print a deprecation notice before delegating to the new subcommand
+
+### Deprecated
+- All 21 hyphenated commands (`attacklm-train`, `attacklm-train-all`, etc.) still work but print deprecation warnings. They will be removed in v0.9.0.
+
+---
+
 ## [0.7.1] — 2026-06-30 — GUI, VRAM fixes, dataset caching
 
 ### Added
