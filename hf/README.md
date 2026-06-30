@@ -375,6 +375,10 @@ Community-driven, no institutional funding.
 
 Contributions are welcome! See [CONTRIBUTING.md](https://github.com/Veedubin/AttackLM/blob/main/CONTRIBUTING.md) for guidelines on adding new buckets, extractors, and improvements.
 
+### Tooling
+
+Train models on this dataset using the [AttackLM CLI](https://github.com/Veedubin/AttackLM) (`pip install attacklm[all]`) or the new terminal GUI (`pip install attacklm-gui && attacklm-gui`).
+
 ---
 
 **Disclaimer**: This dataset is provided for authorized cybersecurity research and education only. The authors assume no liability for misuse. Always obtain proper authorization before testing any technique against systems you do not own.

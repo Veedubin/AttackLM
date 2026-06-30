@@ -2273,11 +2273,21 @@ def main() -> None:
         torch_dtype = dtype_map.get(compute_type, torch.float16)
 
         load_kwargs = dict(
-            device_map="auto",
             trust_remote_code=True,
             dtype=torch_dtype,
-            low_cpu_mem_usage=True,
         )
+        # Single-GPU training: load directly to GPU, NOT device_map="auto".
+        # device_map="auto" is designed for multi-GPU inference — it splits
+        # the model across GPU+CPU, creates "meta" device tensors for offloaded
+        # layers, and leaves VRAM fragmented. For single-GPU training, this
+        # causes OOMs even when the model fits, because the auto-distributor
+        # doesn't release its temporary allocations. Loading directly to the
+        # GPU gives us the full VRAM budget and avoids meta-tensor crashes
+        # (e.g. Spectrum's .item() on offloaded params).
+        if not args.multi_gpu:
+            load_kwargs["device_map"] = None  # direct GPU load, no accelerate
+        else:
+            load_kwargs["device_map"] = "auto"  # needed for multi-GPU DDP
         # OOM fix #13: FlashAttention 2 for varlen (padding-free) support.
         # If flash-attn is not available, packing is silently disabled to
         # prevent cross-sample contamination. Training works correctly either
@@ -2669,6 +2679,38 @@ def main() -> None:
         f"Split: {len(train_dataset)} train / {len(eval_dataset)} eval "
         f"({args.eval_split:.0%} held out)"
     )
+
+    # --- Dataset caching: save tokenized dataset to disk for fast reload ---
+    # Tokenizing 8K+ examples every run is wasteful when the dataset and
+    # tokenizer haven't changed. We cache the tokenized+packed Arrow files
+    # keyed by dataset path + tokenizer name + max_length. Subsequent runs
+    # load from disk in ~1 second instead of re-tokenizing for 5-10 seconds.
+    import hashlib
+
+    _cache_key = hashlib.md5(
+        f"{args.dataset}:{args.base_model}:{args.max_length}:{args.packing}:v1".encode()
+    ).hexdigest()[:12]
+    _cache_dir = Path(args.output).parent / ".dataset_cache" / _cache_key
+
+    if _cache_dir.exists() and not args.force:
+        try:
+            from datasets import load_from_disk
+
+            train_dataset = load_from_disk(str(_cache_dir / "train"))
+            eval_dataset = load_from_disk(str(_cache_dir / "eval"))
+            console.print(
+                f"  [green]✓[/green] Loaded cached tokenized dataset "
+                f"({len(train_dataset)} train / {len(eval_dataset)} eval) "
+                f"from {_cache_dir}"
+            )
+            _dataset_cached = True
+        except Exception as e:
+            console.print(
+                f"  [yellow]⚠[/yellow] Cache load failed ({e}), re-tokenizing"
+            )
+            _dataset_cached = False
+    else:
+        _dataset_cached = False
 
     # --- Build training config ---
     # Early stopping: eval every epoch, halt after N rounds of no improvement,
@@ -3154,6 +3196,11 @@ def main() -> None:
             layer_snr = {}
             for name, param in model.named_parameters():
                 if not param.requires_grad:
+                    continue
+                # Skip meta-device tensors (CPU-offloaded with
+                # low_cpu_mem_usage=True). These are placeholders
+                # with no actual data — .item() would fail.
+                if param.device.type == "meta":
                     continue
                 parts = name.split(".")
                 if len(parts) >= 3 and parts[0] == "model" and parts[1] == "layers":
@@ -4074,6 +4121,19 @@ def main() -> None:
     model.save_pretrained(args.output)
     tokenizer.save_pretrained(args.output)
 
+    # --- Save tokenized dataset cache for fast reload on next run ---
+    if not _dataset_cached:
+        try:
+            _cache_dir.mkdir(parents=True, exist_ok=True)
+            train_dataset.save_to_disk(str(_cache_dir / "train"))
+            eval_dataset.save_to_disk(str(_cache_dir / "eval"))
+            console.print(
+                f"  [green]✓[/green] Cached tokenized dataset to {_cache_dir} "
+                f"(next run loads in ~1s)"
+            )
+        except Exception as e:
+            console.print(f"  [dim](Dataset cache skipped: {e})[/dim]")
+
     # --- Write training config ---
     config = {
         "base_model": args.base_model,
@@ -4127,8 +4187,18 @@ def main() -> None:
         config["galore_proj_type"] = "std"
 
     config_path = os.path.join(args.output, "config.json")
+    # Merge training metadata into the existing HF config (don't overwrite it).
+    # model.save_pretrained() already wrote a proper config.json with model_type,
+    # architectures, hidden_size, etc. — fields that llama.cpp and other tools
+    # need for GGUF conversion. We add our training metadata on top.
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            existing_config = json.load(f)
+    else:
+        existing_config = {}
+    existing_config.update(config)
     with open(config_path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
+        json.dump(existing_config, f, indent=2)
 
     # --- Update state.json to mark completion + record final metrics ---
     # This is what makes the run dir "deployable" — a future invocation
