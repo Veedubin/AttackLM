@@ -4,6 +4,30 @@ All notable changes to AttackLM are documented in this file. Versions follow [Se
 
 ---
 
+## [0.7.1] — 2026-06-30 — GUI, VRAM fixes, dataset caching
+
+### Added
+- **attacklm-gui**: Terminal-based TUI wrapper (Textual) for all CLI commands
+  - Form-based training config with 40+ params in 5 tabs (Basic, LoRA, GaLore, Advanced, Hardware)
+  - Live training monitor with loss sparkline, VRAM gauge, progress bar, log viewer
+  - One-click screens for extract, balance, infer, merge, build, pipeline, init
+  - 5 built-in presets (3B Q-GaLore, 3B LoRA, 7B Q-GaLore, 7B QLoRA, etc.)
+  - Pause/resume/quit controls during training
+  - Works in terminal-only environments (no X11/WSLg required)
+- **Dataset caching**: Tokenized datasets saved to disk after first run, reloaded in ~1s on subsequent runs (keyed by dataset + model + max_length + packing)
+- **config.json fix**: Training runs now preserve HF model architecture fields (model_type, architectures, hidden_size, etc.) for GGUF conversion compatibility
+
+### Fixed
+- **VRAM fragmentation**: Removed `device_map="auto"` for single-GPU training — was splitting model across GPU+CPU, creating meta tensors, and leaving VRAM fragmented. Model now loads directly to GPU.
+- **Spectrum crash on 7B**: Skip meta-device tensors in SNR computation (caused by CPU-offloaded layers from device_map="auto")
+- **VRAM parsing**: Added regex for compact VRAM format (`VRAM X/Y GB (A alloc + C cache)`) in training output parser
+
+### Changed
+- Moved attacklm-gui into the main AttackLM repo under `attacklm-gui/`
+- 17 GUI tests passing
+
+---
+
 ## [0.7.0] — 2026-06-29 — Defensive data extraction, test fixes, script cleanup
 
 ### Added

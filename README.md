@@ -7,6 +7,27 @@ AttackLM — QLoRA fine-tuning pipeline for a MITRE ATT&CK-grounded security AI 
 
 ---
 
+## GUI (New in v0.7.1)
+
+AttackLM now includes a terminal-based GUI for all commands. No more memorizing 40+ CLI flags.
+
+```bash
+pip install attacklm-gui
+attacklm-gui
+```
+
+Features:
+- **Training form** with 40+ params in 5 tabs (Basic, LoRA, GaLore, Advanced, Hardware)
+- **Live training monitor** with loss sparkline, VRAM gauge, progress bar, and log viewer
+- **One-click screens** for extract, balance, infer, merge, build, pipeline, and init
+- **5 built-in presets** (3B Q-GaLore, 3B LoRA, 7B Q-GaLore, 7B QLoRA, etc.)
+- **Pause/resume/quit** controls during training
+- Works in **terminal-only** environments — no X11, no browser, no GPU required. Works over SSH and WSL.
+
+The CLI still works exactly as before. The GUI is a thin wrapper that constructs and runs CLI commands.
+
+---
+
 ## Install
 The recommended way to install the full CUDA training stack:
 
@@ -150,7 +171,8 @@ This layout allows the pipeline to deterministically extract data from upstream 
 ## CLI Reference
 | Command | Description |
 |---------|-------------|
-| `attacklm-init` | One-shot init: clone $\rightarrow$ extract $\rightarrow$ attribute $\rightarrow$ buckets |
+| `attacklm-gui` | Terminal GUI for all commands (new in v0.7.1) |
+| `attacklm-init` | One-shot init: clone → extract → attribute → buckets |
 | `attacklm-train` | Train a single QLoRA adapter |
 | `attacklm-train-all` | Orchestrated training for all buckets / HPO |
 | `attacklm-balance` | Build a balanced subset of buckets |
@@ -158,7 +180,7 @@ This layout allows the pipeline to deterministically extract data from upstream 
 | `attacklm-infer` | Smoke-test inference |
 | `attacklm-merge` | Merge LoRA adapter into base model |
 | `attacklm-gguf` | Convert merged model to GGUF (llama.cpp) |
-| `attacklm-build` | One-shot merge $\rightarrow$ GGUF $\rightarrow$ install |
+| `attacklm-build` | One-shot merge → GGUF → install |
 | `attacklm-demo` | Multi-agent orchestrator demo |
 | `attacklm-extract` | Extract data from cloned repositories |
 | `attacklm-buckets` | Organize data into bucket structure |
