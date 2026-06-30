@@ -2380,6 +2380,28 @@ def main() -> None:
         if args.packing and not packing_ok:
             args.packing = False
 
+        # OOM fix #14: Override baked-in _attn_implementation in model config.
+        # Qwen2.5-Coder's config.json has _attn_implementation="flash_attention_2"
+        # baked in. Transformers respects the config over our kwarg, so even
+        # when we pass attn_implementation="sdpa", the model still uses the
+        # kernels-community flash-attn2 fallback (which materializes the full
+        # N×N attention matrix and causes OOM at long sequences).
+        #
+        # We load the config, strip _attn_implementation, and pass it explicitly
+        # so our kwarg takes effect. This is the only way to force sdpa with
+        # the memory-efficient backend on models that bake in flash_attention_2.
+        from transformers import AutoConfig
+
+        try:
+            model_config = AutoConfig.from_pretrained(
+                base_model_resolved, trust_remote_code=True
+            )
+            if hasattr(model_config, "_attn_implementation"):
+                del model_config._attn_implementation
+            load_kwargs["config"] = model_config
+        except Exception:
+            pass  # best-effort — if config patching fails, fall through
+
         # Decide whether to pass a quantization_config:
         #   - --moe-safe-target        → skip BnB, load in bf16
         #   - quant_method is None      → unquantized, apply NF4 ourselves
