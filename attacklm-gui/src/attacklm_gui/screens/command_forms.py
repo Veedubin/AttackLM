@@ -1,4 +1,8 @@
-"""Simpler command form screens for non-training AttackLM commands."""
+"""Simpler command form screens for non-training AttackLM commands.
+
+Updated for v0.8.0 unified CLI: uses 'attacklm <subcommand>' format
+instead of the old hyphenated commands.
+"""
 
 from __future__ import annotations
 
@@ -103,16 +107,25 @@ class _BaseCommandScreen(Screen):
         log.write(f"\n[bold]Exit code: {process.returncode}[/]")
 
 
-class ExtractFormScreen(_BaseCommandScreen):
-    """Extract data from sources."""
+class InitFormScreen(_BaseCommandScreen):
+    """Initialize the AttackLM dataset.
+
+    Uses 'attacklm init' with optional flags for individual steps.
+    """
 
     def compose(self) -> ComposeResult:
         with Container(id="cmd-container"):
-            yield Label("Extract Data", id="cmd-title")
-            yield self._row("Source (optional)", "source", placeholder="all")
-            yield self._row("Output Dir", "output", placeholder="data/datasets/buckets")
+            yield Label("Initialize Dataset", id="cmd-title")
+            yield Label(
+                "This will clone all upstream data sources and run extractors.",
+                id="cmd-desc",
+            )
+            yield Label(
+                "This may take 10-30 minutes depending on network speed.", id="cmd-warn"
+            )
+            yield self._row("Extra flags", "flags", placeholder="--yes --dry-run")
             with Horizontal(id="cmd-button-row"):
-                yield Button("Run", id="btn-run", variant="primary")
+                yield Button("Run attacklm init", id="btn-run", variant="primary")
                 yield Button("Back", id="btn-back")
             yield RichLog(id="cmd-output", highlight=True, wrap=True)
 
@@ -121,18 +134,16 @@ class ExtractFormScreen(_BaseCommandScreen):
             self.app.pop_screen()
         elif event.button.id == "btn-run":
             values = self._get_values()
-            cmd = ["attacklm-extract"]
-            if values.get("source"):
-                cmd.extend(["--source", values["source"]])
-            if values.get("output"):
-                cmd.extend(["--output", values["output"]])
+            cmd = ["attacklm", "init"]
+            if values.get("flags"):
+                cmd.extend(values["flags"].split())
             import asyncio
 
             asyncio.create_task(self._run_and_display(cmd))
 
 
 class BalanceFormScreen(_BaseCommandScreen):
-    """Balance a dataset."""
+    """Balance a dataset using 'attacklm balance'."""
 
     def compose(self) -> ComposeResult:
         with Container(id="cmd-container"):
@@ -156,7 +167,7 @@ class BalanceFormScreen(_BaseCommandScreen):
             self.app.pop_screen()
         elif event.button.id == "btn-run":
             values = self._get_values()
-            cmd = ["attacklm-balance"]
+            cmd = ["attacklm", "balance"]
             if values.get("input"):
                 cmd.extend(["--input", values["input"]])
             if values.get("output"):
@@ -169,7 +180,7 @@ class BalanceFormScreen(_BaseCommandScreen):
 
 
 class InferFormScreen(_BaseCommandScreen):
-    """Run inference with a trained model."""
+    """Run inference using 'attacklm infer'."""
 
     def compose(self) -> ComposeResult:
         with Container(id="cmd-container"):
@@ -198,7 +209,7 @@ class InferFormScreen(_BaseCommandScreen):
             self.app.pop_screen()
         elif event.button.id == "btn-run":
             values = self._get_values()
-            cmd = ["attacklm-infer"]
+            cmd = ["attacklm", "infer"]
             if values.get("model"):
                 cmd.extend(["--model", values["model"]])
             if values.get("prompt"):
@@ -212,43 +223,8 @@ class InferFormScreen(_BaseCommandScreen):
             asyncio.create_task(self._run_and_display(cmd))
 
 
-class MergeFormScreen(_BaseCommandScreen):
-    """Merge LoRA adapter into base model."""
-
-    def compose(self) -> ComposeResult:
-        with Container(id="cmd-container"):
-            yield Label("Merge Adapter", id="cmd-title")
-            yield self._row(
-                "Base Model", "base", placeholder="Qwen/Qwen2.5-Coder-3B-Instruct"
-            )
-            yield self._row("Adapter Path", "adapter", placeholder="models/my-adapter")
-            yield self._row(
-                "Output Path", "output", placeholder="models/merged/my-model"
-            )
-            with Horizontal(id="cmd-button-row"):
-                yield Button("Run", id="btn-run", variant="primary")
-                yield Button("Back", id="btn-back")
-            yield RichLog(id="cmd-output", highlight=True, wrap=True)
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-back":
-            self.app.pop_screen()
-        elif event.button.id == "btn-run":
-            values = self._get_values()
-            cmd = ["attacklm-merge"]
-            if values.get("base"):
-                cmd.extend(["--base", values["base"]])
-            if values.get("adapter"):
-                cmd.extend(["--adapter", values["adapter"]])
-            if values.get("output"):
-                cmd.extend(["--output", values["output"]])
-            import asyncio
-
-            asyncio.create_task(self._run_and_display(cmd))
-
-
 class BuildFormScreen(_BaseCommandScreen):
-    """Build: merge → GGUF → install to LM Studio."""
+    """Build: merge → GGUF → install using 'attacklm build'."""
 
     def compose(self) -> ComposeResult:
         with Container(id="cmd-container"):
@@ -268,16 +244,23 @@ class BuildFormScreen(_BaseCommandScreen):
                 "Quantization", "quant", placeholder="Q4_K_M", value="Q4_K_M"
             )
             with Horizontal(id="cmd-button-row"):
-                yield Button("Run", id="btn-run", variant="primary")
+                yield Button("Full Build", id="btn-run", variant="primary")
+                yield Button("Merge Only", id="btn-merge")
+                yield Button("GGUF Only", id="btn-gguf")
                 yield Button("Back", id="btn-back")
             yield RichLog(id="cmd-output", highlight=True, wrap=True)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-back":
             self.app.pop_screen()
-        elif event.button.id == "btn-run":
+        else:
             values = self._get_values()
-            cmd = ["attacklm-build", "--install-lmstudio"]
+            if event.button.id == "btn-merge":
+                cmd = ["attacklm", "build", "--merge-only"]
+            elif event.button.id == "btn-gguf":
+                cmd = ["attacklm", "build", "--gguf-only"]
+            else:
+                cmd = ["attacklm", "build", "--install-lmstudio"]
             if values.get("adapter"):
                 cmd.extend(["--adapter", values["adapter"]])
             if values.get("merged"):
@@ -291,8 +274,62 @@ class BuildFormScreen(_BaseCommandScreen):
             asyncio.create_task(self._run_and_display(cmd))
 
 
+class EvalFormScreen(_BaseCommandScreen):
+    """Evaluation suite using 'attacklm eval'."""
+
+    def compose(self) -> ComposeResult:
+        with Container(id="cmd-container"):
+            yield Label("Evaluation Suite", id="cmd-title")
+            yield self._row(
+                "Base Model", "base_model", placeholder="Qwen/Qwen2.5-Coder-3B-Instruct"
+            )
+            yield self._row("Adapter Path", "adapter", placeholder="models/attacklm-3b")
+            yield self._row("Output", "output", placeholder="evals/retention.json")
+            yield self._row("Extra flags", "flags", placeholder="--max-samples 50")
+            with Horizontal(id="cmd-button-row"):
+                yield Button("Retention Eval", id="btn-retention", variant="primary")
+                yield Button("Collect Ref", id="btn-collect-ref")
+                yield Button("Score", id="btn-score")
+                yield Button("Compare", id="btn-compare")
+                yield Button("Golden", id="btn-golden")
+                yield Button("Back", id="btn-back")
+            yield RichLog(id="cmd-output", highlight=True, wrap=True)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-back":
+            self.app.pop_screen()
+            return
+
+        values = self._get_values()
+        # Build the base command
+        if event.button.id == "btn-retention":
+            cmd = ["attacklm", "eval"]
+        elif event.button.id == "btn-collect-ref":
+            cmd = ["attacklm", "eval", "--collect-ref"]
+        elif event.button.id == "btn-score":
+            cmd = ["attacklm", "eval", "--score"]
+        elif event.button.id == "btn-compare":
+            cmd = ["attacklm", "eval", "--compare"]
+        elif event.button.id == "btn-golden":
+            cmd = ["attacklm", "eval", "--golden"]
+        else:
+            return
+
+        if values.get("base_model"):
+            cmd.extend(["--base-model", values["base_model"]])
+        if values.get("adapter"):
+            cmd.extend(["--adapter", values["adapter"]])
+        if values.get("output"):
+            cmd.extend(["--output", values["output"]])
+        if values.get("flags"):
+            cmd.extend(values["flags"].split())
+        import asyncio
+
+        asyncio.create_task(self._run_and_display(cmd))
+
+
 class PipelineFormScreen(_BaseCommandScreen):
-    """Run the training pipeline."""
+    """Run the training pipeline using 'attacklm-pipeline' (unchanged)."""
 
     def compose(self) -> ComposeResult:
         with Container(id="cmd-container"):
@@ -314,30 +351,3 @@ class PipelineFormScreen(_BaseCommandScreen):
             import asyncio
 
             asyncio.create_task(self._run_and_display(cmd))
-
-
-class InitFormScreen(_BaseCommandScreen):
-    """Initialize the AttackLM dataset."""
-
-    def compose(self) -> ComposeResult:
-        with Container(id="cmd-container"):
-            yield Label("Initialize Dataset", id="cmd-title")
-            yield Label(
-                "This will clone all upstream data sources and run extractors.",
-                id="cmd-desc",
-            )
-            yield Label(
-                "This may take 10-30 minutes depending on network speed.", id="cmd-warn"
-            )
-            with Horizontal(id="cmd-button-row"):
-                yield Button("Run attacklm-init", id="btn-run", variant="primary")
-                yield Button("Back", id="btn-back")
-            yield RichLog(id="cmd-output", highlight=True, wrap=True)
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-back":
-            self.app.pop_screen()
-        elif event.button.id == "btn-run":
-            import asyncio
-
-            asyncio.create_task(self._run_and_display(["attacklm-init"]))

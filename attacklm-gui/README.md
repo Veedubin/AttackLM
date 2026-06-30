@@ -4,14 +4,14 @@ Terminal-based GUI wrapper for the [AttackLM](https://github.com/Veedubin/Attack
 
 ## Why?
 
-AttackLM has 21 CLI commands and `attacklm-train` alone has 40+ parameters. Remembering all the flags is painful. The GUI provides:
+AttackLM has a unified CLI (`attacklm train`, `attacklm init`, etc.) with 8 subcommands. `attacklm train` alone has 40+ parameters. Remembering all the flags is painful. The GUI provides:
 
 - **Form-based parameter input** with tabs, presets, and validation
 - **Live training monitoring** with loss charts, VRAM gauges, and log streaming
 - **One-click commands** for extract, balance, infer, merge, build, and more
 - **Works everywhere** — terminal-only, no X11 required (WSL, SSH, headless)
 
-The CLI still works exactly as before. The GUI is a thin wrapper that constructs and runs CLI commands.
+The unified CLI (`attacklm <subcommand>`) still works as before. The GUI is a thin wrapper that constructs and runs CLI commands.
 
 ## Installation
 
@@ -42,13 +42,11 @@ attacklm-gui
 │         AttackLM GUI v0.1.0          │
 │                                      │
 │  🏋️  Train Model                     │
-│  📊  Extract Data                    │
-│  ⚖️  Balance Dataset                 │
-│  🧠  Run Inference                   │
-│  🔗  Merge Adapter                   │
-│  📦  Build & Install                 │
-│  🔧  Pipeline                        │
 │  🚀  Init Dataset                    │
+│  ⚖️  Balance Dataset                 │
+│  📦  Build & Install                 │
+│  🧠  Run Inference                   │
+│  📊  Evaluate                        │
 └──────────────────────────────────────┘
 ```
 
@@ -98,13 +96,12 @@ Controls:
 
 | Screen | What it does |
 |--------|-------------|
-| **Extract** | Run data extractors on upstream sources |
+| **Init** | Clone repos, extract data, organize buckets |
 | **Balance** | Balance a dataset with cap size |
 | **Inference** | Run a trained model with a prompt |
-| **Merge** | Merge LoRA adapter into base model |
 | **Build** | Merge → GGUF → install to LM Studio |
+| **Eval** | Retention eval, collect-ref, score, compare, golden |
 | **Pipeline** | Run a YAML training pipeline |
-| **Init** | One-click dataset initialization |
 
 ## Keyboard Shortcuts
 
@@ -126,10 +123,10 @@ attacklm-gui/
 │   ├── runner.py           # Subprocess manager + output parser
 │   ├── presets.py          # Save/load training presets
 │   ├── screens/
-│   │   ├── main_menu.py    # Command launcher
+│   │   ├── main_menu.py    # Command launcher (6 buttons)
 │   │   ├── train_form.py   # Training parameter form
 │   │   ├── train_live.py   # Live training monitor
-│   │   └── command_forms.py # Other command screens
+│   │   └── command_forms.py # Init, Balance, Infer, Build, Eval, Pipeline screens
 │   └── widgets/
 │       └── __init__.py
 └── tests/

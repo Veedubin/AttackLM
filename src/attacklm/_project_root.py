@@ -51,7 +51,7 @@ def require_manifest() -> Path:
             "ERROR: Manifest not found. Run this command from the AttackLM repo root.\n"
             "  git clone https://github.com/Veedubin/AttackLM.git\n"
             "  cd AttackLM\n"
-            "  attacklm-train-all ...",
+            "  attacklm train --all ...",
             file=sys.stderr,
         )
         sys.exit(1)

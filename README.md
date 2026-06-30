@@ -169,30 +169,62 @@ This layout allows the pipeline to deterministically extract data from upstream 
 ---
 
 ## CLI Reference
+
+> **v0.8.0**: The 21 hyphenated commands are consolidated into a single
+> `attacklm` command with subcommands. The old commands still work but
+> print a deprecation warning. They will be removed in v0.9.0.
+
+### Unified Command (v0.8.0+)
+
 | Command | Description |
 |---------|-------------|
-| `attacklm-gui` | Terminal GUI for all commands (new in v0.7.1) |
-| `attacklm-init` | One-shot init: clone → extract → attribute → buckets |
-| `attacklm-train` | Train a single QLoRA adapter |
-| `attacklm-train-all` | Orchestrated training for all buckets / HPO |
-| `attacklm-balance` | Build a balanced subset of buckets |
-| `attacklm-hpo` | Coordinate-descent HPO sweep |
-| `attacklm-infer` | Smoke-test inference |
-| `attacklm-merge` | Merge LoRA adapter into base model |
-| `attacklm-gguf` | Convert merged model to GGUF (llama.cpp) |
-| `attacklm-build` | One-shot merge → GGUF → install |
-| `attacklm-demo` | Multi-agent orchestrator demo |
-| `attacklm-extract` | Extract data from cloned repositories |
-| `attacklm-buckets` | Organize data into bucket structure |
-| `attacklm-attribute` | Add source and license to JSONL records |
-| `attacklm-clone` | Clone upstream data repositories |
-| `attacklm-train-lora` | Direct LoRA training on single dataset |
-| `attacklm-eval` | Run retention evaluation suite |
-| `attacklm-collect-ref` | Collect reference model outputs |
-| `attacklm-score` | Score candidate models against reference |
-| `attacklm-compare` | Compare multiple candidate model scores |
-| `attacklm-golden` | Execute golden vector regression gates |
-| `attacklm-register-ollama`| Register GGUF model with Ollama |
+| `attacklm train` | Train a model (QLoRA, GaLore, Q-GaLore, Spectrum, PiSSA) |
+| `attacklm train --dataset all` | Train all buckets (replaces `attacklm-train-all`) |
+| `attacklm train --hpo` | Run HPO sweep (replaces `attacklm-hpo`) |
+| `attacklm init` | One-shot init: clone → extract → attribute → buckets |
+| `attacklm init --extract-only` | Extract data only (replaces `attacklm-extract`) |
+| `attacklm init --buckets-only` | Organize into buckets only (replaces `attacklm-buckets`) |
+| `attacklm init --attribute-only` | Add attribution only (replaces `attacklm-attribute`) |
+| `attacklm init --clone-only` | Clone repos only (replaces `attacklm-clone`) |
+| `attacklm balance` | Build a balanced subset of buckets |
+| `attacklm build` | One-shot merge → GGUF → install to LM Studio |
+| `attacklm build --merge-only` | Merge adapter only (replaces `attacklm-merge`) |
+| `attacklm build --gguf-only` | Convert to GGUF only (replaces `attacklm-gguf`) |
+| `attacklm build --register-ollama` | Register GGUF with Ollama (replaces `attacklm-register-ollama`) |
+| `attacklm infer` | Smoke-test inference |
+| `attacklm eval` | Run retention evaluation suite |
+| `attacklm eval --collect-ref` | Collect reference model outputs |
+| `attacklm eval --score` | Score candidate models against reference |
+| `attacklm eval --compare` | Compare multiple candidate model scores |
+| `attacklm eval --golden` | Execute golden vector regression gates |
+| `attacklm gui` | Terminal GUI for all commands |
+| `attacklm demo` | Multi-agent orchestrator demo |
+
+### Legacy Commands (Deprecated, removed in v0.9.0)
+
+| Old Command | New Command |
+|-------------|-------------|
+| `attacklm-train` | `attacklm train` |
+| `attacklm-train-all` | `attacklm train --dataset all` |
+| `attacklm-train-lora` | `attacklm train` |
+| `attacklm-hpo` | `attacklm train --hpo` |
+| `attacklm-init` | `attacklm init` |
+| `attacklm-extract` | `attacklm init --extract-only` |
+| `attacklm-buckets` | `attacklm init --buckets-only` |
+| `attacklm-attribute` | `attacklm init --attribute-only` |
+| `attacklm-clone` | `attacklm init --clone-only` |
+| `attacklm-balance` | `attacklm balance` |
+| `attacklm-build` | `attacklm build` |
+| `attacklm-merge` | `attacklm build --merge-only` |
+| `attacklm-gguf` | `attacklm build --gguf-only` |
+| `attacklm-register-ollama` | `attacklm build --register-ollama` |
+| `attacklm-infer` | `attacklm infer` |
+| `attacklm-eval` | `attacklm eval` |
+| `attacklm-collect-ref` | `attacklm eval --collect-ref` |
+| `attacklm-score` | `attacklm eval --score` |
+| `attacklm-compare` | `attacklm eval --compare` |
+| `attacklm-golden` | `attacklm eval --golden` |
+| `attacklm-demo` | `attacklm demo` |
 
 ---
 

@@ -268,7 +268,7 @@ class TrainFormScreen(Screen):
 
     def _build_command(self, values: dict) -> list[str]:
         """Build the attacklm-train command from form values."""
-        cmd = ["attacklm-train"]
+        cmd = ["attacklm", "train"]
 
         # Required
         if values.get("dataset"):
