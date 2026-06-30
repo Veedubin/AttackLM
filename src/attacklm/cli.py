@@ -460,10 +460,15 @@ _DEPRECATED_MSG = (
 def _deprecated(old_cmd: str, new_cmd: str, argv: Sequence[str]) -> int:
     """Print deprecation warning and delegate to new subcommand."""
     print(_DEPRECATED_MSG.format(old_cmd, new_cmd), file=sys.stderr)
-    # Build new argv and re-run through the parser
-    new_argv = [new_cmd.split()[1]] + list(argv)  # strip "attacklm " prefix
+    # Build new argv and re-run through the parser.
+    # Insert "--" so REMAINDER captures all forwarded args (including
+    # flags like --yes, --dry-run that argparse would otherwise reject).
+    subcmd = new_cmd.split()[1]  # strip "attacklm " prefix
+    new_argv = [subcmd, "--"] + list(argv)
     parser = build_parser()
     args = parser.parse_args(new_argv)
+    # Strip the leading "--" that we inserted — the handler expects
+    # just the forwarded args.
     if hasattr(args, "argv") and args.argv and args.argv[0] == "--":
         args.argv = args.argv[1:]
     return args.func(args)

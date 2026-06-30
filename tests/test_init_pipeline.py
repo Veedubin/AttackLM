@@ -357,7 +357,7 @@ def test_cli_main_init_dispatches(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_cli_help_lists_init() -> None:
-    """`python -m attacklm.cli` should mention attacklm-init in its help text."""
+    """`python -m attacklm.cli` should mention 'init' in its help text."""
     import os
 
     env = os.environ.copy()
@@ -373,4 +373,4 @@ def test_cli_help_lists_init() -> None:
         text=True,
         env=env,
     )
-    assert "attacklm-init" in result.stdout
+    assert "init" in result.stdout
