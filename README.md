@@ -89,6 +89,14 @@ By default, AttackLM leverages PyTorch's built-in `torch.backends.cuda.enable_me
 
 - **Comprehensive Security Corpus**: 24,652 high-quality training pairs across 18 distinct security sources.
 - **Advanced Training Methods**: Support for QLoRA, GaLore, Q-GaLore, Spectrum, and PiSSA to enable training of large models on consumer hardware.
+- **Training Pair Evolution**: New capability to synthetically expand short, factual pairs into complex reasoning examples using three specialized strategies:
+
+| Strategy | Approach | Impact |
+| :--- | :--- | :--- |
+| **Evol-Instruct** | Rewrites responses with deeper reasoning and edge cases | 3-5x increase in response length/depth |
+| **Multi-turn** | Decomposes Q&A into interactive conversations | Improved conversational flow and context |
+| **CoT Injection** | Adds explicit "Chain-of-Thought" reasoning steps | Higher logical consistency in complex tasks |
+
 - **Zero-Config Setup**: One-shot `init` command that handles dataset retrieval, extraction, and bucket organization.
 - **Anti-Bias Balancing**: Integrated balancing engine to ensure the model learns diverse tactics rather than just the most voluminous sources.
 - **Provenance Tracking**: Strict per-source attribution and license tracking for every record in the dataset.
@@ -116,9 +124,18 @@ attacklm balance --profile 7b-16gb --preset red-team
 ### Model Training
 `attacklm train`
 The core training engine. Supports Qwen2.5-Coder 3B and 7B base models.
+
+**Standard Training**
 ```bash
 # Train a single model on the entire balanced dataset
 attacklm train -- --dataset all --epochs 10 --lora-r 16 --use-galore
+```
+
+**Training with Evolved Pairs**
+Use the `--evolved-ratio` flag to mix synthetically evolved high-reasoning pairs into your training set.
+```bash
+# Train with 20% evolved pairs for better reasoning depth
+attacklm train -- --dataset all --evolved-ratio 0.2 --epochs 10
 ```
 
 ### Deployment & Testing
@@ -186,6 +203,7 @@ This hierarchy ensures that the pipeline can be rebuilt from upstream sources wi
 | :--- | :--- |
 | `attacklm train` | Train a model (QLoRA, GaLore, Q-GaLore, Spectrum, PiSSA) |
 | `attacklm train --dataset all` | Train all buckets combined |
+| `attacklm train --evolved-ratio 0.2` | Mix evolved reasoning pairs into training |
 | `attacklm train --hpo` | Run Hyper-Parameter Optimization sweep |
 | `attacklm init` | Initialize dataset: download pre-built or clone $\rightarrow$ extract $\rightarrow$ attribute |
 | `attacklm balance` | Build a balanced subset of buckets to prevent overfitting |

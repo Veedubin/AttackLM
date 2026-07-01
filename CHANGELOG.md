@@ -1,6 +1,23 @@
 # Changelog
 
+## [0.8.3] — 2026-07-01 — Training pair evolution
+
+### Added
+- **Training pair evolution**: New `scripts/evolve_pairs.py` with 3 strategies to expand short training pairs into longer, richer examples
+  - **Evol-Instruct**: Rewrites answers with deeper reasoning, edge cases, and detection artifacts (3-5x longer)
+  - **Multi-turn Decomposition**: Breaks Q&A into 3-5 turn conversations for better training flow
+  - **Chain-of-Thought Injection**: Adds explicit reasoning steps before final answers
+- **Quality filtering**: `scripts/filter_evolved.py` validates evolved pairs (structure, length, provenance, dedup)
+- **`--evolved-ratio` flag**: Mix evolved pairs into training at configurable ratio in `train_all.py` and `train_template.py`
+- **`scripts/evolved_mixer.py`**: Standalone mixer module for evolved pair integration
+
+### Changed
+- **Agent models upgraded**: glm-5.1 → glm-5.2, minimax-m2.7 → minimax-m3, added kimi-k2.7-code
+
+---
+
 ## [0.8.1] — 2026-06-30 — Zero-config dataset init
+
 
 ### Added
 - **Zero-config init**: `attacklm init` now downloads a pre-built dataset tarball (~50 MB) from GitHub releases by default. No git clone, no extractors, no manual setup required.

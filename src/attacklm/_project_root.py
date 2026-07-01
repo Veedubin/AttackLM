@@ -38,6 +38,7 @@ BASE_DIR = _resolve_base_dir()
 DATASETS_DIR = BASE_DIR / "data" / "datasets"
 BUCKETS_DIR = DATASETS_DIR / "buckets"
 SOURCES_DIR = BUCKETS_DIR / "sources"
+EVOLVED_DIR = DATASETS_DIR / "evolved"
 MODELS_DIR = BASE_DIR / "models"
 LOGS_DIR = BASE_DIR / "logs"
 PRESETS_DIR = BASE_DIR / "presets"
