@@ -432,6 +432,19 @@ def build_train_cmd(
         cmd.append("--galore-32bit")
     if getattr(args, "multi_gpu", False):
         cmd.append("--multi-gpu")
+    # DeepSpeed / torch.compile / LOMO flags
+    if getattr(args, "use_deepspeed", False):
+        cmd.append("--use-deepspeed")
+        if getattr(args, "deepspeed_config", None):
+            cmd.extend(["--deepspeed-config", args.deepspeed_config])
+        cmd.extend(["--deepspeed-stage", str(args.deepspeed_stage)])
+        if getattr(args, "no_deepspeed_offload", False):
+            cmd.append("--no-deepspeed-offload")
+    if getattr(args, "compile", False):
+        cmd.append("--compile")
+        cmd.extend(["--compile-mode", args.compile_mode])
+    if getattr(args, "use_lomo", False):
+        cmd.append("--use-lomo")
     # v0.1.6+: pass dataset specs so train_template can record them in
     # state.json[dataset.specs] (reproducibility).
     if dataset_specs:
@@ -790,6 +803,51 @@ def main():
         "with DDP). Use torchrun or accelerate launch. "
         "Passed through to train_template.py (default: OFF).",
     )
+    # ---- DeepSpeed / torch.compile / LOMO flags ----
+    parser.add_argument(
+        "--use-deepspeed",
+        action="store_true",
+        default=False,
+        help="Enable DeepSpeed ZeRO optimization (forwarded to train_template.py)",
+    )
+    parser.add_argument(
+        "--deepspeed-config",
+        type=str,
+        default=None,
+        help="Path to DeepSpeed JSON config file",
+    )
+    parser.add_argument(
+        "--deepspeed-stage",
+        type=int,
+        default=3,
+        choices=[1, 2, 3],
+        help="DeepSpeed ZeRO stage (default: 3)",
+    )
+    parser.add_argument(
+        "--no-deepspeed-offload",
+        action="store_true",
+        default=False,
+        help="Disable CPU offload for DeepSpeed",
+    )
+    parser.add_argument(
+        "--compile",
+        action="store_true",
+        default=False,
+        help="Enable torch.compile (forwarded to train_template.py)",
+    )
+    parser.add_argument(
+        "--compile-mode",
+        type=str,
+        default="reduce-overhead",
+        choices=["default", "reduce-overhead", "max-autotune"],
+        help="torch.compile mode",
+    )
+    parser.add_argument(
+        "--use-lomo",
+        action="store_true",
+        default=False,
+        help="Enable LOMO optimizer (forwarded to train_template.py)",
+    )
     # ---- Experience replay flags ----
     parser.add_argument(
         "--replay-source",
@@ -955,6 +1013,16 @@ def main():
     out(f"  Evolved ratio: {args.evolved_ratio}  (0.0 = no evolved pairs)")
     if args.evolved_ratio > 0:
         out(f"  Evolved dir:   {args.evolved_dir}")
+    if args.use_deepspeed:
+        out(
+            f"  DeepSpeed:     ZeRO-{args.deepspeed_stage} + CPU offload"
+            if not args.no_deepspeed_offload
+            else f"  DeepSpeed:     ZeRO-{args.deepspeed_stage} (GPU only)"
+        )
+    if args.compile:
+        out(f"  torch.compile: {args.compile_mode}")
+    if args.use_lomo:
+        out("  LOMO:          enabled")
     out(f"  Log file:      {log_path}")
     out(f"  Models:        {len(MODELS)} total")
     out("")

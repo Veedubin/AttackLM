@@ -84,7 +84,7 @@ setup_allocator_env()
 # ---------------------------------------------------------------------------
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="AttackLM QLoRA Fine-Tuning Template",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -509,6 +509,103 @@ Examples:
         ),
     )
 
+    # ---- DeepSpeed ZeRO integration ----
+    parser.add_argument(
+        "--use-deepspeed",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable DeepSpeed ZeRO optimization for training models larger than "
+            "GPU VRAM. ZeRO-3 shards parameters, gradients, and optimizer states "
+            "across GPU+CPU. With CPU offload, a 16GB GPU + 64GB RAM can train "
+            "40B+ parameter models. Speed drops from ~3000 tok/s to ~300-500 tok/s "
+            "but enables much larger models. Mutually exclusive with --use-unsloth. "
+            "Default: OFF (standard HF QLoRA). Requires: pip install deepspeed"
+        ),
+    )
+    parser.add_argument(
+        "--deepspeed-config",
+        type=str,
+        default=None,
+        help=(
+            "Path to a custom DeepSpeed JSON config file. When provided, "
+            "--deepspeed-stage and --deepspeed-offload/--no-deepspeed-offload "
+            "are ignored. "
+            "Default: None (auto-generate config from --deepspeed-stage)."
+        ),
+    )
+    parser.add_argument(
+        "--deepspeed-stage",
+        type=int,
+        default=3,
+        choices=[1, 2, 3],
+        help=(
+            "DeepSpeed ZeRO optimization stage (default: 3). "
+            "Stage 1: shard optimizer states only. "
+            "Stage 2: shard optimizer + gradient states. "
+            "Stage 3: shard optimizer + gradient + parameter states (max VRAM savings)."
+        ),
+    )
+    parser.add_argument(
+        "--deepspeed-offload",
+        action="store_true",
+        default=True,
+        help=(
+            "Enable CPU offload for optimizer states and parameters (default: True). "
+            "Offloads optimizer and (with ZeRO-3) parameter tensors to system RAM, "
+            "dramatically reducing GPU VRAM at the cost of slower training."
+        ),
+    )
+    parser.add_argument(
+        "--no-deepspeed-offload",
+        action="store_true",
+        default=False,
+        help=(
+            "Disable CPU offload — GPU-only ZeRO. Faster but requires more VRAM. "
+            "Takes precedence over --deepspeed-offload if both are set."
+        ),
+    )
+
+    # ---- torch.compile ----
+    parser.add_argument(
+        "--compile",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable torch.compile for the model. Compiles the model with "
+            "TorchDynamo for faster training. Requires PyTorch >= 2.0. "
+            "Default: OFF."
+        ),
+    )
+    parser.add_argument(
+        "--compile-mode",
+        type=str,
+        default="reduce-overhead",
+        choices=["default", "reduce-overhead", "max-autotune"],
+        help=(
+            "torch.compile mode. "
+            "'default': conservative optimizations. "
+            "'reduce-overhead': reduces Python overhead (default). "
+            "'max-autotune': maximum optimization (slowest compile). "
+            "Default: reduce-overhead."
+        ),
+    )
+
+    # ---- LOMO (LOw-Memory Optimization) ----
+    parser.add_argument(
+        "--use-lomo",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable LOMO (LOw-Memory Optimization) for parameter-efficient "
+            "fine-tuning. LOMO fuses the gradient computation and parameter "
+            "update into a single step, eliminating the need to store "
+            "optimizer states. Mutually exclusive with --use-galore and "
+            "--use-qgalore. "
+            "Default: OFF."
+        ),
+    )
+
     # ---- Evolved pair mixing ----
     parser.add_argument(
         "--evolved-ratio",
@@ -531,7 +628,7 @@ Examples:
         ),
     )
 
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 # ---------------------------------------------------------------------------
@@ -542,6 +639,92 @@ Examples:
 def _is_galore(args) -> bool:
     """True if either --use-galore or --use-qgalore is active."""
     return args.use_galore or args.use_qgalore
+
+
+def generate_deepspeed_config(
+    stage: int = 3,
+    offload: bool = True,
+    dtype: str = "bf16",
+) -> dict:
+    """Generate a DeepSpeed ZeRO configuration dict.
+
+    Args:
+        stage: ZeRO optimization stage (1, 2, or 3). Default: 3.
+            Stage 1: shard optimizer states only.
+            Stage 2: shard optimizer + gradient states.
+            Stage 3: shard optimizer + gradient + parameter states (max VRAM savings).
+        offload: Enable CPU offload for optimizer states and parameters.
+            Stage 3: offloads both optimizer and parameter tensors.
+            Stage 2: offloads optimizer states only.
+            Stage 1: offloads optimizer states only.
+            Default: True.
+        dtype: Mixed precision dtype ("bf16", "fp16", or "fp32"). Default: "bf16".
+
+    Returns:
+        A dict suitable for serialization to a DeepSpeed JSON config file.
+    """
+    config: dict = {
+        "zero_optimization": {
+            "stage": stage,
+            "allgather_partitions": True,
+            "allgather_bucket_size": 2e8,
+            "overlap_comm": True,
+            "reduce_scatter": True,
+            "reduce_bucket_size": 2e8,
+            "contiguous_gradients": True,
+            "stage3_gather_16bit_weights_on_model_save": True,
+        },
+        "gradient_accumulation_steps": "auto",
+        "gradient_clipping": "auto",
+        "train_batch_size": "auto",
+        "train_micro_batch_size_per_gpu": "auto",
+        "wall_clock_breakdown": False,
+    }
+
+    # Mixed precision
+    if dtype == "bf16":
+        config["bf16"] = {"enabled": True}
+    elif dtype == "fp16":
+        config["fp16"] = {
+            "enabled": True,
+            "auto_cast": True,
+            "loss_scale": 0,
+            "initial_scale_power": 16,
+            "loss_scale_window": 1000,
+            "hysteresis": 2,
+            "min_loss_scale": 1,
+        }
+
+    # Stage-specific settings
+    if stage == 3:
+        zero_opt = config["zero_optimization"]
+        zero_opt["sub_group_size"] = 1e9
+        zero_opt["reduce_scatter"] = True
+        if offload:
+            zero_opt["offload_optimizer"] = {
+                "device": "cpu",
+                "pin_memory": True,
+            }
+            zero_opt["offload_param"] = {
+                "device": "cpu",
+                "pin_memory": True,
+            }
+    elif stage == 2:
+        if offload:
+            config["zero_optimization"]["offload_optimizer"] = {
+                "device": "cpu",
+                "pin_memory": True,
+            }
+        # Stage 2 does not offload parameters
+    elif stage == 1:
+        if offload:
+            config["zero_optimization"]["offload_optimizer"] = {
+                "device": "cpu",
+                "pin_memory": True,
+            }
+        # Stage 1: optimizer sharding only, no parameter offload
+
+    return config
 
 
 def _resolve_model_path(model_id_or_path: str) -> str:
@@ -2102,6 +2285,12 @@ def main() -> None:
     _plan.add_row("MoE-safe target", _moe_display)
     _plan.add_row("Unsloth", _unsloth_display)
     _plan.add_row("GaLore", _galore_display)
+    _plan.add_row(
+        "DeepSpeed",
+        f"ZeRO-{args.deepspeed_stage} + CPU offload"
+        if args.use_deepspeed
+        else "disabled",
+    )
     _plan.add_row("Epochs", str(args.epochs))
     _plan.add_row("Batch size", str(args.batch_size))
     _plan.add_row("Max seq length", str(args.max_length))
@@ -2184,6 +2373,16 @@ def main() -> None:
         "seed": 42,
         "optim": args.optim,
         "packing": args.packing,
+        "deepspeed": args.use_deepspeed,
+        "deepspeed_stage": args.deepspeed_stage if args.use_deepspeed else None,
+        "deepspeed_offload": (
+            (args.deepspeed_offload and not args.no_deepspeed_offload)
+            if args.use_deepspeed
+            else None
+        ),
+        "compile": args.compile,
+        "compile_mode": args.compile_mode,
+        "lomo": args.use_lomo,
     }
     # Dataset info: from CLI flags if present (attacklm-train-all sets them)
     # v0.1.6+: dataset_specs records the multi-positional --dataset values
@@ -2263,6 +2462,26 @@ def main() -> None:
         )
         sys.exit(1)
 
+    # --- Mutual exclusivity: DeepSpeed vs Unsloth ---
+    if args.use_deepspeed and args.use_unsloth:
+        console.print(
+            "[yellow]WARNING:[/yellow] --use-deepspeed and --use-unsloth are both enabled.\n"
+            "  DeepSpeed ZeRO and Unsloth both manage model sharding and memory.\n"
+            "  Using them together may cause conflicts. Consider using only one.\n"
+            "  Continuing anyway (Unsloth will take precedence for model loading)."
+        )
+
+    # --- Mutual exclusivity: LOMO vs GaLore/Q-GaLore ---
+    if args.use_lomo and (args.use_galore or args.use_qgalore):
+        console.print(
+            "[red]ERROR:[/red] --use-lomo and --use-galore/--use-qgalore are mutually exclusive.\n"
+            "  LOMO fuses gradient computation and parameter update into a single step,\n"
+            "  eliminating optimizer state storage entirely.\n"
+            "  GaLore/Q-GaLore uses gradient projection with optimizer states.\n"
+            "  Choose one: --use-lomo OR --use-galore/--use-qgalore, not both."
+        )
+        sys.exit(1)
+
     # --- Unsloth: import BEFORE transformers/peft/trl (required for optimizations) ---
     _unsloth_available = False
     if args.use_unsloth:
@@ -2324,6 +2543,23 @@ def main() -> None:
             "--galore-32bit (per-layer weight updates are incompatible with DDP)"
         )
         args.galore_32bit = True
+
+    # --- LOMO: import lomo-optim for full-parameter fine-tuning on limited VRAM ---
+    _lomo_available = False
+    if args.use_lomo:
+        try:
+            from lomo_optim import LOMO  # noqa: F401
+
+            _lomo_available = True
+            console.print(
+                "  [green]LOMO:[/green] loaded (full-parameter fine-tuning optimizer available)"
+            )
+        except ImportError:
+            console.print(
+                "[red]ERROR:[/red] --use-lomo requires the 'lomo-optim' package.\n"
+                "  Install: pip install lomo-optim"
+            )
+            sys.exit(1)
 
     try:
         from transformers import AutoModelForCausalLM
@@ -2850,6 +3086,25 @@ def main() -> None:
 
         model.print_trainable_parameters()
 
+    # --- torch.compile — PyTorch 2.x JIT compilation for speed + memory ---
+    if args.compile:
+        try:
+            if hasattr(torch, "compile"):
+                console.print(
+                    f"  [green]torch.compile:[/green] enabled (mode={args.compile_mode})"
+                )
+                model = torch.compile(model, mode=args.compile_mode)
+            else:
+                console.print(
+                    "[yellow]WARNING:[/yellow] torch.compile requires PyTorch 2.0+. "
+                    "Skipping compilation."
+                )
+        except Exception as e:
+            console.print(
+                f"[yellow]WARNING:[/yellow] torch.compile failed: {e}. "
+                "Continuing without compilation."
+            )
+
     # --- Formatting function for chat template ---
     # Unsloth's SFTTrainer may pass a single example (dict of lists)
     # or a batch (dict of list-of-lists). We detect and handle both.
@@ -2916,6 +3171,66 @@ def main() -> None:
     # Early stopping: eval every epoch, halt after N rounds of no improvement,
     # auto-rollback to the checkpoint with lowest eval loss.
     # Note: in trl 1.5.1, early_stopping_patience is a callback param, not SFTConfig.
+
+    # --- DeepSpeed config generation ---
+    # If --use-deepspeed is set, auto-generate a DeepSpeed ZeRO config
+    # (unless --deepspeed-config points to a custom file).
+    # ZeRO-3 + CPU offload enables training models 3-5x larger than GPU VRAM
+    # by sharding parameters, gradients, and optimizer states across GPU+CPU.
+    # With CPU offload, a 16GB GPU + 64GB RAM can train 40B+ parameter models.
+    deepspeed_config_path = None
+    if args.use_deepspeed:
+        # Verify deepspeed package is installed
+        try:
+            import deepspeed  # noqa: F401
+        except ImportError:
+            console.print(
+                "[red]ERROR:[/red] --use-deepspeed requires the 'deepspeed' package.\n"
+                "  Install: pip install deepspeed\n"
+                "  Or:      uv pip install deepspeed"
+            )
+            sys.exit(1)
+
+        # Warn about Unsloth + DeepSpeed conflict
+        if args.use_unsloth:
+            console.print(
+                "[yellow]WARNING:[/yellow] --use-deepspeed + --use-unsloth may conflict. "
+                "Unsloth manages its own memory optimizations."
+            )
+
+        # Determine offload setting
+        deepspeed_offload = args.deepspeed_offload and not args.no_deepspeed_offload
+
+        if args.deepspeed_config:
+            deepspeed_config_path = args.deepspeed_config
+            console.print(
+                f"  [green]DeepSpeed:[/green] using provided config: {deepspeed_config_path}"
+            )
+        else:
+            ds_cfg = generate_deepspeed_config(
+                stage=args.deepspeed_stage,
+                offload=deepspeed_offload,
+                dtype=compute_type,
+            )
+            # Write the generated config to a file next to the output dir
+            ds_path = Path(args.output) / "ds_zero_config.json"
+            ds_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(ds_path, "w") as f:
+                json.dump(ds_cfg, f, indent=2)
+            deepspeed_config_path = str(ds_path)
+            console.print(
+                f"  [green]DeepSpeed:[/green] ZeRO-{args.deepspeed_stage} config "
+                f"written to {ds_path}"
+            )
+        console.print(
+            f"  [green]DeepSpeed:[/green] ZeRO-{args.deepspeed_stage} enabled"
+        )
+        if deepspeed_offload:
+            console.print(
+                "  [green]DeepSpeed:[/green] CPU offload enabled "
+                "(optimizer + params → system RAM)"
+            )
+
     training_args = SFTConfig(
         output_dir=args.output,
         num_train_epochs=args.epochs,
@@ -3048,6 +3363,7 @@ def main() -> None:
         # combination in OOM fix #11.
         dataloader_pin_memory=False,
         dataloader_num_workers=0,
+        deepspeed=deepspeed_config_path,
     )
 
     # --- Create trainer ---

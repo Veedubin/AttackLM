@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
 
-**A high-performance fine-tuning pipeline (QLoRA, GaLore, Q-GaLore, Spectrum, PiSSA) for creating MITRE ATT&CK-grounded security AI assistants.**
+**A high-performance fine-tuning pipeline (QLoRA, GaLore, Q-GaLore, Spectrum, PiSSA, DeepSpeed) for creating MITRE ATT&CK-grounded security AI assistants.**
 
 ---
 
@@ -97,6 +97,11 @@ By default, AttackLM leverages PyTorch's built-in `torch.backends.cuda.enable_me
 | **Multi-turn** | Decomposes Q&A into interactive conversations | Improved conversational flow and context |
 | **CoT Injection** | Adds explicit "Chain-of-Thought" reasoning steps | Higher logical consistency in complex tasks |
 
+- **Memory Optimization**: Three new techniques to train larger models on consumer hardware:
+  - **DeepSpeed ZeRO-3 + CPU Offload** — Shards parameters, gradients, and optimizer states across GPU VRAM + system RAM. Train 40B+ parameter models on a 16GB GPU with 64GB system RAM.
+  - **torch.compile** — PyTorch 2.x JIT compilation. 20-40% training speedup with 10-20% memory reduction. One flag: `--compile`.
+  - **LOMO Optimizer** — Full-parameter fine-tuning (not just adapters) of 7B models on 8GB GPUs.
+
 - **Zero-Config Setup**: One-shot `init` command that handles dataset retrieval, extraction, and bucket organization.
 - **Anti-Bias Balancing**: Integrated balancing engine to ensure the model learns diverse tactics rather than just the most voluminous sources.
 - **Provenance Tracking**: Strict per-source attribution and license tracking for every record in the dataset.
@@ -164,6 +169,17 @@ python scripts/filter_evolved.py --input data/datasets/evolved/ --all
 attacklm train --all -- --single-model --evolved-ratio 0.3 --epochs 10 --train
 ```
 
+**Workflow 5: Train 40B+ on 16GB GPU (DeepSpeed + CPU offload)**
+```bash
+# Workflow 5: Train 40B+ on 16GB GPU (DeepSpeed + CPU offload)
+attacklm init --yes
+attacklm balance --profile 7b-16gb
+attacklm train -- --dataset data/datasets/balanced/balanced_7b-16gb.jsonl \
+  --base-model Qwen/Qwen2.5-32B-Instruct \
+  --use-deepspeed --deepspeed-stage 3 \
+  --compile --epochs 5 --train
+```
+
 ### Training Methods Explained
 
 Choose your training method based on your available VRAM and quality requirements:
@@ -175,6 +191,9 @@ Choose your training method based on your available VRAM and quality requirement
 | **Q-GaLore** | GaLore with quantization. Balances quality and VRAM. | Medium-Low | High quality on 16GB GPUs |
 | **Spectrum** | SNR-based layer freezing. Freezes low-SNR layers, trains high-SNR. | Medium | Reduces VRAM, speeds training |
 | **PiSSA** | Principal Singular Values initialization for LoRA. | Same as QLoRA | Better convergence than standard LoRA |
+| **DeepSpeed ZeRO-3** | Shards model across GPU + CPU RAM. Offloads params and optimizer to system memory. | Lowest (model 3-5x VRAM) | Training 40B+ on 16GB GPU |
+| **torch.compile** | PyTorch 2.x JIT compilation. Fuses operations for speed + memory. | 10-20% less than baseline | Any model, free performance |
+| **LOMO** | Fuses gradient computation + parameter update. Never materializes full gradient. | Lowest (7B full-param on 8GB) | Full-parameter quality on tiny GPUs |
 
 ### Terminal GUI
 
@@ -272,6 +291,13 @@ The primary entry point for fine-tuning. Supports a variety of parameter-efficie
 - `--resume-from-checkpoint` — Resume from last checkpoint
 - `--force` — Force re-tokenization (ignore cache)
 - `--dry-run` — Print what would run without executing
+- `--use-deepspeed` — Enable DeepSpeed ZeRO optimization
+- `--deepspeed-stage {1,2,3}` — ZeRO stage (default: 3)
+- `--deepspeed-config <path>` — Path to custom DeepSpeed JSON config
+- `--no-deepspeed-offload` — Disable CPU offload (GPU-only ZeRO)
+- `--compile` — Enable torch.compile (20-40% speedup)
+- `--compile-mode {default,reduce-overhead,max-autotune}` — torch.compile mode (default: reduce-overhead)
+- `--use-lomo` — Enable LOMO full-parameter optimizer
 
 **Examples**
 ```bash
@@ -289,6 +315,36 @@ attacklm train --hpo -- --analyze-only
 
 # Dry-run stats only
 attacklm train -- --dataset data/balanced.jsonl
+```
+
+### DeepSpeed Configuration
+
+AttackLM ships with pre-built DeepSpeed configs in `presets/deepspeed/`:
+
+| Config | ZeRO Stage | CPU Offload | Best For |
+|--------|-----------|-------------|----------|
+| `zero3_cpu_offload.json` | 3 | Params + Optimizer | Single GPU, model > VRAM |
+| `zero3_gpu_only.json` | 3 | None | Multi-GPU setups |
+| `zero2_cpu_offload.json` | 2 | Optimizer only | Faster, model ~2x VRAM |
+
+Auto-generate a config (defaults to ZeRO-3 + CPU offload):
+```bash
+attacklm train -- --use-deepspeed --dataset data/balanced.jsonl --train
+```
+
+Use a custom config:
+```bash
+attacklm train -- --use-deepspeed --deepspeed-config presets/deepspeed/zero2_cpu_offload.json --train
+```
+
+### Hardware Reference
+
+| GPU VRAM | System RAM | Recommended Config | Max Model |
+|----------|-----------|-------------------|-----------|
+| 8 GB | 32 GB | ZeRO-2 + CPU offload | ~13B |
+| 16 GB | 64 GB | ZeRO-3 + CPU offload | ~40B |
+| 24 GB | 64 GB | ZeRO-3 + CPU offload | ~70B |
+| 24 GB | 128 GB | ZeRO-3 + CPU offload | ~70B+ |
 ```
 
 ---
