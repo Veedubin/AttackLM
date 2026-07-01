@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.4] — 2026-07-01 — Documentation overhaul
+
+### Changed
+- **Tagline updated**: Now lists all 5 training methods (QLoRA, GaLore, Q-GaLore, Spectrum, PiSSA) instead of just QLoRA
+- **GUI section expanded**: Added dedicated Terminal GUI section with live monitor screenshot, preset list, and screen-by-screen breakdown
+- **AttackLM-Models README synced**: Updated pair count (16,027 → 24,652), added missing defensive sources, updated all hyphenated commands to unified CLI format
+
+---
+
 ## [0.8.3] — 2026-07-01 — Training pair evolution
 
 ### Added
