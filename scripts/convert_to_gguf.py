@@ -403,9 +403,12 @@ def main() -> None:
         )
         print(f"   Or re-run with --install-lmstudio to do it automatically.")
 
-    print(f"\n✅ Done — {GGUF_DIR}/")
-    for gguf in sorted(GGUF_DIR.glob("*.gguf")):
-        print(f"   {gguf.name}  ({gguf.stat().st_size / 1e6:.0f}MB)")
+    if converted_now:
+        print(f"\n✅ Done — {len(converted_now)} GGUF(s) built:")
+        for gguf in converted_now:
+            print(f"   {gguf.name}  ({gguf.stat().st_size / 1e6:.0f}MB)")
+    else:
+        print(f"\n✅ Done — {GGUF_DIR}/ (no new conversions)")
 
     # v0.2.2+: optional Ollama registration
     if args.register_ollama and converted_now:
