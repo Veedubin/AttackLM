@@ -223,3 +223,5 @@ hf/data/*.parquet
 # All archive contents are preserved locally but never pushed to remote.
 archive/
 unsloth_compiled_cache/
+data/datasets/buckets/ATTRIBUTION.md
+data/datasets/buckets/GEMINI_RESEARCH_2026-06-11.md
