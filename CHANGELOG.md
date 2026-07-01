@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.8.5] — 2026-07-01 — Comprehensive CLI documentation
+
+### Changed
+- **CLI Reference completely rewritten**: Every command now has its own subsection with all flags documented, defaults listed, and practical examples
+- **Usage section overhauled**: Replaced flat list with 4 end-to-end workflows (Quick Start, Maximum Quality, HPO→Deploy, Evolve→Train)
+- **Training Methods Explained**: New table comparing QLoRA, GaLore, Q-GaLore, Spectrum, and PiSSA by VRAM usage and use case
+- **README grew from 274 to 443 lines** with 24 sections and 36 code examples
+
+---
+
 ## [0.8.4] — 2026-07-01 — Documentation overhaul
 
 ### Changed
