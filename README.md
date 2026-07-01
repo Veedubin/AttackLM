@@ -112,97 +112,79 @@ By default, AttackLM leverages PyTorch's built-in `torch.backends.cuda.enable_me
 
 ---
 
-## Usage
+## Usage & Workflows
 
-### Dataset Management
-`attacklm init`
-Initialize the environment. Downloads the pre-built dataset for instant use.
+AttackLM provides a set of curated workflows to take you from raw data to a deployed security model.
+
+### Common Workflows
+
+**Workflow 1: Quick Start (5 minutes to training)**
+```bash
+# 1. Install the full training stack
+pip install "attacklm[all]"
+
+# 2. Initialize the MITRE-grounded dataset
+attacklm init --yes
+
+# 3. Balance the dataset for your hardware (e.g., 7B model on 16GB VRAM)
+attacklm balance --profile 7b-16gb --preset red-team
+
+# 4. Launch training on Qwen2.5-Coder
+attacklm train -- --dataset data/datasets/balanced/balanced_7b-16gb.jsonl --epochs 10 --train
+```
+
+**Workflow 2: Maximum Quality (GaLore + Spectrum + Evolved Pairs)**
 ```bash
 attacklm init --yes
+attacklm balance --profile 7b-16gb
+attacklm train --all -- --single-model --use-galore --spectrum --evolved-ratio 0.2 --epochs 20 --train
 ```
 
-`attacklm balance`
-Create a balanced training subset to ensure tactical coverage.
+**Workflow 3: HPO $\rightarrow$ Train $\rightarrow$ Deploy**
 ```bash
-attacklm balance --profile 7b-16gb --preset red-team
+# 1. Run Hyper-Parameter Optimization sweep to find best settings
+attacklm train --hpo -- --dataset data/datasets/balanced/balanced_7b-16gb.jsonl
+
+# 2. Train with optimized parameters
+attacklm train -- --dataset data/datasets/balanced/balanced_7b-16gb.jsonl --lora-r 64 --lora-alpha 128 --epochs 15 --train
+
+# 3. Merge adapter and convert to GGUF for local deployment
+attacklm build -- --adapter models/attacklm_TIMESTAMP --name attacklm-v1
 ```
 
-### Model Training
-`attacklm train`
-The core training engine. Supports Qwen2.5-Coder 3B and 7B base models.
-
-**Standard Training**
+**Workflow 4: Evolve Pairs $\rightarrow$ Filter $\rightarrow$ Train**
 ```bash
-# Train a single model on the entire balanced dataset
-attacklm train -- --dataset all --epochs 10 --lora-r 16 --use-galore
+# 1. Synthetically expand short pairs into complex reasoning examples
+python scripts/evolve_pairs.py --strategy all --source metasploit-framework --count 500
+
+# 2. Filter evolved pairs for quality
+python scripts/filter_evolved.py --input data/datasets/evolved/ --all
+
+# 3. Train with a high ratio of evolved pairs
+attacklm train --all -- --single-model --evolved-ratio 0.3 --epochs 10 --train
 ```
 
-**Training with Evolved Pairs**
-Use the `--evolved-ratio` flag to mix synthetically evolved high-reasoning pairs into your training set.
-```bash
-# Train with 20% evolved pairs for better reasoning depth
-attacklm train -- --dataset all --evolved-ratio 0.2 --epochs 10
-```
+### Training Methods Explained
 
-### Deployment & Testing
-`attacklm build`
-Merge LoRA adapters and convert to GGUF for local deployment.
-```bash
-attacklm build -- --adapter models/attacklm-single_TIMESTAMP --name attacklm-security
-```
+Choose your training method based on your available VRAM and quality requirements:
 
-`attacklm infer`
-Perform a smoke-test of the trained model against representative security prompts.
-```bash
-attacklm infer -- --adapter models/attacklm-single_TIMESTAMP
-```
+| Method | Description | VRAM | Best For |
+| :--- | :--- | :--- | :--- |
+| **QLoRA** | 4-bit quantized base + LoRA adapters. Only trains small adapter matrices. | Lowest (~8GB for 3B) | Quick experiments, limited VRAM |
+| **GaLore** | Full-parameter training with gradient low-rank projection. | Medium (~16GB for 3B) | Best quality on consumer GPUs |
+| **Q-GaLore** | GaLore with quantization. Balances quality and VRAM. | Medium-Low | High quality on 16GB GPUs |
+| **Spectrum** | SNR-based layer freezing. Freezes low-SNR layers, trains high-SNR. | Medium | Reduces VRAM, speeds training |
+| **PiSSA** | Principal Singular Values initialization for LoRA. | Same as QLoRA | Better convergence than standard LoRA |
 
 ### Terminal GUI
 
-`attacklm gui`
-
-Launch the Textual-based Terminal GUI for an interactive training experience. No memorizing 40+ CLI flags.
+For an interactive experience, use `attacklm gui`. This eliminates the need to memorize dozens of CLI flags and provides a real-time training dashboard with VRAM gauges and loss sparklines.
 
 ```bash
 attacklm gui
 ```
+---
 
-The GUI provides:
-
-| Screen | What it does |
-|--------|-------------|
-| **Train** | Tabbed form (Basic, LoRA, GaLore, Advanced, Hardware) with 5 built-in presets |
-| **Init** | One-click dataset initialization (download, extract, organize) |
-| **Balance** | Build balanced training subsets with configurable caps |
-| **Inference** | Smoke-test trained models against security prompts |
-| **Build** | Merge adapter → GGUF conversion → install to LM Studio/Ollama |
-| **Eval** | Retention evaluation, reference collection, scoring, comparison |
-
-**Live Training Monitor** — Once training starts, you get a real-time dashboard:
-
-```
-┌─────────────────────────────────────────────────────┐
-│  Training: attacklm-3b-qgalore-spectrum             │
-│  Epoch 12/30  |  Step 1896  |  Elapsed: 1h 23m     │
-├──────────────────────┬──────────────────────────────┤
-│  Loss: 1.1143 ▂▃▅▆▇  │  VRAM: 5.9/15.6 GB (62%)   │
-│  Eval Loss: 1.176    │  alloc: 5.9  cache: 4.8     │
-│  Trend: ↓ -0.0116    │  ████████░░░░               │
-├──────────────────────┴──────────────────────────────┤
-│  [P]ause  [S]top at checkpoint  [Q]uit              │
-└─────────────────────────────────────────────────────┘
-```
-
-**Built-in Presets:**
-- `3B Q-GaLore Spectrum` — Full-parameter training on 16GB GPU
-- `3B Q-GaLore Rank 128` — Higher quality variant
-- `3B LoRA Default` — Standard QLoRA
-- `7B Q-GaLore` — For 24GB GPUs
-- `7B QLoRA Default` — Standard QLoRA for 7B
-
-### Other Tools
-- `attacklm eval`: Run the retention evaluation suite and score candidate models.
-- `attacklm demo`: Run the multi-agent orchestrator demo.
 
 ---
 
@@ -247,19 +229,206 @@ This hierarchy ensures that the pipeline can be rebuilt from upstream sources wi
 
 ## CLI Reference
 
-| Command | Description |
-| :--- | :--- |
-| `attacklm train` | Train a model (QLoRA, GaLore, Q-GaLore, Spectrum, PiSSA) |
-| `attacklm train --dataset all` | Train all buckets combined |
-| `attacklm train --evolved-ratio 0.2` | Mix evolved reasoning pairs into training |
-| `attacklm train --hpo` | Run Hyper-Parameter Optimization sweep |
-| `attacklm init` | Initialize dataset: download pre-built or clone $\rightarrow$ extract $\rightarrow$ attribute |
-| `attacklm balance` | Build a balanced subset of buckets to prevent overfitting |
-| `attacklm build` | Merge adapter $\rightarrow$ GGUF conversion $\rightarrow$ LM Studio/Ollama register |
-| `attacklm infer` | Smoke-test inference on trained adapters |
-| `attacklm eval` | Run retention evaluation and regression gates |
-| `attacklm gui` | Launch Terminal GUI (TUI) for all operations |
-| `attacklm demo` | Run multi-agent orchestrator demo |
+AttackLM uses a tiered command structure. Top-level flags are handled by the dispatcher, while flags following the `--` separator are forwarded directly to the specialized training or inference scripts.
+
+### 1. `attacklm train` — Core Training Engine
+The primary entry point for fine-tuning. Supports a variety of parameter-efficient and full-parameter methods.
+
+**Dispatcher Flags**
+- `--all` — Train all buckets (multi-model or single-model combined)
+- `--hpo` — Run hyperparameter optimization sweep instead of standard training
+
+**Forwarded Arguments (Post-`--`)**
+- `--dataset <path>` — Path to JSONL dataset or `all` for all buckets
+- `--base-model <model>` — HuggingFace model ID (default: `Qwen/Qwen2.5-Coder-3B-Instruct`)
+- `--output <dir>` — Output directory for trained model
+- `--epochs <n>` — Number of training epochs (default: 3)
+- `--batch-size <n>` — Per-device batch size (default: 1)
+- `--max-length <n>` — Maximum sequence length in tokens (default: 1024)
+- `--lora-r <n>` — LoRA rank (default: 16)
+- `--lora-alpha <n>` — LoRA alpha scaling (default: 32)
+- `--lora-dropout <n>` — LoRA dropout rate (default: 0.05)
+- `--use-galore` — Enable GaLore full-parameter training
+- `--use-qgalore` — Enable Q-GaLore (quantized GaLore)
+- `--spectrum` — Enable Spectrum layer freezing (SNR-based)
+- `--use-pissa` — Enable PiSSA initialization
+- `--packing` — Enable example packing for throughput
+- `--train` — Execute training (omitting this performs a dry-run with stats)
+- `--eval-split <n>` — Fraction held out for eval (default: 0.1)
+- `--early-stop-steps <n>` — Early stopping patience in eval steps
+- `--save-steps <n>` — Save checkpoint every N steps
+- `--gradient-accumulation-steps <n>` — Gradient accumulation steps
+- `--evolved-ratio <n>` — Fraction of training pairs from evolved datasets (0.0-1.0)
+- `--evolved-dir <path>` — Directory containing evolved JSONL files
+- `--replay-ratio <n>` — Fraction of replay (anti-forgetting) examples
+- `--replay-source <path>` — Path to replay source directory
+- `--single-model` — Combine all buckets into one training set
+- `--include-orchestrator` — Include orchestrator bucket
+- `--model-attacks` — Include AI model attack buckets
+- `--include-tools` — Include tool buckets
+- `--moe-safe-target` — Disable 4-bit quantization for MoE models
+- `--multi-gpu` — Enable multi-GPU training
+- `--use-unsloth` — Use Unsloth for faster training
+- `--resume-from-checkpoint` — Resume from last checkpoint
+- `--force` — Force re-tokenization (ignore cache)
+- `--dry-run` — Print what would run without executing
+
+**Examples**
+```bash
+# Single dataset, QLoRA
+attacklm train -- --dataset data/balanced.jsonl --epochs 10 --train
+
+# All buckets, GaLore + Spectrum, single model
+attacklm train --all -- --single-model --use-galore --spectrum --epochs 20 --train
+
+# With 20% evolved pairs
+attacklm train --all -- --single-model --evolved-ratio 0.2 --epochs 10 --train
+
+# HPO sweep
+attacklm train --hpo -- --analyze-only
+
+# Dry-run stats only
+attacklm train -- --dataset data/balanced.jsonl
+```
+
+---
+
+### 2. `attacklm init` — Dataset Initialization
+Handles the retrieval and organization of the security corpus.
+
+**Flags**
+- `--yes` — Skip confirmation prompts
+- `--from-source` — Build from upstream git repos instead of downloading pre-built tarball
+- `--dataset-url <url>` — Override download URL
+- `--extract-only` — Run data extractors only
+- `--buckets-only` — Organize data into buckets only
+- `--attribute-only` — Add source/license attribution only
+- `--clone-only` — Clone upstream repos only
+
+**Examples**
+```bash
+# Default: download pre-built dataset
+attacklm init --yes
+
+# Build from source (clone repos, extract, attribute, bucket)
+attacklm init --from-source
+
+# Re-extract only (after updating extractors)
+attacklm init --extract-only
+```
+
+---
+
+### 3. `attacklm balance` — Subset Generation
+Builds balanced training subsets to prevent overfitting to high-volume sources.
+
+**Flags**
+- `--profile <name>` — Hardware profile (`3b-16gb`, `7b-16gb`, `7b-24gb`, `7b-128gb`, `custom`)
+- `--preset <name>` — Team preset (`red-team`, `blue-team`, `purple-team`)
+- `--target-total <n>` — Target total pairs (for `custom` profile)
+- `--strategy <name>` — Sampling strategy (`head` for highest quality first, `random`)
+- `--dry-run` — Preview balancing without writing files
+
+**Examples**
+```bash
+# Red-team preset for 7B on 16GB
+attacklm balance --profile 7b-16gb --preset red-team
+
+# Custom: 12,000 pairs, head strategy
+attacklm balance --profile custom --target-total 12000 --strategy head
+
+# Preview without writing
+attacklm balance --profile 7b-16gb --dry-run
+```
+
+---
+
+### 4. `attacklm build` — Model Deployment
+Pipeline to merge adapters and export for local LLM runtimes.
+
+**Flags**
+- `--merge-only` — Merge LoRA adapter into base model only
+- `--gguf-only` — Convert to GGUF format only
+- `--register-ollama` — Register with local Ollama instance
+- `--adapter <path>` — Path to trained adapter directory
+- `--name <name>` — Output model name
+- `--quant <type>` — Quantization: `q4_k_m`, `q5_k_m`, `q8_0`, `f16`
+
+**Examples**
+```bash
+# Full build pipeline: Merge $\rightarrow$ GGUF $\rightarrow$ Ollama
+attacklm build -- --adapter models/attacklm-single_TIMESTAMP --name attacklm-security
+
+# Merge only
+attacklm build --merge-only -- --adapter models/attacklm-single_TIMESTAMP
+
+# GGUF only
+attacklm build --gguf-only -- --adapter models/attacklm-single_TIMESTAMP --quant q4_k_m
+```
+
+---
+
+### 5. `attacklm infer` — Inference & Smoke Testing
+Test trained models against representative security prompts.
+
+**Flags**
+- `--adapter <path>` — Path to trained adapter
+- `--base-model <model>` — Base model (default: `Qwen2.5-Coder-3B`)
+- `--prompt <text>` — Single prompt to test
+- `--prompts-file <path>` — JSONL file of prompts
+- `--max-new-tokens <n>` — Max tokens to generate
+- `--temperature <n>` — Sampling temperature
+
+**Examples**
+```bash
+# Single prompt
+attacklm infer -- --adapter models/attacklm-single_TIMESTAMP --prompt "How do I perform T1059.001?"
+
+# Batch from file
+attacklm infer -- --adapter models/attacklm-single_TIMESTAMP --prompts-file prompts.jsonl
+```
+
+---
+
+### 6. `attacklm eval` — Evaluation Suite
+Run retention evaluation and regression gates.
+
+**Flags**
+- `--collect-ref` — Generate reference continuations from base model
+- `--score` — Score candidate models against references
+- `--compare` — Compare two score TSV files
+- `--golden` — Golden vector generation/validation
+- `--adapter <path>` — Path to trained adapter
+- `--base-model <model>` — Base model for reference collection
+
+**Examples**
+```bash
+# Full retention evaluation
+attacklm eval -- --adapter models/attacklm-single_TIMESTAMP
+
+# Collect reference outputs
+attacklm eval --collect-ref -- --base-model Qwen/Qwen2.5-Coder-3B-Instruct
+
+# Score a candidate
+attacklm eval --score -- --adapter models/attacklm-single_TIMESTAMP
+```
+
+---
+
+### 7. `attacklm gui` — Terminal Interface
+Launch the professional Textual-based TUI. Requires `pip install attacklm-gui`.
+
+```bash
+attacklm gui
+```
+
+### 8. `attacklm demo` — Orchestrator Demo
+Run a demonstration of the AttackLM multi-agent orchestrator.
+
+```bash
+attacklm demo
+```
+
 
 ---
 
