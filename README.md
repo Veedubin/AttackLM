@@ -100,7 +100,13 @@ By default, AttackLM leverages PyTorch's built-in `torch.backends.cuda.enable_me
 - **Zero-Config Setup**: One-shot `init` command that handles dataset retrieval, extraction, and bucket organization.
 - **Anti-Bias Balancing**: Integrated balancing engine to ensure the model learns diverse tactics rather than just the most voluminous sources.
 - **Provenance Tracking**: Strict per-source attribution and license tracking for every record in the dataset.
-- **Terminal GUI**: A professional Textual-based TUI for managing training runs without memorizing 40+ CLI flags.
+- **Terminal GUI**: A professional Textual-based TUI that eliminates the need to memorize 40+ CLI flags. Features include:
+  - **Tabbed Training Form** — 40+ parameters organized across Basic, LoRA, GaLore, Advanced, and Hardware tabs
+  - **Live Training Monitor** — Real-time loss sparkline, VRAM gauge, token throughput, and scrolling log output
+  - **Built-in Presets** — One-click configurations for 3B/7B models (Q-GaLore Spectrum, QLoRA, etc.)
+  - **One-Click Commands** — Init, Balance, Infer, Build, and Eval all accessible from the main menu
+  - **Pause/Resume Controls** — SIGSTOP/SIGCONT the training process without losing progress
+  - **Zero Dependencies** — No X11, no GPU, no browser required. Works over SSH, WSL, and headless servers.
 - **Deployment Ready**: Built-in merge and conversion pipeline to export adapters to GGUF format for LM Studio or Ollama.
 - **Rock-Solid Stability**: 26/26 core tests passing.
 
@@ -151,9 +157,51 @@ Perform a smoke-test of the trained model against representative security prompt
 attacklm infer -- --adapter models/attacklm-single_TIMESTAMP
 ```
 
-### Specialized Tools
+### Terminal GUI
+
+`attacklm gui`
+
+Launch the Textual-based Terminal GUI for an interactive training experience. No memorizing 40+ CLI flags.
+
+```bash
+attacklm gui
+```
+
+The GUI provides:
+
+| Screen | What it does |
+|--------|-------------|
+| **Train** | Tabbed form (Basic, LoRA, GaLore, Advanced, Hardware) with 5 built-in presets |
+| **Init** | One-click dataset initialization (download, extract, organize) |
+| **Balance** | Build balanced training subsets with configurable caps |
+| **Inference** | Smoke-test trained models against security prompts |
+| **Build** | Merge adapter → GGUF conversion → install to LM Studio/Ollama |
+| **Eval** | Retention evaluation, reference collection, scoring, comparison |
+
+**Live Training Monitor** — Once training starts, you get a real-time dashboard:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Training: attacklm-3b-qgalore-spectrum             │
+│  Epoch 12/30  |  Step 1896  |  Elapsed: 1h 23m     │
+├──────────────────────┬──────────────────────────────┤
+│  Loss: 1.1143 ▂▃▅▆▇  │  VRAM: 5.9/15.6 GB (62%)   │
+│  Eval Loss: 1.176    │  alloc: 5.9  cache: 4.8     │
+│  Trend: ↓ -0.0116    │  ████████░░░░               │
+├──────────────────────┴──────────────────────────────┤
+│  [P]ause  [S]top at checkpoint  [Q]uit              │
+└─────────────────────────────────────────────────────┘
+```
+
+**Built-in Presets:**
+- `3B Q-GaLore Spectrum` — Full-parameter training on 16GB GPU
+- `3B Q-GaLore Rank 128` — Higher quality variant
+- `3B LoRA Default` — Standard QLoRA
+- `7B Q-GaLore` — For 24GB GPUs
+- `7B QLoRA Default` — Standard QLoRA for 7B
+
+### Other Tools
 - `attacklm eval`: Run the retention evaluation suite and score candidate models.
-- `attacklm gui`: Launch the Terminal GUI for an interactive training experience.
 - `attacklm demo`: Run the multi-agent orchestrator demo.
 
 ---
