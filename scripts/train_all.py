@@ -446,6 +446,10 @@ def build_train_cmd(
     replay_comp_env = getattr(args, "_replay_composition_json", None)
     if replay_comp_env:
         os.environ["ATTACKLM_REPLAY_COMPOSITION"] = replay_comp_env
+    # v0.4.0+: Pass evolved composition info to train_template.py for state.json.
+    evolved_comp_env = getattr(args, "_evolved_composition_json", None)
+    if evolved_comp_env:
+        os.environ["ATTACKLM_EVOLVED_COMPOSITION"] = evolved_comp_env
     # Resume: only if user asked AND there's actually a checkpoint to resume
     if args.resume_from_checkpoint and output_path.exists():
         if any(
@@ -828,6 +832,23 @@ def main():
         default=None,
         help='JSON dict of domain weights, e.g. \'{"code":0.3,"conversation":0.25}\'',
     )
+    # ---- Evolved pair mixing ----
+    parser.add_argument(
+        "--evolved-ratio",
+        type=float,
+        default=0.0,
+        help="Fraction of training pairs to draw from evolved datasets (0.0-1.0). "
+        "Evolved pairs are longer, more complex versions of base training data "
+        "produced by evolve_pairs.py and validated by filter_evolved.py. "
+        "Default: 0.0 (no evolved pairs). Recommended: 0.2-0.4.",
+    )
+    parser.add_argument(
+        "--evolved-dir",
+        type=str,
+        default="data/datasets/evolved",
+        help="Directory containing evolved JSONL files (*_filtered.jsonl). "
+        "Default: data/datasets/evolved",
+    )
     # ---- Curriculum ----
     parser.add_argument(
         "--curriculum",
@@ -931,6 +952,9 @@ def main():
     out(f"  Skip completed:{args.skip_completed}")
     out(f"  Resume:        {args.resume_from_checkpoint}")
     out(f"  Curriculum:    {args.curriculum}")
+    out(f"  Evolved ratio: {args.evolved_ratio}  (0.0 = no evolved pairs)")
+    if args.evolved_ratio > 0:
+        out(f"  Evolved dir:   {args.evolved_dir}")
     out(f"  Log file:      {log_path}")
     out(f"  Models:        {len(MODELS)} total")
     out("")
@@ -1223,6 +1247,47 @@ def main():
                 out("  Continuing without replay mixing")
                 out("")
 
+        # ---- Evolved pair mixer ----
+        # If evolved-ratio is configured, mix evolved pairs into the combined
+        # dataset before training. The mixer produces a new cached JSONL
+        # and returns its path + a composition dict.
+        evolved_composition = None
+        if args.evolved_ratio > 0:
+            from evolved_mixer import mix_evolved as _mix_evolved
+
+            evolved_dir = Path(args.evolved_dir)
+            if not evolved_dir.is_absolute():
+                evolved_dir = BASE_DIR / evolved_dir
+
+            if evolved_dir.is_dir():
+                combined_path, evolved_composition = _mix_evolved(
+                    target_path=combined_path,
+                    evolved_dir=evolved_dir,
+                    ratio=args.evolved_ratio,
+                    seed=42,
+                )
+                out("")
+                out(
+                    f"  Evolved: {evolved_composition['evolved_examples']:,} examples "
+                    f"({evolved_composition['evolved_ratio']:.1%} of target)"
+                )
+                out(f"    Sources: {evolved_composition['evolved_sources']}")
+                out(f"  Combined + evolved: {combined_path}")
+                out("")
+                # Include evolved config in the cache key
+                flags_used["evolved"] = {
+                    "dir": str(evolved_dir),
+                    "ratio": args.evolved_ratio,
+                }
+                # Stash composition for train_template.py state.json
+                args._evolved_composition_json = json.dumps(evolved_composition)
+            else:
+                out(
+                    f"  WARNING: --evolved-dir '{evolved_dir}' does not exist; "
+                    "continuing without evolved pairs"
+                )
+                out("")
+
         # ============================
         # HPO MODE: coordinate-descent sweep
         # ============================
@@ -1343,6 +1408,31 @@ def main():
                     f"({replay_comp['replay_ratio']:.1%} of target)"
                 )
                 args._replay_composition_json = json.dumps(replay_comp)
+        # ---- Evolved pair mixer (per-bucket path) ----
+        if args.evolved_ratio > 0:
+            from evolved_mixer import mix_evolved as _mix_evolved
+
+            evolved_dir = Path(args.evolved_dir)
+            if not evolved_dir.is_absolute():
+                evolved_dir = BASE_DIR / evolved_dir
+
+            if evolved_dir.is_dir():
+                dataset_path, evolved_comp = _mix_evolved(
+                    target_path=dataset_path,
+                    evolved_dir=evolved_dir,
+                    ratio=args.evolved_ratio,
+                    seed=42,
+                )
+                out(
+                    f"  Evolved: {evolved_comp['evolved_examples']:,} examples "
+                    f"({evolved_comp['evolved_ratio']:.1%} of target)"
+                )
+                args._evolved_composition_json = json.dumps(evolved_comp)
+            else:
+                out(
+                    f"  WARNING: --evolved-dir '{evolved_dir}' does not exist; "
+                    "skipping evolved mixing"
+                )
         # v0.1.6: per-run timestamped output dir (no clobbering, easy rollback)
         output_path = _make_timestamped_output_dir(agent_name)
 

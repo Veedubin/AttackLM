@@ -509,6 +509,28 @@ Examples:
         ),
     )
 
+    # ---- Evolved pair mixing ----
+    parser.add_argument(
+        "--evolved-ratio",
+        type=float,
+        default=0.0,
+        help=(
+            "Fraction of training pairs to draw from evolved datasets (0.0-1.0). "
+            "Evolved pairs are longer, more complex versions of base training data "
+            "produced by evolve_pairs.py and validated by filter_evolved.py. "
+            "Default: 0.0 (no evolved pairs)."
+        ),
+    )
+    parser.add_argument(
+        "--evolved-dir",
+        type=str,
+        default="data/datasets/evolved",
+        help=(
+            "Directory containing evolved JSONL files (*_filtered.jsonl). "
+            "Default: data/datasets/evolved"
+        ),
+    )
+
     return parser.parse_args()
 
 
@@ -1894,6 +1916,61 @@ def main() -> None:
         console.print(f"[red]ERROR:[/red] Failed to load dataset: {e}")
         sys.exit(1)
 
+    # --- Evolved pair mixing ---
+    # If --evolved-ratio > 0, discover and mix evolved pairs into the dataset.
+    # This follows the same pattern as replay mixing in train_all.py.
+    evolved_composition = None
+    if args.evolved_ratio > 0:
+        from pathlib import Path as _P
+
+        from evolved_mixer import mix_evolved as _mix_evolved
+
+        evolved_dir = _P(args.evolved_dir)
+        if not evolved_dir.is_absolute():
+            # Resolve relative to the project root (parent of scripts/)
+            evolved_dir = _P(__file__).resolve().parent.parent / evolved_dir
+
+        if evolved_dir.is_dir():
+            # Write the current dataset to a temporary JSONL so mix_evolved can
+            # read it. mix_evolved works with file paths, not HF Dataset objects.
+            import tempfile
+
+            pre_evolved_path = _P(args.dataset)
+            combined_path, evolved_composition = _mix_evolved(
+                target_path=pre_evolved_path,
+                evolved_dir=evolved_dir,
+                ratio=args.evolved_ratio,
+                seed=42,
+            )
+            # If the mixer produced a new file (cache miss), reload dataset
+            if combined_path != pre_evolved_path:
+                console.print(
+                    f"  [green]✓[/green] Evolved pairs mixed: "
+                    f"{evolved_composition['evolved_examples']:,} evolved + "
+                    f"{evolved_composition['target_examples']:,} target = "
+                    f"{evolved_composition['evolved_examples'] + evolved_composition['target_examples']:,} total "
+                    f"({evolved_composition['evolved_ratio']:.1%} evolved)"
+                )
+                console.print(f"    Sources: {evolved_composition['evolved_sources']}")
+                console.print(f"    Dataset: {combined_path}")
+                # Reload the combined dataset
+                try:
+                    dataset = load_dataset(
+                        "json", data_files=str(combined_path), split="train"
+                    )
+                except Exception as e:
+                    console.print(
+                        f"[yellow]WARNING:[/yellow] Failed to reload evolved+target dataset: {e}"
+                    )
+                    console.print(
+                        "  Continuing with original dataset (no evolved pairs)"
+                    )
+        else:
+            console.print(
+                f"[yellow]WARNING:[/yellow] --evolved-dir '{evolved_dir}' does not exist; "
+                "continuing without evolved pairs"
+            )
+
     # --- Auto-detect assistant-only loss support ---
     # OOM fix #12 (bonus, not memory related): auto-detect whether the
     # tokenizer's chat template has {% generation %} blocks. If it does,
@@ -2039,6 +2116,9 @@ def main() -> None:
     _plan.add_row("Resume checkpoint", str(args.resume_from_checkpoint))
     _plan.add_row("Optimizer", args.optim)
     _plan.add_row("Packing", f"{args.packing}  (--packing/--no-packing)")
+    if args.evolved_ratio > 0:
+        _plan.add_row("Evolved ratio", f"{args.evolved_ratio:.1%}")
+        _plan.add_row("Evolved dir", args.evolved_dir)
     console.print(_plan)
     console.print()
 
@@ -2125,6 +2205,14 @@ def main() -> None:
     replay_composition = (
         json.loads(env_replay_composition) if env_replay_composition else None
     )
+    # v0.4.0+: evolved pair composition for reproducibility in state.json
+    env_evolved_composition = os.environ.get("ATTACKLM_EVOLVED_COMPOSITION", "")
+    evolved_composition_from_env = (
+        json.loads(env_evolved_composition) if env_evolved_composition else None
+    )
+    # Prefer the in-process composition (from direct --evolved-ratio invocation)
+    # over the env var (from train_all.py delegation)
+    final_evolved_composition = evolved_composition or evolved_composition_from_env
     dataset_info = {
         "source": getattr(args, "dataset_source", "file"),
         "path": args.dataset,
@@ -2134,6 +2222,7 @@ def main() -> None:
         "include_ai": getattr(args, "include_ai", None),
         "replay_sources": replay_sources_list,
         "replay_composition": replay_composition,
+        "evolved_composition": final_evolved_composition,
         "examples_total": len(dataset),
         "examples_train": len(locals().get("train_dataset", [])),
         "examples_eval": len(locals().get("eval_dataset", [])),
