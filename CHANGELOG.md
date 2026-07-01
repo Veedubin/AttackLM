@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.9.0] — 2026-07-01 — Memory optimization: DeepSpeed, torch.compile, LOMO
+
+### Added
+- **DeepSpeed ZeRO integration**: Train models 3-5x larger than GPU VRAM using system RAM
+  - `--use-deepspeed` flag with auto-generated ZeRO-3 + CPU offload config
+  - `--deepspeed-stage {1,2,3}` for ZeRO stage selection
+  - `--deepspeed-config` for custom JSON configs
+  - `--no-deepspeed-offload` for GPU-only ZeRO
+  - Pre-built config templates in `presets/deepspeed/` (zero3_cpu_offload, zero3_gpu_only, zero2_cpu_offload)
+- **torch.compile**: `--compile` flag for 20-40% training speedup and 10-20% memory reduction
+  - `--compile-mode {default,reduce-overhead,max-autotune}` for tuning
+- **LOMO optimizer**: `--use-lomo` for full-parameter fine-tuning of 7B models on 8GB GPUs
+- **GUI updated**: Hardware tab now exposes DeepSpeed, torch.compile, and LOMO controls
+- **train_all.py**: All new flags forwarded for multi-bucket training
+
+### Changed
+- **Tagline updated**: Now lists DeepSpeed alongside QLoRA, GaLore, Q-GaLore, Spectrum, PiSSA
+- **README**: Added DeepSpeed configuration section with hardware reference table, new workflows, and CLI flag documentation
+
+---
+
 ## [0.8.5] — 2026-07-01 — Comprehensive CLI documentation
 
 ### Changed

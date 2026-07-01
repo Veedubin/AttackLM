@@ -70,6 +70,12 @@ class TrainFormScreen(Screen):
         text-style: italic;
     }
 
+    .section-header {
+        text-style: bold;
+        color: $accent;
+        padding: 1 0 0 0;
+    }
+
     #button-row {
         dock: bottom;
         height: 3;
@@ -107,6 +113,7 @@ class TrainFormScreen(Screen):
                             "3B LoRA Default",
                             "7B Q-GaLore",
                             "7B QLoRA Default",
+                            "DeepSpeed 40B+",
                         ]
                     ],
                     id="preset-select",
@@ -225,6 +232,50 @@ class TrainFormScreen(Screen):
                     yield self._checkbox_row("Auto-Tune", "auto_tune")
                     yield self._checkbox_row("No Timestamp", "no_timestamp")
 
+                    yield Static(
+                        "DeepSpeed ZeRO Optimization", classes="section-header"
+                    )
+                    yield self._checkbox_row("Enable DeepSpeed ZeRO", "use_deepspeed")
+                    yield Horizontal(
+                        Label("ZeRO Stage:", classes="form-label"),
+                        Select(
+                            [
+                                (1, "ZeRO-1 (optimizer states)"),
+                                (2, "ZeRO-2 (optimizer + gradients)"),
+                                (3, "ZeRO-3 (params + grads + optimizer)"),
+                            ],
+                            id="deepspeed_stage",
+                            value=3,
+                        ),
+                        classes="form-row",
+                    )
+                    yield self._checkbox_row(
+                        "CPU Offload (use system RAM)",
+                        "deepspeed_offload",
+                        default=True,
+                    )
+
+                    yield Static("PyTorch Compilation", classes="section-header")
+                    yield self._checkbox_row("Enable torch.compile", "compile")
+                    yield Horizontal(
+                        Label("Compile Mode:", classes="form-label"),
+                        Select(
+                            [
+                                ("default", "default"),
+                                ("reduce-overhead", "reduce-overhead"),
+                                ("max-autotune", "max-autotune"),
+                            ],
+                            id="compile_mode",
+                            value="reduce-overhead",
+                        ),
+                        classes="form-row",
+                    )
+
+                    yield Static("LOMO Optimizer", classes="section-header")
+                    yield self._checkbox_row(
+                        "Enable LOMO (full-param, low VRAM)", "use_lomo"
+                    )
+
             with Horizontal(id="button-row"):
                 yield Button("Dry Run", id="btn-dry-run", variant="default")
                 yield Button("Start Training", id="btn-start", variant="primary")
@@ -261,9 +312,10 @@ class TrainFormScreen(Screen):
         for widget in self.query("Checkbox"):
             if widget.id:
                 values[widget.id] = widget.value
-        select = self.query_one("#precision", Select)
-        if select.value:
-            values["precision"] = select.value
+        for select_id in ("precision", "deepspeed_stage", "compile_mode"):
+            select = self.query_one(f"#{select_id}", Select)
+            if select.value is not None:
+                values[select_id] = select.value
         return values
 
     def _build_command(self, values: dict) -> list[str]:
@@ -355,6 +407,24 @@ class TrainFormScreen(Screen):
         if values.get("no_timestamp"):
             cmd.append("--no-timestamp")
 
+        # DeepSpeed
+        if values.get("use_deepspeed"):
+            cmd.append("--use-deepspeed")
+            cmd.extend(["--deepspeed-stage", str(values.get("deepspeed_stage", 3))])
+            if not values.get("deepspeed_offload", True):
+                cmd.append("--no-deepspeed-offload")
+
+        # torch.compile
+        if values.get("compile"):
+            cmd.append("--compile")
+            cmd.extend(
+                ["--compile-mode", str(values.get("compile_mode", "reduce-overhead"))]
+            )
+
+        # LOMO
+        if values.get("use_lomo"):
+            cmd.append("--use-lomo")
+
         # Training mode
         if values.get("train"):
             cmd.append("--train")
@@ -418,7 +488,14 @@ class TrainFormScreen(Screen):
             "use_rslora": "use_rslora",
             "packing": "packing",
             "live_lr": "live_lr",
-            "spectrum": "spectrum",
+            "use_deepspeed": "use_deepspeed",
+            "deepspeed_offload": "deepspeed_offload",
+            "compile": "compile",
+            "use_lomo": "use_lomo",
+        }
+        select_map = {
+            "deepspeed_stage": "deepspeed_stage",
+            "compile_mode": "compile_mode",
         }
 
         for param_key, widget_id in field_map.items():
@@ -430,6 +507,11 @@ class TrainFormScreen(Screen):
             if param_key in params:
                 widget = self.query_one(f"#{widget_id}", Checkbox)
                 widget.value = bool(params[param_key])
+
+        for param_key, widget_id in select_map.items():
+            if param_key in params:
+                widget = self.query_one(f"#{widget_id}", Select)
+                widget.value = params[param_key]
 
         # Spectrum is special - it's a float but stored as string in input
         if "spectrum" in params:

@@ -159,6 +159,23 @@ BUILTIN_PRESETS: list[Preset] = [
             "optim": "paged_adamw_8bit",
         },
     ),
+    Preset(
+        name="DeepSpeed 40B+",
+        description="DeepSpeed ZeRO-3 with CPU offload and torch.compile for 40B+ models",
+        params={
+            "use_deepspeed": True,
+            "deepspeed_stage": 3,
+            "deepspeed_offload": True,
+            "compile": True,
+            "compile_mode": "reduce-overhead",
+            "epochs": 10,
+            "batch_size": 1,
+            "max_length": 4096,
+            "packing": True,
+            "early_stop_steps": 5,
+            "optim": "adamw_torch",
+        },
+    ),
 ]
 
 
