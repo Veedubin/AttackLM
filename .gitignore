@@ -129,6 +129,9 @@ dmypy.json
 notes.md
 HANDOFF.md
 TASKS.md
+REPLAY_PLAN.md
+QA_BEFORE_RELEASES.md
+notes/
 
 # ============================================================================
 # GENERATED / REGENERABLE DATA — excluded (users generate these themselves)
