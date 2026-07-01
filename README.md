@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
 
-**A high-performance QLoRA fine-tuning pipeline for creating MITRE ATT&CK-grounded security AI assistants.**
+**A high-performance fine-tuning pipeline (QLoRA, GaLore, Q-GaLore, Spectrum, PiSSA) for creating MITRE ATT&CK-grounded security AI assistants.**
 
 ---
 
