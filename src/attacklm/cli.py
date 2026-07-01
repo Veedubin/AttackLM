@@ -125,8 +125,13 @@ def _cmd_init(args: argparse.Namespace) -> int:
         return _run_python_script("reorganize_buckets.py", extra_args)
     if args.attribute_only:
         return _run_python_script("augment_attribution.py", args.argv)
-    # Default: full init pipeline
-    return _run_python_script("init_pipeline.py", args.argv)
+    # Default: full init pipeline — forward --from-source / --dataset-url
+    forwarded = list(args.argv)
+    if args.from_source:
+        forwarded.append("--from-source")
+    if args.dataset_url:
+        forwarded.extend(["--dataset-url", args.dataset_url])
+    return _run_python_script("init_pipeline.py", forwarded)
 
 
 def _cmd_balance(args: argparse.Namespace) -> int:
@@ -248,10 +253,13 @@ def build_parser() -> argparse.ArgumentParser:
         "init",
         help="Initialize dataset (clone, extract, attribute, bucket)",
         description=(
-            "One-shot dataset initialization: clone → extract → attribute → buckets.\n"
-            "Use flags to run individual steps only."
+            "Initialize dataset. Default: download pre-built dataset from GitHub releases.\n"
+            "Use --from-source to build from upstream git repos instead.\n"
+            "Use --extract-only/--buckets-only/etc. for partial steps."
         ),
     )
+    # Partial-step flags (mutually exclusive with each other, but NOT
+    # with --from-source/--dataset-url which control the data source).
     init_group = init_p.add_mutually_exclusive_group()
     init_group.add_argument(
         "--extract-only",
@@ -276,6 +284,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help="Clone upstream data repos only (replaces attacklm-clone)",
+    )
+    # Data-source flags (mutually exclusive: build from source vs download tarball).
+    init_source_group = init_p.add_mutually_exclusive_group()
+    init_source_group.add_argument(
+        "--from-source",
+        action="store_true",
+        default=False,
+        help="Build dataset from upstream git repos (clone + extract) instead of downloading pre-built tarball",
+    )
+    init_source_group.add_argument(
+        "--dataset-url",
+        type=str,
+        default=None,
+        help="Override the dataset download URL (default: GitHub latest release)",
     )
     init_p.add_argument(
         "argv",

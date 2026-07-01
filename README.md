@@ -28,26 +28,53 @@ The CLI still works exactly as before. The GUI is a thin wrapper that constructs
 
 ---
 
+## Quickstart
+
+```bash
+# 1. Install
+uv pip install attacklm[all]
+
+# 2. Initialize dataset (downloads pre-built dataset from GitHub releases)
+attacklm init --yes
+
+# 3. Balance the dataset
+attacklm balance
+
+# 4. Train!
+attacklm train -- --dataset data/datasets/balanced/train.jsonl --epochs 10 --train
+```
+
+That's it. No git clone, no manual extraction, no repo setup. The dataset
+(~50 MB, 18 sources, ~24K records) is downloaded automatically.
+
+### For developers: build from source
+
+```bash
+attacklm init --from-source --yes
+```
+
+This clones upstream repos and runs extractors locally (requires git, ~10 min).
+
+---
+
 ## Install
 The recommended way to install the full CUDA training stack:
 
 ```bash
-pip install attacklm[all]
+uv pip install attacklm[all]
 ```
 
-*Alternative:* Use `uv pip install "attacklm[all]"` for faster installation.
 *Note:* `flash-attn` is optional and not included by default to avoid heavy compilation requirements.
 
 ---
 
 ## Init
-Initialize the dataset by cloning upstream repositories, extracting data, adding attribution, and organizing into buckets:
+Initialize the dataset. By default, this downloads a pre-built dataset from GitHub releases for instant start. Use the `--from-source` flag to clone upstream repositories and extract data locally.
 
 ```bash
-attacklm-init --yes
+attacklm init --yes
 ```
 
----
 
 ## Balance (Optional)
 Because Metasploit accounts for ~64% of the raw data, balancing is recommended to prevent overfitting and ensure broad tactical coverage.
@@ -181,7 +208,7 @@ This layout allows the pipeline to deterministically extract data from upstream 
 | `attacklm train` | Train a model (QLoRA, GaLore, Q-GaLore, Spectrum, PiSSA) |
 | `attacklm train --dataset all` | Train all buckets (replaces `attacklm-train-all`) |
 | `attacklm train --hpo` | Run HPO sweep (replaces `attacklm-hpo`) |
-| `attacklm init` | One-shot init: clone → extract → attribute → buckets |
+| `attacklm init` | One-shot init: download pre-built dataset (default) or clone → extract → attribute → buckets (`--from-source`, `--dataset-url`) |
 | `attacklm init --extract-only` | Extract data only (replaces `attacklm-extract`) |
 | `attacklm init --buckets-only` | Organize into buckets only (replaces `attacklm-buckets`) |
 | `attacklm init --attribute-only` | Add attribution only (replaces `attacklm-attribute`) |

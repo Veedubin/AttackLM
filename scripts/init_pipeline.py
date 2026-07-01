@@ -1,91 +1,60 @@
 #!/usr/bin/env python3
 """init_pipeline.py — One-shot AttackLM dataset initialization.
 
-Replaces the four-step manual sequence::
+**Default behavior (no flags):** Download the pre-processed dataset tarball
+from GitHub Releases and extract it. This is the fastest way to get started.
 
-    attacklm-clone       # 4. Clone upstream data sources
-    attacklm-extract     # 5. Extract training data
-    attacklm-attribute   # 6. Augment with attribution
-    attacklm-buckets     # 7. Organize into MITRE/AI/tools buckets
-
-with a single command::
-
-    attacklm-init
-
-Behavior:
-  1. Probe the local ``data/`` tree for already-cloned upstream sources.
-  2. If every required source is present and non-empty → skip the clone
-     step entirely and go straight to extract → attribute → buckets.
-  3. If any source is missing → print a clear ``Need network access``
-     message and (after confirmation, or with ``--yes``) fall back to
-     ``git clone`` against the GitHub mirrors of each upstream repo.
-
-The orchestrator never re-downloads data the user already has. It is
-safe to re-run after a partial failure: each stage is skipped if its
-output already exists (unless ``--force`` is passed for that stage).
+**From-source mode (``--from-source``):** Rebuild the dataset from upstream
+repositories by cloning, extracting, attributing, and bucketing. This is for
+developers who want to modify the extraction pipeline or rebuild from scratch.
 
 Usage::
 
-    attacklm-init                       # interactive
-    attacklm-init --yes                 # auto-confirm network fallback
-    attacklm-init --dry-run             # show what would happen, do nothing
-    attacklm-init --skip-clone          # assume data is already on disk
-    attacklm-init --skip-attribute      # buckets have v0.3.0+ provenance already
-    attacklm-init --force-extract       # re-run extractors even if outputs exist
-    attacklm-init --clean-buckets       # run setup_buckets.py --clean at the end
+    attacklm-init                       # download pre-built dataset (default)
+    attacklm-init --from-source         # rebuild from upstream repos
+    attacklm-init --dataset-url URL      # download from a custom URL
+    attacklm-init --yes                  # auto-confirm prompts
+    attacklm-init --dry-run              # show what would happen, do nothing
+
+From-source flags (only apply with ``--from-source``)::
+
+    attacklm-init --from-source --skip-clone          # assume data on disk
+    attacklm-init --from-source --skip-attribute      # skip attribution
+    attacklm-init --from-source --skip-buckets         # skip bucketing
+    attacklm-init --from-source --force-clone          # re-clone repos
+    attacklm-init --from-source --force-extract        # re-run extractors
+    attacklm-init --from-source --clean-buckets        # clean old flat files
 
 Exit codes:
   0   success
   1   unexpected runtime error
-  2   user declined network fallback
-  3   network fallback attempted but every fetch strategy failed
+  2   user declined (network fallback or overwrite)
+  3   network error (download failed or all clone fetches failed)
   4   a local data source is missing AND ``--skip-clone`` was passed
-   5   missing Python dependencies (run ``pip install attacklm[all]``)
+  5   missing Python dependencies
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
+import tarfile
+import tempfile
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
-# --- Dependency check ----------------------------------------------------------
+# --- Default download URL ------------------------------------------------------
 
-
-class DependencyError(SystemExit):
-    """Raised when core ML dependencies are missing."""
-
-    def __init__(self, missing: list[str]) -> None:
-        self.missing = missing
-        super().__init__(5)
-
-
-def _check_dependencies() -> None:
-    """Verify that core ML dependencies are installed.
-
-    When installed from PyPI, the user may have only the base package
-    without training extras.  Print a clear message and raise
-    DependencyError if any required import is missing.
-    """
-    missing: list[str] = []
-    for mod in ("torch", "transformers", "peft"):
-        try:
-            __import__(mod)
-        except ImportError:
-            missing.append(mod)
-    if missing:
-        print(
-            "\n!!! Missing Python dependencies: " + ", ".join(missing) + "\n"
-            "    Run: pip install attacklm[all]\n"
-            "    and then re-run attacklm-init.\n",
-            file=sys.stderr,
-        )
-        raise DependencyError(missing)
-
+DEFAULT_DATASET_URL = (
+    "https://github.com/Veedubin/AttackLM/releases/latest/download/"
+    "attacklm-dataset.tar.gz"
+)
 
 # --- Paths --------------------------------------------------------------------
 #
@@ -102,6 +71,41 @@ else:
 
 DATA_DIR = BASE_DIR / "data"
 DATASETS_DIR = DATA_DIR / "datasets"
+SOURCES_DIR = DATASETS_DIR / "buckets" / "sources"
+MANIFEST_PATH = DATASETS_DIR / "buckets" / "manifest.json"
+
+
+# --- Dependency check ----------------------------------------------------------
+
+
+class DependencyError(SystemExit):
+    """Raised when required dependencies are missing."""
+
+    def __init__(self, missing: list[str]) -> None:
+        self.missing = missing
+        super().__init__(5)
+
+
+def _check_download_deps() -> None:
+    """Verify that dependencies needed for the download path are available.
+
+    The default (download) path only needs ``tqdm`` for the progress bar.
+    All other imports are from the stdlib.
+    """
+    missing: list[str] = []
+    try:
+        import tqdm  # noqa: F401
+    except ImportError:
+        missing.append("tqdm")
+    if missing:
+        print(
+            "\n!!! Missing Python dependencies: " + ", ".join(missing) + "\n"
+            "    Run: pip install attacklm[extract]\n"
+            "    and then re-run attacklm-init.\n",
+            file=sys.stderr,
+        )
+        raise DependencyError(missing)
+
 
 # --- Local-check probe --------------------------------------------------------
 #
@@ -277,6 +281,230 @@ def probe_local() -> list[LocalProbe]:
     ]
 
 
+# --- Download helpers ---------------------------------------------------------
+
+
+def _dataset_already_present() -> bool:
+    """Check if the pre-processed dataset is already on disk.
+
+    Returns True when ``data/datasets/buckets/sources/`` exists, contains
+    at least one subdirectory, AND ``manifest.json`` reports records.
+    """
+    if not SOURCES_DIR.is_dir():
+        return False
+    try:
+        subdirs = [d for d in SOURCES_DIR.iterdir() if d.is_dir()]
+        if not subdirs:
+            return False
+    except OSError:
+        return False
+    if MANIFEST_PATH.exists():
+        try:
+            with MANIFEST_PATH.open() as f:
+                data = json.load(f)
+            if data.get("total_records", 0) > 0:
+                return True
+        except (OSError, ValueError, json.JSONDecodeError):
+            pass
+    # Even without a valid manifest, having source dirs is a strong signal.
+    # Require at least a handful to avoid false positives from stray dirs.
+    return len(subdirs) >= 5
+
+
+def _download_with_progress(url: str, dest: Path) -> None:
+    """Download *url* to *dest* with a tqdm progress bar.
+
+    Raises SystemExit(3) on network errors or 404.
+    """
+    from tqdm import tqdm
+
+    tmp_dest = dest.with_suffix(dest.suffix + ".tmp")
+    try:
+        print(f"  Downloading: {url}", file=sys.stderr)
+        resp = urllib.request.urlopen(url)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            print(
+                "\n!!! Dataset tarball not found (HTTP 404).\n"
+                "    This usually means no release has been published yet.\n"
+                "    Try: attacklm-init --from-source\n",
+                file=sys.stderr,
+            )
+            sys.exit(3)
+        print(
+            f"\n!!! HTTP error {exc.code}: {exc.reason}\n"
+            "    Try: attacklm-init --from-source\n",
+            file=sys.stderr,
+        )
+        sys.exit(3)
+    except urllib.error.URLError as exc:
+        print(
+            f"\n!!! Network error: {exc.reason}\n"
+            "    Check your internet connection and try again.\n"
+            "    Fallback: attacklm-init --from-source\n",
+            file=sys.stderr,
+        )
+        sys.exit(3)
+    except OSError as exc:
+        print(
+            f"\n!!! Download failed: {exc}\n"
+            "    Fallback: attacklm-init --from-source\n",
+            file=sys.stderr,
+        )
+        sys.exit(3)
+
+    # Read Content-Length for the progress bar; fall back to unknown.
+    total_size = int(resp.headers.get("Content-Length", 0))
+
+    progress = tqdm(
+        total=total_size if total_size > 0 else None,
+        unit="B",
+        unit_scale=True,
+        unit_divisor=1024,
+        desc="  download",
+        file=sys.stderr,
+    )
+    try:
+        with tmp_dest.open("wb") as fh:
+            while True:
+                chunk = resp.read(64 * 1024)  # 64KB chunks
+                if not chunk:
+                    break
+                fh.write(chunk)
+                progress.update(len(chunk))
+    finally:
+        progress.close()
+        resp.close()
+
+    # Rename temp file to final destination atomically.
+    tmp_dest.replace(dest)
+
+
+def _extract_tarball(tarball: Path) -> None:
+    """Extract *tarball* to BASE_DIR.
+
+    The tarball is expected to produce ``data/datasets/buckets/sources/``
+    and ``data/datasets/buckets/manifest.json`` at the top level.
+    """
+    print(f"  Extracting: {tarball}", file=sys.stderr)
+    try:
+        with tarfile.open(tarball) as tf:
+            tf.extractall(path=BASE_DIR)
+    except (tarfile.TarError, OSError) as exc:
+        print(f"\n!!! Failed to extract tarball: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _verify_extraction() -> None:
+    """Verify that extraction produced the expected directory tree."""
+    if not SOURCES_DIR.is_dir():
+        print(
+            "\n!!! Extraction verification failed: "
+            f"{SOURCES_DIR.relative_to(BASE_DIR)} does not exist.\n"
+            "    The tarball may be corrupted or have an unexpected layout.\n"
+            "    Try: attacklm-init --from-source\n",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    subdirs = [d for d in SOURCES_DIR.iterdir() if d.is_dir()]
+    if not subdirs:
+        print(
+            f"\n!!! Extraction verification failed: {SOURCES_DIR.relative_to(BASE_DIR)} "
+            "is empty.\n"
+            "    The tarball may be corrupted.\n"
+            "    Try: attacklm-init --from-source\n",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    print(
+        f"  Verified: {len(subdirs)} source directories in "
+        f"{SOURCES_DIR.relative_to(BASE_DIR)}",
+        file=sys.stderr,
+    )
+
+
+def _count_sources_and_records() -> tuple[int, int]:
+    """Return (source_count, total_records) from the extracted dataset."""
+    source_count = 0
+    total_records = 0
+    try:
+        subdirs = [d for d in SOURCES_DIR.iterdir() if d.is_dir()]
+        source_count = len(subdirs)
+    except OSError:
+        pass
+    if MANIFEST_PATH.exists():
+        try:
+            with MANIFEST_PATH.open() as f:
+                data = json.load(f)
+            total_records = data.get("total_records", 0)
+        except (OSError, ValueError, json.JSONDecodeError):
+            pass
+    return source_count, total_records
+
+
+def download_dataset(url: str, assume_yes: bool, dry_run: bool) -> int:
+    """Download the pre-processed dataset tarball and extract it.
+
+    Returns exit code (0 = success).
+    """
+    # Check if dataset is already present.
+    if _dataset_already_present():
+        source_count, total_records = _count_sources_and_records()
+        print(
+            f"\n[download] Dataset already present: {source_count} sources, "
+            f"~{total_records:,} records. Nothing to do.\n"
+            "  Use --from-source to rebuild from upstream repos, or delete "
+            f"{SOURCES_DIR.relative_to(BASE_DIR)} to force re-download.",
+            file=sys.stderr,
+        )
+        return 0
+
+    if dry_run:
+        print(f"\n[dry-run] would download: {url}", file=sys.stderr)
+        print("[dry-run] would extract to CWD", file=sys.stderr)
+        print(
+            "[dry-run] would verify: data/datasets/buckets/sources/ exists",
+            file=sys.stderr,
+        )
+        return 0
+
+    # Confirm before downloading.
+    if not _confirm(
+        f"Download pre-processed dataset from:\n  {url}\n?",
+        assume_yes,
+    ):
+        print("  [abort] user declined download.", file=sys.stderr)
+        return 2
+
+    # Download.
+    tmp_dir = Path(tempfile.mkdtemp(prefix="attacklm-init-"))
+    tarball = tmp_dir / "attacklm-dataset.tar.gz"
+    try:
+        _download_with_progress(url, tarball)
+        _extract_tarball(tarball)
+        _verify_extraction()
+    finally:
+        # Clean up the downloaded tarball.
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    # Summary.
+    source_count, total_records = _count_sources_and_records()
+    if total_records > 0:
+        print(
+            f"\nDataset ready: {source_count} sources, ~{total_records:,} records",
+            file=sys.stderr,
+        )
+    else:
+        # Fall back to approximate label if manifest is missing.
+        print(
+            f"\nDataset ready: {source_count} sources, ~24K records",
+            file=sys.stderr,
+        )
+
+    _print_next_steps()
+    return 0
+
+
 # --- Stage runners ------------------------------------------------------------
 #
 # Each stage returns its process exit code (0 == success).  The wrapper
@@ -440,8 +668,6 @@ def _buckets_already_built() -> bool:
     if not manifest.exists():
         return False
     try:
-        import json
-
         with manifest.open() as f:
             data = json.load(f)
         return data.get("total_records", 0) > 0
@@ -463,52 +689,89 @@ def _confirm(msg: str, assume_yes: bool) -> bool:
     return reply in ("y", "yes")
 
 
+# --- Next steps ---------------------------------------------------------------
+
+
+def _print_next_steps() -> None:
+    print(
+        "\nNext steps:\n"
+        "  - attacklm-balance    # balance the per-tactic distributions\n"
+        "  - attacklm-train-all  # train all buckets\n"
+        "  - attacklm-build      # merge → GGUF → install\n",
+        file=sys.stderr,
+    )
+
+
 # --- Main entry point ---------------------------------------------------------
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="One-shot AttackLM dataset init: clone → extract → attribute → buckets."
+        description="One-shot AttackLM dataset initialization. "
+        "By default, downloads the pre-processed dataset tarball from "
+        "GitHub Releases. Use --from-source to rebuild from upstream repos."
     )
+    # Mode selection
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--from-source",
+        action="store_true",
+        dest="from_source",
+        help="Rebuild dataset from upstream repos (clone → extract → attribute → buckets). "
+        "This is the old default behavior, for developers who want to modify "
+        "the extraction pipeline.",
+    )
+    mode_group.add_argument(
+        "--dataset-url",
+        default=None,
+        metavar="URL",
+        help="Override the dataset tarball download URL (for mirrors/testing). "
+        "Mutually exclusive with --from-source.",
+    )
+
+    # General flags (apply to both modes)
     parser.add_argument(
         "--yes",
         action="store_true",
-        help="Auto-confirm network fallback (non-interactive).",
+        help="Auto-confirm prompts (non-interactive).",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Print the plan and exit. Does not clone, extract, or write.",
+        help="Print what would happen and exit. Does not download, clone, extract, or write.",
     )
+
+    # From-source flags (only meaningful with --from-source)
     parser.add_argument(
         "--skip-clone",
         action="store_true",
-        help="Assume data is already on disk; do not probe or fetch.",
+        help="[from-source] Assume data is already on disk; do not probe or fetch.",
     )
     parser.add_argument(
         "--skip-attribute",
         action="store_true",
-        help="Skip the attribution stage (buckets already have v0.3.0+ provenance).",
+        help="[from-source] Skip the attribution stage "
+        "(buckets already have v0.3.0+ provenance).",
     )
     parser.add_argument(
         "--skip-buckets",
         action="store_true",
-        help="Stop after extract+attribute; do not run setup_buckets.py.",
+        help="[from-source] Stop after extract+attribute; do not run setup_buckets.py.",
     )
     parser.add_argument(
         "--force-clone",
         action="store_true",
-        help="Re-clone even if a destination directory already exists.",
+        help="[from-source] Re-clone even if a destination directory already exists.",
     )
     parser.add_argument(
         "--force-extract",
         action="store_true",
-        help="Re-run extractors even if datasets dir already has outputs.",
+        help="[from-source] Re-run extractors even if datasets dir already has outputs.",
     )
     parser.add_argument(
         "--clean-buckets",
         action="store_true",
-        help="Pass --clean to setup_buckets.py to remove old flat files.",
+        help="[from-source] Pass --clean to setup_buckets.py to remove old flat files.",
     )
     args = parser.parse_args(argv)
 
@@ -516,8 +779,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("attacklm-init: one-shot dataset initialization", file=sys.stderr)
     print("=" * 72, file=sys.stderr)
 
-    # -- Stage 0a: dependency check --
-    _check_dependencies()
+    # ── Download mode (default) ─────────────────────────────────────────────
+    if not args.from_source:
+        # Determine URL.
+        url = args.dataset_url or DEFAULT_DATASET_URL
+        return download_dataset(url=url, assume_yes=args.yes, dry_run=args.dry_run)
+
+    # ── From-source mode ────────────────────────────────────────────────────
+    # Warn if from-source flags are used without --from-source (shouldn't
+    # happen due to the help text, but be defensive).
+    if args.dataset_url:
+        parser.error("--dataset-url and --from-source are mutually exclusive")
 
     # -- Stage 0: probe local data --
     need_clone = False
@@ -553,7 +825,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
 
     if args.dry_run:
-        plan = ["[dry-run] would run:"]
+        plan = ["[dry-run] would run (from-source mode):"]
         if need_clone:
             plan.append("  - stage 1: clone (network fallback)")
         else:
@@ -630,15 +902,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             return rc
 
     print("\n" + "=" * 72, file=sys.stderr)
-    print("attacklm-init: complete", file=sys.stderr)
+    print("attacklm-init: complete (from-source)", file=sys.stderr)
     print("=" * 72, file=sys.stderr)
-    print(
-        "\nNext steps:\n"
-        "  - attacklm-balance    # balance the per-tactic distributions\n"
-        "  - attacklm-train-all  # train all buckets\n"
-        "  - attacklm-build      # merge → GGUF → install\n",
-        file=sys.stderr,
-    )
+    _print_next_steps()
     return 0
 
 

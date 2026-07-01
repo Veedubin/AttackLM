@@ -179,7 +179,7 @@ infer = ["attacklm[infer-cuda]"]
 extract = [
     "pyyaml",
     "requests",
-    "gitpython",
+    "tqdm",
 ]
 convert = [
     "gguf",

@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.8.1] — 2026-06-30 — Zero-config dataset init
+
+### Added
+- **Zero-config init**: `attacklm init` now downloads a pre-built dataset tarball (~50 MB) from GitHub releases by default. No git clone, no extractors, no manual setup required.
+- **`--from-source` flag**: `attacklm init --from-source` preserves the old clone+extract pipeline for developers who want to rebuild from upstream repos.
+- **`--dataset-url` flag**: Override the download URL for mirrors or custom dataset hosting.
+- **`scripts/package_dataset.py`**: Maintainer tool to create the dataset tarball for GitHub releases.
+
+### Changed
+- **`attacklm init` default**: Downloads pre-built dataset instead of cloning repos. Two commands to ready: `uv pip install attacklm[all]` → `attacklm init --yes`.
+- **Dependencies**: Removed `gitpython` from extract deps (no longer needed for default init path). Added `tqdm` for download progress bars.
+
+### Fixed
+- **v0.8.0 tag**: Force-pushed tag replaced with proper v0.8.1 release (tag immutability rule enforced).
+
+---
+
 All notable changes to AttackLM are documented in this file. Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
