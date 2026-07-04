@@ -3194,7 +3194,7 @@ def main() -> None:
         # CUDA guarantees ABI compatibility within a major version (e.g. 13.0
         # and 13.3 are compatible), so we only skip the check when the major
         # versions match.  If they differ, we warn and let the user force it.
-        import os, re, subprocess
+        import re, subprocess
 
         _torch_cuda = getattr(torch.version, "cuda", None) or ""
         _sys_cuda = ""
