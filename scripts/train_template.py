@@ -565,6 +565,15 @@ Examples:
             "Takes precedence over --deepspeed-offload if both are set."
         ),
     )
+    parser.add_argument(
+        "--force-deepspeed-cuda",
+        action="store_true",
+        default=False,
+        help=(
+            "Skip DeepSpeed CUDA version check even when major versions differ. "
+            "Only use if you know your CUDA toolkit is ABI-compatible with PyTorch's CUDA."
+        ),
+    )
 
     # ---- torch.compile ----
     parser.add_argument(
@@ -3180,12 +3189,56 @@ def main() -> None:
     # With CPU offload, a 16GB GPU + 64GB RAM can train 40B+ parameter models.
     deepspeed_config_path = None
     if args.use_deepspeed:
-        # CUDA minor-version mismatch is common (e.g. torch compiled with
-        # CUDA 13.0, system has 13.3).  CUDA 13.x is ABI-compatible within
-        # the major version, so skipping the check is safe.
-        import os
+        # DeepSpeed compiles CUDA extensions at runtime and checks that the
+        # system CUDA version exactly matches what PyTorch was compiled with.
+        # CUDA guarantees ABI compatibility within a major version (e.g. 13.0
+        # and 13.3 are compatible), so we only skip the check when the major
+        # versions match.  If they differ, we warn and let the user force it.
+        import os, re, subprocess
 
-        os.environ.setdefault("DS_SKIP_CUDA_CHECK", "1")
+        _torch_cuda = getattr(torch.version, "cuda", None) or ""
+        _sys_cuda = ""
+        try:
+            _nvcc = subprocess.run(
+                ["nvcc", "--version"], capture_output=True, text=True, timeout=5
+            )
+            _m = re.search(r"release\s+(\d+\.\d+)", _nvcc.stdout)
+            if _m:
+                _sys_cuda = _m.group(1)
+        except Exception:
+            pass
+
+        if _torch_cuda and _sys_cuda:
+            _torch_major = _torch_cuda.split(".")[0]
+            _sys_major = _sys_cuda.split(".")[0]
+            if _torch_major == _sys_major:
+                os.environ.setdefault("DS_SKIP_CUDA_CHECK", "1")
+                console.print(
+                    f"  [dim]DeepSpeed:[/dim] CUDA {_sys_cuda} (system) ≈ "
+                    f"CUDA {_torch_cuda} (torch) — same major version, "
+                    f"skipping strict version check"
+                )
+            else:
+                console.print(
+                    f"[yellow]WARNING:[/yellow] System CUDA {_sys_cuda} != "
+                    f"torch CUDA {_torch_cuda} (different major versions). "
+                    f"DeepSpeed may fail to compile extensions."
+                )
+                console.print(
+                    "  If you know these are ABI-compatible, set "
+                    "DS_SKIP_CUDA_CHECK=1 in your environment."
+                )
+                console.print("  Or pass --force-deepspeed-cuda to skip the check.")
+                if not args.force_deepspeed_cuda:
+                    console.print(
+                        "[red]ERROR:[/red] Refusing to proceed with CUDA version "
+                        "mismatch. Use --force-deepspeed-cuda to override."
+                    )
+                    sys.exit(1)
+                os.environ["DS_SKIP_CUDA_CHECK"] = "1"
+        else:
+            # Can't detect versions — skip the check and hope for the best
+            os.environ.setdefault("DS_SKIP_CUDA_CHECK", "1")
 
         # Verify deepspeed package is installed
         try:
