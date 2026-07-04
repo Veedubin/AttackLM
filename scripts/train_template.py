@@ -3180,6 +3180,13 @@ def main() -> None:
     # With CPU offload, a 16GB GPU + 64GB RAM can train 40B+ parameter models.
     deepspeed_config_path = None
     if args.use_deepspeed:
+        # CUDA minor-version mismatch is common (e.g. torch compiled with
+        # CUDA 13.0, system has 13.3).  CUDA 13.x is ABI-compatible within
+        # the major version, so skipping the check is safe.
+        import os
+
+        os.environ.setdefault("DS_SKIP_CUDA_CHECK", "1")
+
         # Verify deepspeed package is installed
         try:
             import deepspeed  # noqa: F401
