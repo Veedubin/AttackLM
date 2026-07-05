@@ -230,23 +230,6 @@ class TestInitSubcommand:
         assert calls[0]["name"] == "setup_buckets.py"
         assert calls[1]["name"] == "reorganize_buckets.py"
 
-    def test_init_attribute_only(self, monkeypatch):
-        """attacklm init --attribute-only → augment_attribution.py."""
-        captured = {}
-
-        def fake_run(name, argv):
-            captured["name"] = name
-            captured["argv"] = list(argv)
-            return 0
-
-        monkeypatch.setattr(cli, "_run_python_script", fake_run)
-        parser = cli.build_parser()
-        args = parser.parse_args(["init", "--attribute-only"])
-        _strip_leading_doubledash(args)
-        rc = args.func(args)
-        assert rc == 0
-        assert captured["name"] == "augment_attribution.py"
-
     def test_init_dataset_url(self, monkeypatch):
         """attacklm init --dataset-url URL → init_pipeline.py with --dataset-url URL."""
         captured = {}

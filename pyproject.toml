@@ -157,7 +157,9 @@ rocm = [
 # or [train-cuda] — install them separately AFTER torch is in the environment:
 #   uv pip install attacklm[all]
 #   uv pip install attacklm[flash-attn]
-cuda-extras = []
+cuda-extras = [
+    "transformer-engine>=1.0",  # FP8 training on H100/Blackwell (optional)
+]
 flash-attn = [
     "flash-attn>=2.7",                # requires CUDA dev tools to build
     "causal-conv1d>=1.4",             # CUDA-only
@@ -173,6 +175,9 @@ train-cuda = ["attacklm[train-base,cuda,cuda-extras]"]
 train-rocm = ["attacklm[train-base,rocm,rocm-extras]"]
 infer-cuda = ["attacklm[infer-base,cuda]"]
 infer-rocm = ["attacklm[infer-base,rocm]"]
+# FP8 training alias: installs transformer-engine for H100/Blackwell GPUs.
+# Use: pip install attacklm[train-base,cuda,fp8]
+fp8 = ["attacklm[cuda-extras]"]
 
 # Legacy aliases — keep working so older `pip install attacklm[all]`
 # commands don't break. `all` now defaults to the CUDA stack.
