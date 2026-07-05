@@ -209,6 +209,7 @@ dev = [
     "mypy",
     "ipython",
     "scipy>=1.11",  # needed for eval tests (Spearman correlation)
+    "rich",          # needed by train_template.py (imported in tests)
 ]
 eval = [
     "scipy>=1.11",  # for Spearman correlation in golden_vectors.py
