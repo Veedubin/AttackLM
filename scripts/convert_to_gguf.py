@@ -30,39 +30,54 @@ GGUF_DIR = BASE_DIR / "models" / "gguf"
 
 
 def find_llama_bin(name: str) -> Path:
-    """Find a llama.cpp binary or script."""
-    if name.endswith(".py"):
-        candidates = [
-            Path("/home/jcharles/Projects/llama.cpp") / name,
-            Path("/tmp/llama.cpp-i_il8hw4") / name,
-            Path("/usr/local/bin") / name,
-            Path("/usr/local/share/llama.cpp") / name,
-            Path.home() / "llama.cpp" / name,
-            BASE_DIR.parent / "llama.cpp" / name,
-        ]
-        for c in candidates:
-            if c.exists():
-                return c
-        # glob /tmp/llama.cpp-*
-        import glob
+    """Find a llama.cpp binary or script.
 
-        for d in glob.glob("/tmp/llama.cpp-*"):
-            p = Path(d) / name
-            if p.exists():
-                return p
-    else:
-        result = subprocess.run(["which", name], capture_output=True, text=True)
-        if result.returncode == 0:
-            return Path(result.stdout.strip())
-        candidates = [
-            Path("/usr/bin") / name,
-            Path("/usr/local/bin") / name,
-            Path.home() / "llama.cpp" / "build" / "bin" / name,
-            BASE_DIR.parent / "llama.cpp" / "build" / "bin" / name,
-        ]
-        for c in candidates:
-            if c.exists():
-                return c
+    Search order:
+      1. LLAMA_CPP_DIR / LLAMA_CPP_BIN environment variable
+      2. shutil.which() (PATH lookup)
+      3. Common install locations (home, /usr/local, sibling dir)
+      4. /tmp/llama.cpp-* build dirs (fallback)
+    """
+    import glob as _glob
+
+    # 1. Environment variable overrides
+    env_dir = os.environ.get("LLAMA_CPP_DIR") or os.environ.get("LLAMA_CPP_BIN")
+    if env_dir:
+        env_path = Path(env_dir) / name
+        if env_path.exists():
+            return env_path
+        # If env_dir points to build/bin, check there too
+        env_bin = Path(env_dir) / "build" / "bin" / name
+        if env_bin.exists():
+            return env_bin
+
+    # 2. PATH lookup via shutil.which
+    which_result = shutil.which(name)
+    if which_result:
+        return Path(which_result)
+
+    # 3. Common install locations
+    candidates = [
+        Path.home() / "llama.cpp" / name,
+        Path.home() / "llama.cpp" / "build" / "bin" / name,
+        Path("/usr/local/bin") / name,
+        Path("/usr/local/share/llama.cpp") / name,
+        Path("/usr/bin") / name,
+        BASE_DIR.parent / "llama.cpp" / name,
+        BASE_DIR.parent / "llama.cpp" / "build" / "bin" / name,
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+
+    # 4. Glob /tmp/llama.cpp-* (temporary build dirs)
+    for d in _glob.glob("/tmp/llama.cpp-*"):
+        p = Path(d) / name
+        if p.exists():
+            return p
+        p = Path(d) / "build" / "bin" / name
+        if p.exists():
+            return p
 
     return None
 

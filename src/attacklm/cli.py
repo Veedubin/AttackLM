@@ -3,8 +3,11 @@
 Usage::
 
     attacklm train [--dataset all] [--hpo] [args...]
-    attacklm init [--extract-only|--buckets-only|--attribute-only|--clone-only] [args...]
+    attacklm init [--extract-only|--buckets-only|--clone-only] [args...]
     attacklm balance [args...]
+    attacklm steer [--extract|--apply|--sweep|--diagnose] [args...]
+    attacklm bench [args...]
+    attacklm pipeline [args...]
     attacklm build [--merge-only|--gguf-only|--register-ollama] [args...]
     attacklm infer [args...]
     attacklm eval [--collect-ref|--score|--compare|--golden] [args...]
@@ -120,8 +123,6 @@ def _cmd_init(args: argparse.Namespace) -> int:
             return rc
         print("\n=== Running reorganize_buckets.py ===", file=sys.stderr)
         return _run_python_script("reorganize_buckets.py", extra_args)
-    if args.attribute_only:
-        return _run_python_script("augment_attribution.py", args.argv)
     # Default: full init pipeline — forward --from-source / --dataset-url
     forwarded = list(args.argv)
     if args.from_source:
@@ -134,6 +135,30 @@ def _cmd_init(args: argparse.Namespace) -> int:
 def _cmd_balance(args: argparse.Namespace) -> int:
     """Handle ``attacklm balance``."""
     return _run_python_script("balance_buckets.py", args.argv)
+
+
+def _cmd_steer(args: argparse.Namespace) -> int:
+    """Handle ``attacklm steer`` — dispatch to activation steering script."""
+    forwarded = list(args.argv)
+    if args.extract:
+        forwarded.append("--extract")
+    if args.apply:
+        forwarded.append("--apply")
+    if args.sweep:
+        forwarded.append("--sweep")
+    if args.diagnose:
+        forwarded.append("--diagnose")
+    return _run_python_script("steering.py", forwarded)
+
+
+def _cmd_bench(args: argparse.Namespace) -> int:
+    """Handle ``attacklm bench`` — dispatch to domain benchmark script."""
+    return _run_python_script("domain_bench.py", args.argv)
+
+
+def _cmd_pipeline(args: argparse.Namespace) -> int:
+    """Handle ``attacklm pipeline`` — dispatch to pipeline script."""
+    return _run_python_script("pipeline.py", args.argv)
 
 
 def _cmd_build(args: argparse.Namespace) -> int:
@@ -248,11 +273,11 @@ def build_parser() -> argparse.ArgumentParser:
     # ---- init ----
     init_p = sub.add_parser(
         "init",
-        help="Initialize dataset (clone, extract, attribute, bucket)",
+        help="Initialize dataset (clone, extract, bucket)",
         description=(
             "Initialize dataset. Default: download pre-built dataset from GitHub releases.\n"
             "Use --from-source to build from upstream git repos instead.\n"
-            "Use --extract-only/--buckets-only/etc. for partial steps."
+            "Use --extract-only/--buckets-only/--clone-only for partial steps."
         ),
     )
     # Partial-step flags (mutually exclusive with each other, but NOT
@@ -269,12 +294,6 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help="Organize data into buckets only",
-    )
-    init_group.add_argument(
-        "--attribute-only",
-        action="store_true",
-        default=False,
-        help="Add per-pair source/license attribution only",
     )
     init_group.add_argument(
         "--clone-only",
@@ -315,6 +334,78 @@ def build_parser() -> argparse.ArgumentParser:
         help="All remaining args are forwarded to balance_buckets.py",
     )
     balance_p.set_defaults(func=_cmd_balance)
+
+    # ---- steer ----
+    steer_p = sub.add_parser(
+        "steer",
+        help="Activation steering vectors (extract, apply, sweep, diagnose)",
+        description=(
+            "Activation steering vector toolkit.\n"
+            "Use flags to select a mode, or forward args directly.\n\n"
+            "Examples:\n"
+            "  attacklm steer --extract\n"
+            "  attacklm steer --apply -- --model mymodel\n"
+            "  attacklm steer --sweep\n"
+            "  attacklm steer --diagnose"
+        ),
+    )
+    steer_group = steer_p.add_mutually_exclusive_group()
+    steer_group.add_argument(
+        "--extract",
+        action="store_true",
+        default=False,
+        help="Extract steering vectors",
+    )
+    steer_group.add_argument(
+        "--apply",
+        action="store_true",
+        default=False,
+        help="Apply steering vectors",
+    )
+    steer_group.add_argument(
+        "--sweep",
+        action="store_true",
+        default=False,
+        help="Run steering sweep",
+    )
+    steer_group.add_argument(
+        "--diagnose",
+        action="store_true",
+        default=False,
+        help="Diagnose steering vectors",
+    )
+    steer_p.add_argument(
+        "argv",
+        nargs=argparse.REMAINDER,
+        help="All remaining args are forwarded to steering.py",
+    )
+    steer_p.set_defaults(func=_cmd_steer)
+
+    # ---- bench ----
+    bench_p = sub.add_parser(
+        "bench",
+        help="Run domain benchmark evaluation",
+        description="Run domain benchmark evaluation.",
+    )
+    bench_p.add_argument(
+        "argv",
+        nargs=argparse.REMAINDER,
+        help="All remaining args are forwarded to domain_bench.py",
+    )
+    bench_p.set_defaults(func=_cmd_bench)
+
+    # ---- pipeline ----
+    pipeline_p = sub.add_parser(
+        "pipeline",
+        help="Run the full training/evaluation pipeline",
+        description="Run the full training/evaluation pipeline.",
+    )
+    pipeline_p.add_argument(
+        "argv",
+        nargs=argparse.REMAINDER,
+        help="All remaining args are forwarded to pipeline.py",
+    )
+    pipeline_p.set_defaults(func=_cmd_pipeline)
 
     # ---- build ----
     build_p = sub.add_parser(

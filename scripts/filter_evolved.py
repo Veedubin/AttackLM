@@ -21,27 +21,57 @@ Quality checks:
        fake technique names or MITRE IDs that don't exist in the original.
     6. Deduplication — no near-duplicate evolved pairs. Uses Jaccard similarity
        on word sets (threshold 0.9).
+    7. Judge-and-Revise (optional) — uses an LLM to evaluate each pair on four
+       dimensions: factual accuracy, completeness, security relevance, and
+       clarity. Pairs scoring below ``--judge-threshold`` are discarded.
+
+Judge-and-Revise:
+    When ``--judge-model`` is specified, pairs that pass all rule-based filters
+    are additionally evaluated by an LLM judge. The judge scores each pair on:
+    - Factual Accuracy (0-5): Are technical details correct?
+    - Completeness (0-5): Does the response fully address the instruction?
+    - Security Relevance (0-5): Is this useful for security training?
+    - Clarity (0-5): Is the response well-structured and clear?
+    The overall_score (0.0-1.0) must meet ``--judge-threshold`` (default 0.7).
+    Results are cached to avoid re-judging on subsequent runs.
 
 CLI interface:
+    # Basic filtering (rule-based only)
     python scripts/filter_evolved.py \\
         --input data/datasets/evolved/metasploit-framework_multi_turn_abc123.jsonl \\
         --original data/datasets/buckets/sources/metasploit-framework/
 
-    python scripts/filter_evolved.py --input data/datasets/evolved/ --all
+    # With Judge-and-Revise (LLM quality filtering)
+    python scripts/filter_evolved.py \\
+        --input data/datasets/evolved/ --all \\
+        --judge-model qwen2.5-coder-7b \\
+        --judge-threshold 0.7 \\
+        --judge-cache ~/.cache/attacklm/judge_cache.json
+
+    # With remote API judge
+    python scripts/filter_evolved.py \\
+        --input data/datasets/evolved/ --all \\
+        --judge-model gpt-4o-mini \\
+        --judge-api-url https://api.openai.com/v1/chat/completions \\
+        --judge-api-key sk-... \\
+        --judge-max-pairs 500
 
     python scripts/filter_evolved.py --input data/datasets/evolved/ --dry-run
 
 Output:
     Writes filtered JSONL to same directory with ``_filtered`` suffix.
-    Prints report: total pairs, passed, failed, failure reasons with counts.
+    Prints report: total pairs, passed, failed, failure reasons, judge stats.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
+import urllib.error
+import urllib.request
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -69,6 +99,35 @@ DEFAULT_MIN_LENGTH_FACTOR = 2.0
 
 # Default Jaccard similarity threshold for near-duplicate detection
 DEFAULT_DEDUP_JACCARD_THRESHOLD = 0.9
+
+# Default judge settings
+DEFAULT_JUDGE_THRESHOLD = 0.7
+DEFAULT_JUDGE_API_URL = "http://localhost:1234/v1/chat/completions"
+DEFAULT_JUDGE_CACHE = Path.home() / ".cache" / "attacklm" / "judge_cache.json"
+
+# Judge prompt template — evaluates training pair quality on 4 dimensions
+JUDGE_PROMPT_TEMPLATE = """\
+You are a quality judge for cybersecurity training data. Evaluate the following \
+training pair on four criteria. Be strict and objective.
+
+**Instruction (user message):**
+{instruction}
+
+**Response (assistant message):**
+{response}
+
+Score each criterion on a 0–5 integer scale:
+- **Factual Accuracy (0-5):** Are technical details correct? Any wrong tool names, \
+techniques, commands, or MITRE references?
+- **Completeness (0-5):** Does the response fully address the instruction? Are \
+important steps missing?
+- **Security Relevance (0-5):** Is this useful for security training (offensive or \
+defensive)? Or is it generic filler?
+- **Clarity (0-5):** Is the response well-structured, concise, and easy to follow?
+
+Respond with JSON ONLY — no markdown, no commentary:
+{{"factual_accuracy": <0-5>, "completeness": <0-5>, "security_relevance": <0-5>, \
+"clarity": <0-5>, "overall_score": <0.0-1.0>, "pass": <true|false>}}"""
 
 # Base directory: one level up from this script
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -489,6 +548,12 @@ def filter_evolved_file(
     dry_run: bool = False,
     min_factor: float = DEFAULT_MIN_LENGTH_FACTOR,
     dedup_threshold: float = DEFAULT_DEDUP_JACCARD_THRESHOLD,
+    judge_model: str | None = None,
+    judge_api_url: str = DEFAULT_JUDGE_API_URL,
+    judge_api_key: str | None = None,
+    judge_threshold: float = DEFAULT_JUDGE_THRESHOLD,
+    judge_max_pairs: int | None = None,
+    judge_cache: Path | None = None,
 ) -> dict[str, Any]:
     """Filter a single evolved JSONL file.
 
@@ -561,6 +626,27 @@ def filter_evolved_file(
         for idx, reason in dup_map.items():
             reason_counter["near_duplicate"] += 1
 
+    # Check 7: Judge-and-Revise (optional LLM quality filtering)
+    judge_stats: dict[str, Any] = {
+        "judge_evaluated": 0,
+        "judge_passed": 0,
+        "judge_failed": 0,
+        "judge_threshold": judge_threshold,
+        "judge_score_distribution": {},
+        "judge_errors": 0,
+        "judge_cache_hits": 0,
+    }
+    if judge_model is not None:
+        passed, judge_stats = judge_pairs(
+            passed,
+            model=judge_model,
+            api_url=judge_api_url,
+            api_key=judge_api_key,
+            threshold=judge_threshold,
+            max_pairs=judge_max_pairs,
+            cache_path=judge_cache,
+        )
+
     report = {
         "file": str(evolved_path),
         "total": len(evolved_records),
@@ -569,6 +655,13 @@ def filter_evolved_file(
         "skipped_no_original": skipped_no_original,
         "failure_reasons": dict(reason_counter.most_common()),
         "duplicates_removed": duplicates_removed,
+        "judge_evaluated": judge_stats["judge_evaluated"],
+        "judge_passed": judge_stats["judge_passed"],
+        "judge_failed": judge_stats["judge_failed"],
+        "judge_threshold": judge_stats["judge_threshold"],
+        "judge_score_distribution": judge_stats["judge_score_distribution"],
+        "judge_errors": judge_stats["judge_errors"],
+        "judge_cache_hits": judge_stats["judge_cache_hits"],
     }
 
     # Write filtered output (unless dry run)
@@ -584,6 +677,366 @@ def filter_evolved_file(
     return report, passed
 
 
+# ---------------------------------------------------------------------------
+# Judge-and-Revise: LLM-based quality filtering
+# ---------------------------------------------------------------------------
+
+
+def _judge_cache_key(record: dict) -> str:
+    """Compute a deterministic cache key from a record's content.
+
+    Uses SHA-256 of the JSON-serialized messages for stable hashing.
+    """
+    messages = record.get("messages", [])
+    canonical = json.dumps(messages, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _load_judge_cache(cache_path: Path) -> dict[str, dict]:
+    """Load judge result cache from disk.
+
+    Returns dict mapping cache keys to judge result dicts.
+    Returns empty dict if cache doesn't exist or is malformed.
+    """
+    if not cache_path.exists():
+        return {}
+    try:
+        with open(cache_path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        if isinstance(data, dict):
+            return data
+    except (json.JSONDecodeError, OSError):
+        pass
+    return {}
+
+
+def _save_judge_cache(cache: dict[str, dict], cache_path: Path) -> None:
+    """Persist judge result cache to disk."""
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_path, "w", encoding="utf-8") as fh:
+        json.dump(cache, fh, ensure_ascii=False, indent=2)
+
+
+def _extract_pair_texts(record: dict) -> tuple[str, str]:
+    """Extract the instruction (first user msg) and response (first assistant msg).
+
+    Returns (instruction, response) strings. Falls back to empty strings if
+    the expected roles are not found.
+    """
+    instruction = ""
+    response = ""
+    for msg in record.get("messages", []):
+        if msg.get("role") == "user" and not instruction:
+            instruction = msg.get("content", "")
+        if msg.get("role") == "assistant" and not response:
+            response = msg.get("content", "")
+    return instruction, response
+
+
+def _call_judge_api(
+    prompt: str,
+    model: str,
+    api_url: str,
+    api_key: str | None = None,
+    timeout: int = 60,
+) -> str:
+    """Call an OpenAI-compatible chat completions API with the judge prompt.
+
+    Returns the raw response content string.
+    Raises urllib.error.URLError on network failures.
+    """
+    body = json.dumps(
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "max_tokens": 512,
+            "stream": False,
+        }
+    ).encode("utf-8")
+
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    req = urllib.request.Request(api_url, data=body, headers=headers, method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        resp_data = json.loads(resp.read().decode("utf-8"))
+
+    # Extract content from OpenAI-compatible response format
+    choices = resp_data.get("choices", [])
+    if not choices:
+        return ""
+    content = choices[0].get("message", {}).get("content", "")
+    return content
+
+
+def _parse_judge_response(raw: str) -> dict | None:
+    """Parse the judge model's JSON response.
+
+    Returns the parsed dict or None if parsing fails.
+    Tries to extract JSON from markdown code blocks if direct parse fails.
+    """
+    # Try direct parse first
+    try:
+        result = json.loads(raw.strip())
+        if isinstance(result, dict) and "overall_score" in result:
+            return result
+    except json.JSONDecodeError:
+        pass
+
+    # Try extracting JSON from markdown code block
+    json_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?\s*```", raw, re.DOTALL)
+    if json_match:
+        try:
+            result = json.loads(json_match.group(1).strip())
+            if isinstance(result, dict) and "overall_score" in result:
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    # Try finding any JSON object in the response
+    brace_match = re.search(r"\{[^{}]*\}", raw, re.DOTALL)
+    if brace_match:
+        try:
+            result = json.loads(brace_match.group(0))
+            if isinstance(result, dict) and "overall_score" in result:
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    return None
+
+
+def judge_single_pair(
+    record: dict,
+    model: str,
+    api_url: str,
+    api_key: str | None = None,
+    cache: dict[str, dict] | None = None,
+    timeout: int = 60,
+) -> dict:
+    """Judge a single training pair using the LLM.
+
+    Returns a dict with keys:
+        - overall_score (float): 0.0-1.0
+        - pass (bool): whether overall_score >= threshold
+        - factual_accuracy (int): 0-5
+        - completeness (int): 0-5
+        - security_relevance (int): 0-5
+        - clarity (int): 0-5
+        - cached (bool): whether the result was from cache
+        - error (str|None): error message if judge call failed
+    """
+    cache_key = _judge_cache_key(record)
+
+    # Check cache first
+    if cache is not None and cache_key in cache:
+        result = cache[cache_key].copy()
+        result["cached"] = True
+        return result
+
+    instruction, response = _extract_pair_texts(record)
+    if not instruction or not response:
+        return {
+            "overall_score": 0.0,
+            "pass": False,
+            "factual_accuracy": 0,
+            "completeness": 0,
+            "security_relevance": 0,
+            "clarity": 0,
+            "cached": False,
+            "error": "empty_instruction_or_response",
+        }
+
+    prompt = JUDGE_PROMPT_TEMPLATE.format(
+        instruction=instruction[:4000],
+        response=response[:8000],
+    )
+
+    try:
+        raw = _call_judge_api(prompt, model, api_url, api_key, timeout)
+    except (urllib.error.URLError, OSError, TimeoutError) as exc:
+        return {
+            "overall_score": 0.0,
+            "pass": False,
+            "factual_accuracy": 0,
+            "completeness": 0,
+            "security_relevance": 0,
+            "clarity": 0,
+            "cached": False,
+            "error": f"api_error: {exc}",
+        }
+
+    parsed = _parse_judge_response(raw)
+    if parsed is None:
+        return {
+            "overall_score": 0.0,
+            "pass": False,
+            "factual_accuracy": 0,
+            "completeness": 0,
+            "security_relevance": 0,
+            "clarity": 0,
+            "cached": False,
+            "error": f"parse_error: could not parse judge response",
+        }
+
+    result = {
+        "overall_score": float(parsed.get("overall_score", 0.0)),
+        "factual_accuracy": int(parsed.get("factual_accuracy", 0)),
+        "completeness": int(parsed.get("completeness", 0)),
+        "security_relevance": int(parsed.get("security_relevance", 0)),
+        "clarity": int(parsed.get("clarity", 0)),
+        "pass": bool(parsed.get("pass", False)),
+        "cached": False,
+        "error": None,
+    }
+
+    # Store in cache
+    if cache is not None:
+        cache[cache_key] = {k: v for k, v in result.items() if k != "cached"}
+
+    return result
+
+
+def judge_pairs(
+    records: list[dict],
+    model: str,
+    api_url: str = DEFAULT_JUDGE_API_URL,
+    api_key: str | None = None,
+    threshold: float = DEFAULT_JUDGE_THRESHOLD,
+    max_pairs: int | None = None,
+    cache_path: Path | None = None,
+    timeout: int = 60,
+) -> tuple[list[dict], dict[str, Any]]:
+    """Judge-and-Revise: run LLM quality evaluation on pairs that passed rule-based filters.
+
+    Args:
+        records: List of records that passed rule-based filtering.
+        model: Model name for the judge API.
+        api_url: OpenAI-compatible API endpoint URL.
+        api_key: Optional API key for authentication.
+        threshold: Minimum overall_score to keep (0.0-1.0).
+        max_pairs: Maximum number of pairs to judge (None = all).
+        cache_path: Path to judge result cache file (None = no caching).
+        timeout: API call timeout in seconds.
+
+    Returns:
+        Tuple of (passed_records, judge_stats) where judge_stats contains:
+            - judge_evaluated: number of pairs judged
+            - judge_passed: number that passed judge
+            - judge_failed: number that failed judge
+            - judge_threshold: the threshold used
+            - judge_score_distribution: histogram of overall_score buckets
+            - judge_errors: number of pairs with judge errors
+            - judge_cache_hits: number of cache hits
+    """
+    if not records:
+        return [], {
+            "judge_evaluated": 0,
+            "judge_passed": 0,
+            "judge_failed": 0,
+            "judge_threshold": threshold,
+            "judge_score_distribution": {},
+            "judge_errors": 0,
+            "judge_cache_hits": 0,
+        }
+
+    # Limit number of pairs to judge
+    to_judge = records[:max_pairs] if max_pairs is not None else records
+    remaining = records[max_pairs:] if max_pairs is not None else []
+
+    # Load cache if specified
+    cache: dict[str, dict] | None = None
+    if cache_path is not None:
+        cache = _load_judge_cache(cache_path)
+    else:
+        cache = {}
+
+    passed: list[dict] = []
+    stats: dict[str, Any] = {
+        "judge_evaluated": len(to_judge),
+        "judge_passed": 0,
+        "judge_failed": 0,
+        "judge_threshold": threshold,
+        "judge_score_distribution": Counter(),
+        "judge_errors": 0,
+        "judge_cache_hits": 0,
+    }
+
+    # Score distribution buckets: 0.0-0.1, 0.1-0.2, ..., 0.9-1.0
+    def _score_bucket(score: float) -> str:
+        bucket = int(score * 10) / 10
+        return f"{bucket:.1f}-{bucket + 0.1:.1f}"
+
+    # Progress reporting
+    total = len(to_judge)
+    print(f"\n  Judge-and-Revise: evaluating {total} pairs with model '{model}'...")
+    print(f"  API endpoint: {api_url}")
+    print(f"  Quality threshold: {threshold}")
+    if cache_path:
+        print(f"  Cache: {cache_path}")
+
+    for i, record in enumerate(to_judge, 1):
+        result = judge_single_pair(record, model, api_url, api_key, cache, timeout)
+
+        if result["cached"]:
+            stats["judge_cache_hits"] += 1
+
+        if result.get("error"):
+            stats["judge_errors"] += 1
+            # On error, keep the record (don't filter on API failure)
+            passed.append(record)
+            print(
+                f"    [{i}/{total}] ERROR: {result['error']} — keeping record",
+                file=sys.stderr,
+            )
+            continue
+
+        overall = result["overall_score"]
+        bucket = _score_bucket(overall)
+        stats["judge_score_distribution"][bucket] += 1
+
+        # Use explicit pass/fail from judge, but also enforce threshold
+        judge_pass = result["pass"] and overall >= threshold
+        if judge_pass:
+            stats["judge_passed"] += 1
+            passed.append(record)
+        else:
+            stats["judge_failed"] += 1
+
+        # Progress indicator (every 10 or at end)
+        if i % 10 == 0 or i == total:
+            print(
+                f"    [{i}/{total}] score={overall:.2f} "
+                f"{'PASS' if judge_pass else 'FAIL'} "
+                f"(F={result['factual_accuracy']} "
+                f"C={result['completeness']} "
+                f"S={result['security_relevance']} "
+                f"Cl={result['clarity']})"
+            )
+
+    # Add records beyond max_pairs limit (not judged, pass through)
+    passed.extend(remaining)
+
+    # Save cache if specified
+    if cache_path is not None and cache is not None:
+        _save_judge_cache(cache, cache_path)
+        print(f"  Judge cache saved to {cache_path}")
+
+    # Convert Counter to regular dict for JSON serialization
+    stats["judge_score_distribution"] = dict(stats["judge_score_distribution"])
+
+    print(
+        f"\n  Judge results: {stats['judge_passed']} passed, "
+        f"{stats['judge_failed']} failed, "
+        f"{stats['judge_errors']} errors, "
+        f"{stats['judge_cache_hits']} cache hits"
+    )
+
+    return passed, stats
+
+
 def print_report(report: dict) -> None:
     """Print a human-readable filter report."""
     print()
@@ -595,6 +1048,18 @@ def print_report(report: dict) -> None:
     print(f"  Failed:                      {report['failed']:,}")
     print(f"  Duplicates removed:          {report['duplicates_removed']:,}")
     print(f"  Skipped (no original):       {report['skipped_no_original']:,}")
+
+    if report.get("judge_evaluated") is not None:
+        print()
+        print("  Judge-and-Revise:")
+        print(f"    Evaluated by judge:       {report['judge_evaluated']:,}")
+        print(f"    Passed judge:             {report['judge_passed']:,}")
+        print(f"    Failed judge:             {report['judge_failed']:,}")
+        print(f"    Judge threshold:          {report['judge_threshold']:.2f}")
+        if report.get("judge_score_distribution"):
+            print("    Score distribution:")
+            for bucket, count in sorted(report["judge_score_distribution"].items()):
+                print(f"      {bucket}: {count}")
 
     if report["failure_reasons"]:
         print()
@@ -675,11 +1140,85 @@ def main(argv: list[str] | None = None) -> int:
             f"(default: {DEFAULT_DEDUP_JACCARD_THRESHOLD})."
         ),
     )
+    parser.add_argument(
+        "--judge-model",
+        type=str,
+        default=None,
+        help=(
+            "Model name for Judge-and-Revise LLM quality filtering. "
+            "When set, pairs that pass rule-based filters are also evaluated "
+            "by the LLM judge. Use a local model name (e.g. 'qwen2.5-coder-7b') "
+            "for LM Studio/Ollama, or any OpenAI-compatible model name."
+        ),
+    )
+    parser.add_argument(
+        "--judge-threshold",
+        type=float,
+        default=DEFAULT_JUDGE_THRESHOLD,
+        help=(
+            f"Minimum overall quality score (0.0-1.0) to keep a pair when "
+            f"Judge-and-Revise is enabled (default: {DEFAULT_JUDGE_THRESHOLD}). "
+            f"Only used with --judge-model."
+        ),
+    )
+    parser.add_argument(
+        "--judge-max-pairs",
+        type=int,
+        default=None,
+        help=(
+            "Maximum number of pairs to send to the LLM judge. "
+            "Pairs beyond this limit pass through without judging. "
+            "Useful for cost control when using paid API endpoints. "
+            "Default: judge all pairs that passed rule-based filters."
+        ),
+    )
+    parser.add_argument(
+        "--judge-api-url",
+        type=str,
+        default=DEFAULT_JUDGE_API_URL,
+        help=(
+            f"OpenAI-compatible API endpoint URL for the judge model "
+            f"(default: {DEFAULT_JUDGE_API_URL}). "
+            f"Works with LM Studio, Ollama (with OpenAI compat), "
+            f"and any OpenAI-compatible server."
+        ),
+    )
+    parser.add_argument(
+        "--judge-api-key",
+        type=str,
+        default=None,
+        help=(
+            "API key for the judge endpoint. Not needed for local models "
+            "(LM Studio, Ollama). Required for OpenAI and other cloud APIs."
+        ),
+    )
+    parser.add_argument(
+        "--judge-cache",
+        type=Path,
+        default=None,
+        help=(
+            f"Path to judge result cache file. Enables caching of LLM judge "
+            f"results to avoid re-evaluating the same pairs. "
+            f"Default: {DEFAULT_JUDGE_CACHE} when --judge-model is set, "
+            f"or no caching when --judge-model is not set."
+        ),
+    )
 
     args = parser.parse_args(argv)
 
     min_factor = args.min_length_factor
     dedup_threshold = args.dedup_threshold
+
+    # Resolve judge settings
+    judge_model = args.judge_model
+    judge_threshold = args.judge_threshold
+    judge_max_pairs = args.judge_max_pairs
+    judge_api_url = args.judge_api_url
+    judge_api_key = args.judge_api_key
+    judge_cache = args.judge_cache
+    # If judge-model is set but no cache path, use default
+    if judge_model is not None and judge_cache is None:
+        judge_cache = DEFAULT_JUDGE_CACHE
 
     # Discover evolved files
     evolved_files = discover_evolved_files(args.input)
@@ -719,6 +1258,12 @@ def main(argv: list[str] | None = None) -> int:
             dry_run=args.dry_run,
             min_factor=min_factor,
             dedup_threshold=dedup_threshold,
+            judge_model=judge_model,
+            judge_api_url=judge_api_url,
+            judge_api_key=judge_api_key,
+            judge_threshold=judge_threshold,
+            judge_max_pairs=judge_max_pairs,
+            judge_cache=judge_cache,
         )
         print_report(report)
 
@@ -731,6 +1276,9 @@ def main(argv: list[str] | None = None) -> int:
         total_passed = 0
         total_failed = 0
         total_records = 0
+        total_judge_evaluated = 0
+        total_judge_passed = 0
+        total_judge_failed = 0
 
         for evolved_path in evolved_files:
             source_name = parse_evolved_filename(evolved_path.name)
@@ -759,12 +1307,21 @@ def main(argv: list[str] | None = None) -> int:
                 dry_run=args.dry_run,
                 min_factor=min_factor,
                 dedup_threshold=dedup_threshold,
+                judge_model=judge_model,
+                judge_api_url=judge_api_url,
+                judge_api_key=judge_api_key,
+                judge_threshold=judge_threshold,
+                judge_max_pairs=judge_max_pairs,
+                judge_cache=judge_cache,
             )
             print_report(report)
             total_reports.append(report)
             total_passed += report["passed"]
             total_failed += report["failed"]
             total_records += report["total"]
+            total_judge_evaluated += report.get("judge_evaluated", 0)
+            total_judge_passed += report.get("judge_passed", 0)
+            total_judge_failed += report.get("judge_failed", 0)
 
         # Summary
         if len(evolved_files) > 1:
@@ -776,6 +1333,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  Total records:       {total_records:,}")
             print(f"  Total passed:        {total_passed:,}")
             print(f"  Total failed:        {total_failed:,}")
+            if total_judge_evaluated > 0:
+                print(f"  Judge evaluated:     {total_judge_evaluated:,}")
+                print(f"  Judge passed:        {total_judge_passed:,}")
+                print(f"  Judge failed:        {total_judge_failed:,}")
             agg_reasons: Counter = Counter()
             for r in total_reports:
                 for reason, count in r.get("failure_reasons", {}).items():

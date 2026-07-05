@@ -12,6 +12,7 @@ import json
 import sys
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest.mock import patch
 
@@ -1278,6 +1279,498 @@ class TestHelperFunctions(unittest.TestCase):
         self.assertEqual(len(index), 2)
         self.assertIn("how do i use sql injection?", index)
         self.assertIn("how do i scan ports?", index)
+
+
+# =========================================================================
+# Judge-and-Revise tests
+# =========================================================================
+
+
+class TestJudgeCacheKey(unittest.TestCase):
+    """_judge_cache_key produces deterministic SHA-256 keys."""
+
+    def test_deterministic(self):
+        """Same record content produces same cache key."""
+        record = {
+            "messages": [
+                {"role": "user", "content": "How do I use SQL injection?"},
+                {"role": "assistant", "content": "**T1190** — Use `' OR 1=1--`."},
+            ]
+        }
+        key1 = filter_evolved._judge_cache_key(record)
+        key2 = filter_evolved._judge_cache_key(record)
+        self.assertEqual(key1, key2)
+        self.assertEqual(len(key1), 64)  # SHA-256 hex digest length
+
+    def test_different_content_produces_different_key(self):
+        """Different record content produces different cache keys."""
+        rec_a = {
+            "messages": [
+                {"role": "user", "content": "How do I use SQL injection?"},
+                {"role": "assistant", "content": "**T1190** — Use `' OR 1=1--`."},
+            ]
+        }
+        rec_b = {
+            "messages": [
+                {"role": "user", "content": "How do I scan ports?"},
+                {"role": "assistant", "content": "**T1046** — Use `nmap -sV`."},
+            ]
+        }
+        key_a = filter_evolved._judge_cache_key(rec_a)
+        key_b = filter_evolved._judge_cache_key(rec_b)
+        self.assertNotEqual(key_a, key_b)
+
+
+class TestJudgeCache(unittest.TestCase):
+    """Judge cache load/save round-trips correctly."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(str(self.tmpdir), ignore_errors=True)
+
+    def test_cache_round_trip(self):
+        """Save and load preserves cache data."""
+        cache_path = self.tmpdir / "judge_cache.json"
+        cache_data = {
+            "abc123": {
+                "overall_score": 0.85,
+                "pass": True,
+                "factual_accuracy": 4,
+                "completeness": 4,
+                "security_relevance": 5,
+                "clarity": 4,
+                "error": None,
+            }
+        }
+        filter_evolved._save_judge_cache(cache_data, cache_path)
+        loaded = filter_evolved._load_judge_cache(cache_path)
+        self.assertEqual(loaded, cache_data)
+
+    def test_load_missing_cache_returns_empty(self):
+        """Loading a nonexistent cache returns empty dict."""
+        cache_path = self.tmpdir / "nonexistent.json"
+        loaded = filter_evolved._load_judge_cache(cache_path)
+        self.assertEqual(loaded, {})
+
+    def test_load_malformed_cache_returns_empty(self):
+        """Loading a malformed cache returns empty dict."""
+        cache_path = self.tmpdir / "bad_cache.json"
+        with open(cache_path, "w") as f:
+            f.write("NOT VALID JSON{{{")
+        loaded = filter_evolved._load_judge_cache(cache_path)
+        self.assertEqual(loaded, {})
+
+
+class TestExtractPairTexts(unittest.TestCase):
+    """_extract_pair_texts pulls instruction and response from messages."""
+
+    def test_extracts_user_and_assistant(self):
+        """Extracts first user and first assistant message."""
+        record = {
+            "messages": [
+                {"role": "system", "content": "You are a security expert."},
+                {"role": "user", "content": "How do I use SQL injection?"},
+                {"role": "assistant", "content": "**T1190** — Use `' OR 1=1--`."},
+            ]
+        }
+        instruction, response = filter_evolved._extract_pair_texts(record)
+        self.assertEqual(instruction, "How do I use SQL injection?")
+        self.assertTrue(response.startswith("**T1190**"))
+
+    def test_empty_when_no_matching_roles(self):
+        """Returns empty strings when no user/assistant messages exist."""
+        record = {"messages": [{"role": "system", "content": "sys"}]}
+        instruction, response = filter_evolved._extract_pair_texts(record)
+        self.assertEqual(instruction, "")
+        self.assertEqual(response, "")
+
+
+class TestParseJudgeResponse(unittest.TestCase):
+    """_parse_judge_response extracts scores from LLM output."""
+
+    def test_direct_json(self):
+        """Parses clean JSON response."""
+        raw = '{"factual_accuracy": 4, "completeness": 5, "security_relevance": 4, "clarity": 5, "overall_score": 0.85, "pass": true}'
+        result = filter_evolved._parse_judge_response(raw)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["factual_accuracy"], 4)
+        self.assertAlmostEqual(result["overall_score"], 0.85)
+
+    def test_json_in_markdown_code_block(self):
+        """Parses JSON wrapped in markdown code block."""
+        raw = '```json\n{"factual_accuracy": 3, "completeness": 4, "security_relevance": 5, "clarity": 4, "overall_score": 0.75, "pass": true}\n```'
+        result = filter_evolved._parse_judge_response(raw)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["completeness"], 4)
+
+    def test_json_with_surrounding_text(self):
+        """Parses JSON embedded in explanatory text."""
+        raw = 'Here is my evaluation:\n{"factual_accuracy": 2, "completeness": 3, "security_relevance": 4, "clarity": 3, "overall_score": 0.55, "pass": false}\nThat looks about right.'
+        result = filter_evolved._parse_judge_response(raw)
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result["overall_score"], 0.55)
+
+    def test_malformed_returns_none(self):
+        """Returns None for completely unparseable response."""
+        raw = "I cannot evaluate this."
+        result = filter_evolved._parse_judge_response(raw)
+        self.assertIsNone(result)
+
+
+class TestJudgeSinglePair(unittest.TestCase):
+    """judge_single_pair evaluates a record and returns structured result."""
+
+    def _make_record(self, user_msg: str, assistant_msg: str) -> dict:
+        return {
+            "messages": [
+                {"role": "system", "content": "You are a security expert."},
+                {"role": "user", "content": user_msg},
+                {"role": "assistant", "content": assistant_msg},
+            ]
+        }
+
+    @patch.object(filter_evolved, "_call_judge_api")
+    def test_passing_judge(self, mock_api):
+        """A high-scoring pair passes the judge."""
+        mock_api.return_value = json.dumps(
+            {
+                "factual_accuracy": 4,
+                "completeness": 5,
+                "security_relevance": 5,
+                "clarity": 4,
+                "overall_score": 0.85,
+                "pass": True,
+            }
+        )
+        record = self._make_record(
+            "How do I use SQL injection?",
+            "**T1190 — SQL Injection**\n\nDetailed response here...",
+        )
+        result = filter_evolved.judge_single_pair(
+            record,
+            model="test-model",
+            api_url="http://localhost:1234/v1/chat/completions",
+        )
+        self.assertTrue(result["pass"])
+        self.assertAlmostEqual(result["overall_score"], 0.85)
+        self.assertEqual(result["factual_accuracy"], 4)
+        self.assertFalse(result["cached"])
+
+    @patch.object(filter_evolved, "_call_judge_api")
+    def test_failing_judge(self, mock_api):
+        """A low-scoring pair fails the judge."""
+        mock_api.return_value = json.dumps(
+            {
+                "factual_accuracy": 1,
+                "completeness": 2,
+                "security_relevance": 1,
+                "clarity": 2,
+                "overall_score": 0.3,
+                "pass": False,
+            }
+        )
+        record = self._make_record(
+            "How do I use SQL injection?",
+            "I don't know much about this.",
+        )
+        result = filter_evolved.judge_single_pair(
+            record,
+            model="test-model",
+            api_url="http://localhost:1234/v1/chat/completions",
+        )
+        self.assertFalse(result["pass"])
+        self.assertAlmostEqual(result["overall_score"], 0.3)
+
+    def test_empty_content_returns_error(self):
+        """Records with empty instruction/response return error result."""
+        record = {"messages": []}
+        result = filter_evolved.judge_single_pair(
+            record,
+            model="test-model",
+            api_url="http://localhost:1234/v1/chat/completions",
+        )
+        self.assertFalse(result["pass"])
+        self.assertEqual(result["error"], "empty_instruction_or_response")
+
+    @patch.object(filter_evolved, "_call_judge_api")
+    def test_cache_hit(self, mock_api):
+        """Cached results are returned without calling the API."""
+        mock_api.return_value = json.dumps(
+            {
+                "factual_accuracy": 4,
+                "completeness": 4,
+                "security_relevance": 4,
+                "clarity": 4,
+                "overall_score": 0.8,
+                "pass": True,
+            }
+        )
+        record = self._make_record(
+            "How do I use SQL injection?",
+            "**T1190 — SQL Injection**\n\nDetailed response...",
+        )
+        cache: dict[str, dict] = {}
+        # First call populates cache
+        result1 = filter_evolved.judge_single_pair(
+            record,
+            model="test-model",
+            api_url="http://localhost:1234/v1/chat/completions",
+            cache=cache,
+        )
+        self.assertFalse(result1["cached"])
+        self.assertEqual(mock_api.call_count, 1)
+
+        # Second call should hit cache
+        result2 = filter_evolved.judge_single_pair(
+            record,
+            model="test-model",
+            api_url="http://localhost:1234/v1/chat/completions",
+            cache=cache,
+        )
+        self.assertTrue(result2["cached"])
+        self.assertEqual(mock_api.call_count, 1)  # No additional API call
+
+    @patch.object(filter_evolved, "_call_judge_api")
+    def test_api_error_returns_error_result(self, mock_api):
+        """Network errors return error result with pass=False."""
+        mock_api.side_effect = urllib.error.URLError("Connection refused")
+        record = self._make_record("Q", "A good answer")
+        result = filter_evolved.judge_single_pair(
+            record,
+            model="test-model",
+            api_url="http://localhost:1234/v1/chat/completions",
+        )
+        self.assertFalse(result["pass"])
+        self.assertIn("api_error", result["error"])
+
+
+class TestJudgePairs(unittest.TestCase):
+    """judge_pairs batch evaluation with threshold filtering."""
+
+    def _make_record(self, user_msg: str, assistant_msg: str) -> dict:
+        return {
+            "messages": [
+                {"role": "user", "content": user_msg},
+                {"role": "assistant", "content": assistant_msg},
+            ]
+        }
+
+    @patch.object(filter_evolved, "judge_single_pair")
+    def test_judge_pairs_filters_by_threshold(self, mock_judge):
+        """Pairs below threshold are removed, pairs above are kept."""
+        records = [
+            self._make_record("Q1", "A1"),
+            self._make_record("Q2", "A2"),
+            self._make_record("Q3", "A3"),
+        ]
+        # First pair passes, second fails, third passes
+        mock_judge.side_effect = [
+            {
+                "overall_score": 0.9,
+                "pass": True,
+                "factual_accuracy": 4,
+                "completeness": 4,
+                "security_relevance": 5,
+                "clarity": 4,
+                "cached": False,
+                "error": None,
+            },
+            {
+                "overall_score": 0.4,
+                "pass": False,
+                "factual_accuracy": 1,
+                "completeness": 2,
+                "security_relevance": 2,
+                "clarity": 2,
+                "cached": False,
+                "error": None,
+            },
+            {
+                "overall_score": 0.8,
+                "pass": True,
+                "factual_accuracy": 4,
+                "completeness": 5,
+                "security_relevance": 4,
+                "clarity": 4,
+                "cached": False,
+                "error": None,
+            },
+        ]
+        passed, stats = filter_evolved.judge_pairs(
+            records,
+            model="test-model",
+            threshold=0.7,
+            cache_path=None,  # No caching in tests
+        )
+        self.assertEqual(len(passed), 2)  # Q1 and Q3 passed
+        self.assertEqual(stats["judge_passed"], 2)
+        self.assertEqual(stats["judge_failed"], 1)
+        self.assertEqual(stats["judge_evaluated"], 3)
+
+    @patch.object(filter_evolved, "judge_single_pair")
+    def test_judge_pairs_max_pairs_limit(self, mock_judge):
+        """max_pairs limits the number of pairs sent to judge."""
+        records = [self._make_record(f"Q{i}", f"A{i}") for i in range(5)]
+        # All pass
+        mock_judge.return_value = {
+            "overall_score": 0.9,
+            "pass": True,
+            "factual_accuracy": 4,
+            "completeness": 4,
+            "security_relevance": 4,
+            "clarity": 4,
+            "cached": False,
+            "error": None,
+        }
+        passed, stats = filter_evolved.judge_pairs(
+            records,
+            model="test-model",
+            max_pairs=3,
+            cache_path=None,
+        )
+        # 3 judged + 2 passed through without judging = 5 total
+        self.assertEqual(len(passed), 5)
+        self.assertEqual(stats["judge_evaluated"], 3)
+
+    @patch.object(filter_evolved, "judge_single_pair")
+    def test_judge_pairs_empty_input(self, mock_judge):
+        """Empty input list returns empty output."""
+        passed, stats = filter_evolved.judge_pairs(
+            [],
+            model="test-model",
+            cache_path=None,
+        )
+        self.assertEqual(len(passed), 0)
+        self.assertEqual(stats["judge_evaluated"], 0)
+
+
+class TestFilterEvolvedWithJudge(unittest.TestCase):
+    """Integration test: filter_evolved_file with Judge-and-Revise."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(str(self.tmpdir), ignore_errors=True)
+
+    def _make_record(self, user_msg, assistant_msg, mitre_ids=None):
+        rec = {
+            "messages": [
+                {"role": "system", "content": "You are a red team specialist."},
+                {"role": "user", "content": user_msg},
+                {"role": "assistant", "content": assistant_msg},
+            ],
+            "source": "test-source",
+            "source_uri": "https://example.com",
+            "license": "MIT",
+            "license_uri": "https://opensource.org/licenses/MIT",
+            "rights_contact": "test@example.com",
+        }
+        if mitre_ids:
+            rec["mitre_ids"] = mitre_ids
+        return rec
+
+    @patch.object(filter_evolved, "judge_pairs")
+    def test_judge_step_called_when_model_set(self, mock_judge):
+        """When judge_model is set, judge_pairs is called."""
+        original = self._make_record(
+            "How do I use SQL injection?",
+            "**T1190**\n\nUse `' OR 1=1--`.",
+            mitre_ids=["T1190"],
+        )
+        evolved = self._make_record(
+            "How do I use SQL injection?",
+            (
+                "**T1190 — SQL Injection**\n\n"
+                "SQL injection is a code injection technique that exploits unsanitized "
+                "input in SQL queries. It is one of the most common web application "
+                "vulnerabilities.\n\n"
+                "**Step-by-Step:**\n"
+                "```sql\n' OR 1=1--\n```\n\n"
+                "**Detection:** WAF logs, database audit\n\n"
+                "**Cleanup:** Remove injected data from logs."
+            ),
+            mitre_ids=["T1190"],
+        )
+        # judge_pairs returns all passed records and stats
+        mock_judge.return_value = (
+            [evolved],
+            {
+                "judge_evaluated": 1,
+                "judge_passed": 1,
+                "judge_failed": 0,
+                "judge_threshold": 0.7,
+                "judge_score_distribution": {"0.8-0.9": 1},
+                "judge_errors": 0,
+                "judge_cache_hits": 0,
+            },
+        )
+
+        evolved_path = self.tmpdir / "test-source_multi_turn_abc.jsonl"
+        with open(evolved_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps(evolved) + "\n")
+
+        original_dir = self.tmpdir / "originals"
+        original_dir.mkdir()
+        original_path = original_dir / "data_001.jsonl"
+        with open(original_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps(original) + "\n")
+
+        report, passed = filter_evolved.filter_evolved_file(
+            evolved_path,
+            original_path=original_dir,
+            judge_model="test-model",
+            judge_threshold=0.7,
+        )
+        self.assertTrue(mock_judge.called)
+        self.assertEqual(report["judge_evaluated"], 1)
+        self.assertEqual(report["judge_passed"], 1)
+
+    def test_judge_step_skipped_when_no_model(self):
+        """When no judge_model, judge step is skipped (no judge stats)."""
+        original = self._make_record(
+            "How do I use SQL injection?",
+            "**T1190**\n\nUse `' OR 1=1--`.",
+            mitre_ids=["T1190"],
+        )
+        evolved = self._make_record(
+            "How do I use SQL injection?",
+            (
+                "**T1190 — SQL Injection**\n\n"
+                "SQL injection is a code injection technique that exploits unsanitized "
+                "input in SQL queries.\n\n"
+                "**Step-by-Step:**\n"
+                "```sql\n' OR 1=1--\n```\n\n"
+                "**Detection:** WAF logs\n\n"
+                "**Cleanup:** Remove traces."
+            ),
+            mitre_ids=["T1190"],
+        )
+
+        evolved_path = self.tmpdir / "test-source_multi_turn_abc.jsonl"
+        with open(evolved_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps(evolved) + "\n")
+
+        original_dir = self.tmpdir / "originals"
+        original_dir.mkdir()
+        original_path = original_dir / "data_001.jsonl"
+        with open(original_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps(original) + "\n")
+
+        report, passed = filter_evolved.filter_evolved_file(
+            evolved_path,
+            original_path=original_dir,
+            # No judge_model — judge step is skipped
+        )
+        self.assertEqual(report["judge_evaluated"], 0)
+        self.assertEqual(report["judge_passed"], 0)
+        self.assertEqual(report["judge_failed"], 0)
 
 
 if __name__ == "__main__":

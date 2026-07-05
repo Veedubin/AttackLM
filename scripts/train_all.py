@@ -432,6 +432,10 @@ def build_train_cmd(
         cmd.append("--use-galore")
     if getattr(args, "galore_32bit", False):
         cmd.append("--galore-32bit")
+    if getattr(args, "use_qgalore", False):
+        cmd.append("--use-qgalore")
+    if getattr(args, "spectrum", False):
+        cmd.append("--spectrum")
     if getattr(args, "multi_gpu", False):
         cmd.append("--multi-gpu")
     # DeepSpeed / torch.compile / LOMO flags
@@ -447,6 +451,12 @@ def build_train_cmd(
         cmd.extend(["--compile-mode", args.compile_mode])
     if getattr(args, "use_lomo", False):
         cmd.append("--use-lomo")
+    if getattr(args, "live_lr", False):
+        cmd.append("--live-lr")
+    if getattr(args, "early_stop_steps", None):
+        cmd.extend(["--early-stop-steps", str(args.early_stop_steps)])
+    if getattr(args, "early_stopping_patience", None):
+        cmd.extend(["--early-stopping-patience", str(args.early_stopping_patience)])
     if getattr(args, "auto_tune", False):
         cmd.append("--auto-tune")
     # v0.1.6+: pass dataset specs so train_template can record them in
@@ -819,6 +829,23 @@ def main():
         "with DDP). Use torchrun or accelerate launch. "
         "Passed through to train_template.py (default: OFF).",
     )
+    parser.add_argument(
+        "--use-qgalore",
+        action="store_true",
+        default=False,
+        help="Use Q-GaLore with INT4 projections for full-parameter "
+        "fine-tuning. Fits 7B models on 16GB GPUs. "
+        "Only meaningful with --use-galore. "
+        "Passed through to train_template.py (default: OFF).",
+    )
+    parser.add_argument(
+        "--spectrum",
+        action="store_true",
+        default=False,
+        help="Enable SNR-based layer freezing (Spectrum). Freezes layers "
+        "with low signal-to-noise ratio, focusing training on impactful layers. "
+        "Passed through to train_template.py (default: OFF).",
+    )
     # ---- DeepSpeed / torch.compile / LOMO flags ----
     parser.add_argument(
         "--use-deepspeed",
@@ -871,6 +898,27 @@ def main():
         help="Auto-tune batch_size and max_length for your GPU. "
         "Runs VRAM probing and benchmark passes to find the compute-bound "
         "sweet spot. Passed through to train_template.py.",
+    )
+    parser.add_argument(
+        "--live-lr",
+        action="store_true",
+        default=False,
+        help="Enable live learning rate adjustment callback during training. "
+        "Passed through to train_template.py (default: OFF).",
+    )
+    parser.add_argument(
+        "--early-stop-steps",
+        type=int,
+        default=None,
+        help="Step-based early stopping: stop training if no improvement "
+        "after this many optimizer steps. Passed through to train_template.py.",
+    )
+    parser.add_argument(
+        "--early-stopping-patience",
+        type=int,
+        default=None,
+        help="Epoch-based early stopping patience: stop training if no "
+        "improvement for this many epochs. Passed through to train_template.py.",
     )
     # ---- Experience replay flags ----
     parser.add_argument(
