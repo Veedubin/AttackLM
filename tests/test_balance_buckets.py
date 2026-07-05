@@ -203,25 +203,30 @@ class TestOutputPathResolution(unittest.TestCase):
 
     def test_no_timestamp_with_completed_dir_refuses(self):
         """--no-timestamp refuses to clobber a completed run."""
-        # models/attacklm-3b_16g is a real completed run in the repo
-        with self.assertRaises(FileExistsError) as ctx:
-            self.train_template.resolve_output_path(
-                "models/attacklm-3b_16g",
-                no_timestamp=True,
-                force=False,
-            )
-        self.assertIn("Refusing to clobber", str(ctx.exception))
+        with tempfile.TemporaryDirectory() as tmp:
+            model_dir = Path(tmp) / "completed_model"
+            model_dir.mkdir()
+            (model_dir / "state.json").write_text('{"completed": true}')
+            with self.assertRaises(FileExistsError) as ctx:
+                self.train_template.resolve_output_path(
+                    str(model_dir),
+                    no_timestamp=True,
+                    force=False,
+                )
+            self.assertIn("Refusing to clobber", str(ctx.exception))
 
     def test_no_timestamp_with_force_allows(self):
         """--no-timestamp + --force on a completed run is allowed."""
-        out = self.train_template.resolve_output_path(
-            "models/attacklm-3b_16g",
-            no_timestamp=True,
-            force=True,
-        )
-        self.assertTrue(
-            out.endswith("models/attacklm-3b_16g") or "attacklm-3b_16g" in out
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            model_dir = Path(tmp) / "completed_model"
+            model_dir.mkdir()
+            (model_dir / "state.json").write_text('{"completed": true}')
+            out = self.train_template.resolve_output_path(
+                str(model_dir),
+                no_timestamp=True,
+                force=True,
+            )
+            self.assertTrue(out.endswith("completed_model") or "completed_model" in out)
 
 
 class TestCapResolution(unittest.TestCase):
