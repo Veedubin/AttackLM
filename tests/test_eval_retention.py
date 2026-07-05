@@ -484,8 +484,8 @@ class TestAdapterPathResolution(unittest.TestCase):
 
     def test_adapter_relative_path(self):
         """Relative adapter path should be resolved to absolute."""
+        cwd = os.getcwd()
         with tempfile.TemporaryDirectory() as tmp:
-            cwd = os.getcwd()
             try:
                 os.chdir(tmp)
                 adapter_dir = Path(tmp) / "my_adapter"

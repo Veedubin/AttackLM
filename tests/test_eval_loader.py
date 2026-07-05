@@ -37,7 +37,14 @@ _mock_auto_model = MagicMock()
 _mock_auto_tokenizer = MagicMock()
 _mock_transformers.AutoModelForCausalLM = _mock_auto_model
 _mock_transformers.AutoTokenizer = _mock_auto_tokenizer
+_mock_transformers.utils = MagicMock()
+_mock_transformers.utils.PushToHubMixin = MagicMock()
 sys.modules["transformers"] = _mock_transformers
+sys.modules["transformers.utils"] = _mock_transformers.utils
+
+_mock_peft = MagicMock()
+_mock_peft.PeftModel = MagicMock()
+sys.modules["peft"] = _mock_peft
 
 import _eval_loader  # noqa: E402
 
@@ -48,6 +55,8 @@ def tearDownModule():
         sys.modules["transformers"] = _real_transformers
     else:
         sys.modules.pop("transformers", None)
+    sys.modules.pop("transformers.utils", None)
+    sys.modules.pop("peft", None)
     sys.modules.pop("device_utils", None)
 
 
@@ -87,16 +96,20 @@ class TestResolveModelPath(unittest.TestCase):
 
     def test_local_relative_path(self):
         """Relative paths that exist should be resolved."""
+        old_cwd = os.getcwd()
         with tempfile.TemporaryDirectory() as tmp:
-            os.chdir(tmp)
-            os.makedirs("my_model", exist_ok=True)
-            result = _eval_loader.resolve_model_path("my_model")
-            self.assertTrue(os.path.isabs(result))
+            try:
+                os.chdir(tmp)
+                os.makedirs("my_model", exist_ok=True)
+                result = _eval_loader.resolve_model_path("my_model")
+                self.assertTrue(os.path.isabs(result))
+            finally:
+                os.chdir(old_cwd)
 
     def test_nonexistent_relative_path_raises(self):
-        """Nonexistent relative paths should raise FileNotFoundError."""
-        with self.assertRaises(FileNotFoundError):
-            _eval_loader.resolve_model_path("nonexistent_dir_xyz")
+        """Bare names without path prefixes are treated as HF model IDs."""
+        result = _eval_loader.resolve_model_path("nonexistent_dir_xyz")
+        self.assertEqual(result, "nonexistent_dir_xyz")  # passed through as HF ID
 
     def test_empty_string(self):
         """Empty string should raise ValueError."""
@@ -149,6 +162,7 @@ class TestLoadModelAndTokenizer(unittest.TestCase):
         """Loading a base model should return model and tokenizer."""
         model, tokenizer = _eval_loader.load_model_and_tokenizer(
             "Qwen/Qwen2.5-Coder-3B-Instruct",
+            adapter_path=None,
             compute_dtype=torch.float32,
         )
         self.assertIsNotNone(model)
@@ -181,6 +195,7 @@ class TestLoadModelAndTokenizer(unittest.TestCase):
         """Tokenizer with existing pad_token should not be modified."""
         model, tokenizer = _eval_loader.load_model_and_tokenizer(
             "Qwen/Qwen2.5-Coder-3B-Instruct",
+            adapter_path=None,
             compute_dtype=torch.float32,
         )
         self.assertIsNotNone(tokenizer.pad_token)

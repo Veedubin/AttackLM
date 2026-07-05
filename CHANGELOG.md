@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.9.5] — 2026-07-05 — CI/CD, test fixes, CLI tests, GitHub Releases
+
+### Added
+- **GitHub Actions CI**: `.github/workflows/ci.yml` — runs on push/PR to main, matrix across Python 3.11/3.12/3.13, full test suite + ruff lint
+- **PyPI publish workflow**: `.github/workflows/release.yml` — OIDC Trusted Publishing, validate → test → build → publish pipeline on tag push
+- **CLI subcommand tests**: `tests/test_cli.py` — 33 tests covering all 8 subcommands (train, init, balance, build, infer, eval, demo, gui) plus edge cases
+- **GitHub Releases**: Created releases for v0.8.3 through v0.9.4 with full CHANGELOG notes
+
+### Fixed
+- **11 test failures resolved** (414 tests passing, up from 333):
+  - `test_eval_loader.py`: Fixed mock structure (transformers.utils, peft), missing adapter_path arg, CWD pollution, empty string handling
+  - `test_eval_retention.py`: Fixed CWD capture in test_adapter_relative_path
+  - `test_memory_optimization.py`: Added transformers mock before train_template import
+  - `_eval_loader.py`: Empty model_id_or_path now raises ValueError
+
+---
+
 ## [0.9.3] — 2026-07-04 — Remove deprecated hyphenated commands, --compile + QLoRA guard
 
 ### Removed
