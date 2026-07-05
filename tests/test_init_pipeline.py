@@ -581,7 +581,7 @@ def test_main_skip_buckets_runs(
 
 
 def test_cli_main_init_dispatches(monkeypatch: pytest.MonkeyPatch) -> None:
-    """attacklm.cli.main_init should call _run_python_script('init_pipeline.py', argv)."""
+    """attacklm init should call _run_python_script('init_pipeline.py', argv)."""
     from attacklm import cli
 
     captured: dict = {}
@@ -592,7 +592,12 @@ def test_cli_main_init_dispatches(monkeypatch: pytest.MonkeyPatch) -> None:
         return 0
 
     monkeypatch.setattr(cli, "_run_python_script", fake_run)
-    rc = cli.main_init(["--yes", "--dry-run"])
+    parser = cli.build_parser()
+    args = parser.parse_args(["init", "--", "--yes", "--dry-run"])
+    # Strip leading '--' that argparse REMAINDER includes (main() does this)
+    if hasattr(args, "argv") and args.argv and args.argv[0] == "--":
+        args.argv = args.argv[1:]
+    rc = args.func(args)
     assert rc == 0
     assert captured["name"] == "init_pipeline.py"
     assert captured["argv"] == ["--yes", "--dry-run"]
