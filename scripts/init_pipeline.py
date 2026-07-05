@@ -10,20 +10,20 @@ developers who want to modify the extraction pipeline or rebuild from scratch.
 
 Usage::
 
-    attacklm-init                       # download pre-built dataset (default)
-    attacklm-init --from-source         # rebuild from upstream repos
-    attacklm-init --dataset-url URL      # download from a custom URL
-    attacklm-init --yes                  # auto-confirm prompts
-    attacklm-init --dry-run              # show what would happen, do nothing
+    attacklm init                       # download pre-built dataset (default)
+    attacklm init --from-source         # rebuild from upstream repos
+    attacklm init --dataset-url URL      # download from a custom URL
+    attacklm init --yes                  # auto-confirm prompts
+    attacklm init --dry-run              # show what would happen, do nothing
 
 From-source flags (only apply with ``--from-source``)::
 
-    attacklm-init --from-source --skip-clone          # assume data on disk
-    attacklm-init --from-source --skip-attribute      # skip attribution
-    attacklm-init --from-source --skip-buckets         # skip bucketing
-    attacklm-init --from-source --force-clone          # re-clone repos
-    attacklm-init --from-source --force-extract        # re-run extractors
-    attacklm-init --from-source --clean-buckets        # clean old flat files
+    attacklm init --from-source --skip-clone          # assume data on disk
+    attacklm init --from-source --skip-attribute      # skip attribution
+    attacklm init --from-source --skip-buckets         # skip bucketing
+    attacklm init --from-source --force-clone          # re-clone repos
+    attacklm init --from-source --force-extract        # re-run extractors
+    attacklm init --from-source --clean-buckets        # clean old flat files
 
 Exit codes:
   0   success
@@ -101,7 +101,7 @@ def _check_download_deps() -> None:
         print(
             "\n!!! Missing Python dependencies: " + ", ".join(missing) + "\n"
             "    Run: pip install attacklm[extract]\n"
-            "    and then re-run attacklm-init.\n",
+            "    and then re-run attacklm init.\n",
             file=sys.stderr,
         )
         raise DependencyError(missing)
@@ -327,13 +327,13 @@ def _download_with_progress(url: str, dest: Path) -> None:
             print(
                 "\n!!! Dataset tarball not found (HTTP 404).\n"
                 "    This usually means no release has been published yet.\n"
-                "    Try: attacklm-init --from-source\n",
+                "    Try: attacklm init --from-source\n",
                 file=sys.stderr,
             )
             sys.exit(3)
         print(
             f"\n!!! HTTP error {exc.code}: {exc.reason}\n"
-            "    Try: attacklm-init --from-source\n",
+            "    Try: attacklm init --from-source\n",
             file=sys.stderr,
         )
         sys.exit(3)
@@ -341,14 +341,14 @@ def _download_with_progress(url: str, dest: Path) -> None:
         print(
             f"\n!!! Network error: {exc.reason}\n"
             "    Check your internet connection and try again.\n"
-            "    Fallback: attacklm-init --from-source\n",
+            "    Fallback: attacklm init --from-source\n",
             file=sys.stderr,
         )
         sys.exit(3)
     except OSError as exc:
         print(
             f"\n!!! Download failed: {exc}\n"
-            "    Fallback: attacklm-init --from-source\n",
+            "    Fallback: attacklm init --from-source\n",
             file=sys.stderr,
         )
         sys.exit(3)
@@ -402,7 +402,7 @@ def _verify_extraction() -> None:
             "\n!!! Extraction verification failed: "
             f"{SOURCES_DIR.relative_to(BASE_DIR)} does not exist.\n"
             "    The tarball may be corrupted or have an unexpected layout.\n"
-            "    Try: attacklm-init --from-source\n",
+            "    Try: attacklm init --from-source\n",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -412,7 +412,7 @@ def _verify_extraction() -> None:
             f"\n!!! Extraction verification failed: {SOURCES_DIR.relative_to(BASE_DIR)} "
             "is empty.\n"
             "    The tarball may be corrupted.\n"
-            "    Try: attacklm-init --from-source\n",
+            "    Try: attacklm init --from-source\n",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -695,9 +695,9 @@ def _confirm(msg: str, assume_yes: bool) -> bool:
 def _print_next_steps() -> None:
     print(
         "\nNext steps:\n"
-        "  - attacklm-balance    # balance the per-tactic distributions\n"
-        "  - attacklm-train-all  # train all buckets\n"
-        "  - attacklm-build      # merge → GGUF → install\n",
+        "  - attacklm balance    # balance the per-tactic distributions\n"
+        "  - attacklm train --all  # train all buckets\n"
+        "  - attacklm build      # merge → GGUF → install\n",
         file=sys.stderr,
     )
 
@@ -776,7 +776,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     print("=" * 72, file=sys.stderr)
-    print("attacklm-init: one-shot dataset initialization", file=sys.stderr)
+    print("attacklm init: one-shot dataset initialization", file=sys.stderr)
     print("=" * 72, file=sys.stderr)
 
     # ── Download mode (default) ─────────────────────────────────────────────
@@ -902,7 +902,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return rc
 
     print("\n" + "=" * 72, file=sys.stderr)
-    print("attacklm-init: complete (from-source)", file=sys.stderr)
+    print("attacklm init: complete (from-source)", file=sys.stderr)
     print("=" * 72, file=sys.stderr)
     _print_next_steps()
     return 0

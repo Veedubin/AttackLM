@@ -240,7 +240,7 @@ def main() -> int:
         print(
             f"Splunk detections directory not found: {DETECTIONS_DIR}", file=sys.stderr
         )
-        print("Run attacklm-clone or attacklm-init first.", file=sys.stderr)
+        print("Run attacklm init --clone-only or attacklm init first.", file=sys.stderr)
         return 1
 
     yml_files = sorted(DETECTIONS_DIR.rglob("*.yml"))

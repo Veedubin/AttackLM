@@ -4,13 +4,13 @@ merge_adapter.py — Merge a LoRA adapter into its base model for standalone dep
 
 Usage:
     # Merge a single adapter (base model auto-detected from adapter_config.json):
-    attacklm-merge --adapter models/attacklm-single --output models/merged/attacklm
+    attacklm build --merge-only -- --adapter models/attacklm-single --output models/merged/attacklm
 
     # Merge all trained adapters:
-    attacklm-merge --merge-all
+    attacklm build --merge-only -- --merge-all
 
     # Override the base model explicitly:
-    attacklm-merge --adapter models/attacklm-single --output models/merged/attacklm --base-model Qwen/Qwen2.5-Coder-3B-Instruct
+    attacklm build --merge-only -- --adapter models/attacklm-single --output models/merged/attacklm --base-model Qwen/Qwen2.5-Coder-3B-Instruct
 """
 
 import argparse

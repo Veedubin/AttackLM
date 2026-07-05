@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.9.3] — 2026-07-04 — Remove deprecated hyphenated commands, --compile + QLoRA guard
+
+### Removed
+- **Deprecated hyphenated commands**: All 22 `attacklm-*` console scripts removed from `pyproject.toml` and `cli.py` after the v0.8.x deprecation window. Use `attacklm <subcommand>` instead.
+  - `attacklm-train` → `attacklm train`
+  - `attacklm-train-all` → `attacklm train --all`
+  - `attacklm-train-lora` → `attacklm train`
+  - `attacklm-hpo` → `attacklm train --hpo`
+  - `attacklm-extract` → `attacklm init --extract-only`
+  - `attacklm-buckets` → `attacklm init --buckets-only`
+  - `attacklm-attribute` → `attacklm init --attribute-only`
+  - `attacklm-clone` → `attacklm init --clone-only`
+  - `attacklm-init` → `attacklm init`
+  - `attacklm-balance` → `attacklm balance`
+  - `attacklm-merge` → `attacklm build --merge-only`
+  - `attacklm-gguf` → `attacklm build --gguf-only`
+  - `attacklm-build` → `attacklm build`
+  - `attacklm-infer` → `attacklm infer`
+  - `attacklm-demo` → `attacklm demo`
+  - `attacklm-eval` → `attacklm eval`
+  - `attacklm-collect-ref` → `attacklm eval --collect-ref`
+  - `attacklm-score` → `attacklm eval --score`
+  - `attacklm-compare` → `attacklm eval --compare`
+  - `attacklm-golden` → `attacklm eval --golden`
+  - `attacklm-pipeline` → `attacklm pipeline`
+- **Deprecated wrapper code**: Removed `_deprecated()` helper, `_DEPRECATED_MSG` constant, and all 19 `main_*` wrapper functions from `src/attacklm/cli.py`
+
+### Added
+- **`--compile` + QLoRA incompatibility guard**: `train_template.py` now exits with a clear error if `--compile` is used with default 4-bit QLoRA (BitsAndBytes NF4). torch.compile is incompatible with quantized models. Users are directed to use `--use-galore` or `--use-deepspeed` for full-parameter training with compilation.
+- **5 new tests** in `test_memory_optimization.py` verifying the compile+QLoRA guard and compatibility with GaLore, DeepSpeed, and Unsloth
+
+### Changed
+- **All script references updated**: 30+ references across 10 script files, 5 extractors, GUI, and pipeline config updated from hyphenated to subcommand form
+- **Documentation**: `CONTRIBUTING.md` and `EVALUATION.md` updated with new command forms
+
+---
+
 ## [0.9.0] — 2026-07-01 — Memory optimization: DeepSpeed, torch.compile, LOMO
 
 ### Added

@@ -7,12 +7,12 @@ manifest at models/built/{name}_{timestamp}/.
 
 This replaces the 3-command shell pipeline:
 
-    attacklm-merge --base X --adapter Y --output Z \\
-      && attacklm-gguf --input Z --install-lmstudio
+    attacklm build --merge-only -- --base X --adapter Y --output Z \\
+      && attacklm build --gguf-only -- --input Z --install-lmstudio
 
 with a single command:
 
-    attacklm-build --adapter models/attacklm-3b_16g \\
+    attacklm build --adapter models/attacklm-3b_16g \\
                    --base ./uncensored/ \\
                    --name attacklm-3b-16g \\
                    --install-lmstudio
@@ -29,24 +29,24 @@ orchestrator is just glue.
 Usage:
 
     # Full pipeline: merge + GGUF + LM Studio
-    attacklm-build --adapter models/attacklm-3b_16g \\
+    attacklm build --adapter models/attacklm-3b_16g \\
                    --base ./uncensored/ \\
                    --name attacklm-3b-16g
 
     # Skip LM Studio install, drop the GGUF in models/gguf/ only
-    attacklm-build --adapter models/attacklm-3b_16g \\
+    attacklm build --adapter models/attacklm-3b_16g \\
                    --base ./uncensored/ \\
                    --name attacklm-3b-16g \\
                    --no-install-lmstudio
 
     # Register with Ollama too
-    attacklm-build --adapter models/attacklm-3b_16g \\
+    attacklm build --adapter models/attacklm-3b_16g \\
                    --base ./uncensored/ \\
                    --name attacklm-3b-16g \\
                    --register-ollama
 
     # Use an already-merged model (skip the merge step)
-    attacklm-build --merged models/merged/attacklm-3b-16g \\
+    attacklm build --merged models/merged/attacklm-3b-16g \\
                    --name attacklm-3b-16g
 """
 
@@ -106,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
         "--adapter",
         type=Path,
         default=None,
-        help="Path to the LoRA adapter directory (output of attacklm-train).",
+        help="Path to the LoRA adapter directory (output of ``attacklm train``).",
     )
     parser.add_argument(
         "--merged",

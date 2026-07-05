@@ -319,7 +319,7 @@ class TrainFormScreen(Screen):
         return values
 
     def _build_command(self, values: dict) -> list[str]:
-        """Build the attacklm-train command from form values."""
+        """Build the attacklm train command from form values."""
         cmd = ["attacklm", "train"]
 
         # Required

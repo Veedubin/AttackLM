@@ -94,7 +94,7 @@ Buckets live in `data/datasets/buckets/<bucket_name>/` and contain a
 uv pip install -e ".[all,dev]"
 
 # Run a sanity check on the training pipeline
-attacklm-train \
+attacklm train \
   --dataset data/datasets/combined/combined_*.jsonl \
   --output /tmp/test-output --dry-run
 ```

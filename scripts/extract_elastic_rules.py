@@ -278,7 +278,7 @@ def main() -> int:
 
     if not RULES_DIR.exists():
         print(f"Elastic rules directory not found: {RULES_DIR}", file=sys.stderr)
-        print("Run attacklm-clone or attacklm-init first.", file=sys.stderr)
+        print("Run attacklm init --clone-only or attacklm init first.", file=sys.stderr)
         return 1
 
     toml_files = sorted(RULES_DIR.rglob("*.toml"))

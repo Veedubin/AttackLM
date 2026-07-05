@@ -230,7 +230,7 @@ def main() -> int:
 
     if not PLAYBOOKS_DIR.exists():
         print(f"Playbooks directory not found: {PLAYBOOKS_DIR}", file=sys.stderr)
-        print("Run attacklm-clone or attacklm-init first.", file=sys.stderr)
+        print("Run attacklm init --clone-only or attacklm init first.", file=sys.stderr)
         return 1
 
     md_files = sorted(PLAYBOOKS_DIR.rglob("*.md"))

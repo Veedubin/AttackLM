@@ -239,7 +239,7 @@ def main() -> int:
 
     if not RULES_DIR.exists():
         print(f"Sigma rules directory not found: {RULES_DIR}", file=sys.stderr)
-        print("Run attacklm-clone or attacklm-init first.", file=sys.stderr)
+        print("Run attacklm init --clone-only or attacklm init first.", file=sys.stderr)
         return 1
 
     yml_files = sorted(RULES_DIR.rglob("*.yml"))

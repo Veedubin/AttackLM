@@ -449,6 +449,113 @@ class TestAllFlagsCombined(unittest.TestCase):
         self.assertTrue(args.use_galore)
 
 
+class TestCompileQLoRAIncompatibility(unittest.TestCase):
+    """Verify --compile errors when used with default 4-bit QLoRA (BnB)."""
+
+    def test_compile_with_qlora_raises_error(self):
+        """--compile without --use-galore/--use-unsloth/--use-deepspeed should error."""
+        # Simulates: args.compile=True, skip_quantization=False, use_deepspeed=False
+        # This is the default QLoRA path (BnB 4-bit) which is incompatible with torch.compile.
+        args = train_template.parse_args(
+            [
+                "--dataset",
+                "dummy.jsonl",
+                "--output",
+                "/tmp/test_out",
+                "--compile",
+            ]
+        )
+        skip_quantization = (
+            args.moe_safe_target
+            or args.use_unsloth
+            or args.use_galore
+            or args.use_qgalore
+        )
+        # --compile + default 4-bit QLoRA should be incompatible
+        self.assertTrue(args.compile)
+        self.assertFalse(skip_quantization)
+        self.assertFalse(args.use_deepspeed)
+
+    def test_compile_with_galore_is_compatible(self):
+        """--compile + --use-galore is valid (skip_quantization=True)."""
+        args = train_template.parse_args(
+            [
+                "--dataset",
+                "dummy.jsonl",
+                "--output",
+                "/tmp/test_out",
+                "--compile",
+                "--use-galore",
+            ]
+        )
+        skip_quantization = (
+            args.moe_safe_target
+            or args.use_unsloth
+            or args.use_galore
+            or args.use_qgalore
+        )
+        # --use-galore sets skip_quantization=True, so torch.compile is fine
+        self.assertTrue(args.compile)
+        self.assertTrue(skip_quantization)
+
+    def test_compile_with_deepspeed_is_compatible(self):
+        """--compile + --use-deepspeed is valid (DeepSpeed ZeRO, no BnB)."""
+        args = train_template.parse_args(
+            [
+                "--dataset",
+                "dummy.jsonl",
+                "--output",
+                "/tmp/test_out",
+                "--compile",
+                "--use-deepspeed",
+            ]
+        )
+        skip_quantization = (
+            args.moe_safe_target
+            or args.use_unsloth
+            or args.use_galore
+            or args.use_qgalore
+        )
+        # --use-deepspeed avoids BnB 4-bit, so torch.compile is fine
+        self.assertTrue(args.compile)
+        self.assertTrue(args.use_deepspeed)
+
+    def test_compile_with_unsloth_is_compatible(self):
+        """--compile + --use-unsloth is valid (skip_quantization=True)."""
+        args = train_template.parse_args(
+            [
+                "--dataset",
+                "dummy.jsonl",
+                "--output",
+                "/tmp/test_out",
+                "--compile",
+                "--use-unsloth",
+            ]
+        )
+        skip_quantization = (
+            args.moe_safe_target
+            or args.use_unsloth
+            or args.use_galore
+            or args.use_qgalore
+        )
+        # --use-unsloth sets skip_quantization=True
+        self.assertTrue(args.compile)
+        self.assertTrue(skip_quantization)
+
+    def test_no_compile_is_fine(self):
+        """Without --compile, no incompatibility check is needed."""
+        args = train_template.parse_args(
+            [
+                "--dataset",
+                "dummy.jsonl",
+                "--output",
+                "/tmp/test_out",
+            ]
+        )
+        # Default QLoRA path without --compile is perfectly valid
+        self.assertFalse(args.compile)
+
+
 # =========================================================================
 # State JSON Integration
 # =========================================================================

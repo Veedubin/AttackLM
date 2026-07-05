@@ -1,7 +1,6 @@
 """Simpler command form screens for non-training AttackLM commands.
 
-Updated for v0.8.0 unified CLI: uses 'attacklm <subcommand>' format
-instead of the old hyphenated commands.
+Uses the unified 'attacklm <subcommand>' CLI format (v0.8.0+).
 """
 
 from __future__ import annotations
@@ -329,7 +328,7 @@ class EvalFormScreen(_BaseCommandScreen):
 
 
 class PipelineFormScreen(_BaseCommandScreen):
-    """Run the training pipeline using 'attacklm-pipeline' (unchanged)."""
+    """Run the training pipeline using 'attacklm pipeline'."""
 
     def compose(self) -> ComposeResult:
         with Container(id="cmd-container"):
@@ -345,7 +344,7 @@ class PipelineFormScreen(_BaseCommandScreen):
             self.app.pop_screen()
         elif event.button.id == "btn-run":
             values = self._get_values()
-            cmd = ["attacklm-pipeline"]
+            cmd = ["attacklm", "pipeline"]
             if values.get("config"):
                 cmd.extend(["--config", values["config"]])
             import asyncio

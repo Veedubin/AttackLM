@@ -10,9 +10,6 @@ Usage::
     attacklm eval [--collect-ref|--score|--compare|--golden] [args...]
     attacklm gui
     attacklm demo [args...]
-
-Old hyphenated commands (attacklm-train, attacklm-hpo, etc.) still work
-but print a deprecation warning and delegate to the new subcommand.
 """
 
 from __future__ import annotations
@@ -86,7 +83,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
     if args.clone_only:
         return _run_shell_script("clone_repos.sh", args.argv)
     if args.extract_only:
-        # Run all extractors sequentially (same as attacklm-extract)
+        # Run all extractors sequentially
         extractors = [
             "extract_atomic_red_team_to_jsonl.py",
             "extract_caldera_plugins_to_jsonl.py",
@@ -233,7 +230,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--all",
         action="store_true",
         default=False,
-        help="Train all buckets (replaces attacklm-train-all)",
+        help="Train all buckets",
     )
     train_p.add_argument(
         "--hpo",
@@ -265,25 +262,25 @@ def build_parser() -> argparse.ArgumentParser:
         "--extract-only",
         action="store_true",
         default=False,
-        help="Run data extractors only (replaces attacklm-extract)",
+        help="Run data extractors only",
     )
     init_group.add_argument(
         "--buckets-only",
         action="store_true",
         default=False,
-        help="Organize data into buckets only (replaces attacklm-buckets)",
+        help="Organize data into buckets only",
     )
     init_group.add_argument(
         "--attribute-only",
         action="store_true",
         default=False,
-        help="Add per-pair source/license attribution only (replaces attacklm-attribute)",
+        help="Add per-pair source/license attribution only",
     )
     init_group.add_argument(
         "--clone-only",
         action="store_true",
         default=False,
-        help="Clone upstream data repos only (replaces attacklm-clone)",
+        help="Clone upstream data repos only",
     )
     # Data-source flags (mutually exclusive: build from source vs download tarball).
     init_source_group = init_p.add_mutually_exclusive_group()
@@ -333,13 +330,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--merge-only",
         action="store_true",
         default=False,
-        help="Merge adapter only (replaces attacklm-merge)",
+        help="Merge adapter only",
     )
     build_group.add_argument(
         "--gguf-only",
         action="store_true",
         default=False,
-        help="Convert to GGUF only (replaces attacklm-gguf)",
+        help="Convert to GGUF only",
     )
     build_group.add_argument(
         "--register-ollama",
@@ -381,25 +378,25 @@ def build_parser() -> argparse.ArgumentParser:
         "--collect-ref",
         action="store_true",
         default=False,
-        help="Generate reference continuations (replaces attacklm-collect-ref)",
+        help="Generate reference continuations",
     )
     eval_group.add_argument(
         "--score",
         action="store_true",
         default=False,
-        help="Score candidate models (replaces attacklm-score)",
+        help="Score candidate models",
     )
     eval_group.add_argument(
         "--compare",
         action="store_true",
         default=False,
-        help="Compare two score TSV files (replaces attacklm-compare)",
+        help="Compare two score TSV files",
     )
     eval_group.add_argument(
         "--golden",
         action="store_true",
         default=False,
-        help="Golden vector generation/validation (replaces attacklm-golden)",
+        help="Golden vector generation/validation",
     )
     eval_p.add_argument(
         "argv",
@@ -462,196 +459,6 @@ def main() -> None:
 
     rc = args.func(args)
     sys.exit(rc)
-
-
-# ---------------------------------------------------------------------------
-# Deprecation wrappers — old hyphenated commands
-# ---------------------------------------------------------------------------
-# Each prints a one-line deprecation notice, then delegates to the
-# corresponding subcommand.  These are referenced from
-# pyproject.toml [project.scripts] for backward compatibility.
-#
-# They will be removed in a future release (two-release deprecation window).
-
-_DEPRECATED_MSG = (
-    "{} is deprecated. Use '{}' instead. "
-    "See 'attacklm --help' for the new subcommand interface."
-)
-
-
-def _deprecated(old_cmd: str, new_cmd: str, argv: Sequence[str]) -> int:
-    """Print deprecation warning and delegate to new subcommand."""
-    print(_DEPRECATED_MSG.format(old_cmd, new_cmd), file=sys.stderr)
-    # Build new argv and re-run through the parser.
-    # Insert "--" so REMAINDER captures all forwarded args (including
-    # flags like --yes, --dry-run that argparse would otherwise reject).
-    subcmd = new_cmd.split()[1]  # strip "attacklm " prefix
-    new_argv = [subcmd, "--"] + list(argv)
-    parser = build_parser()
-    args = parser.parse_args(new_argv)
-    # Strip the leading "--" that we inserted — the handler expects
-    # just the forwarded args.
-    if hasattr(args, "argv") and args.argv and args.argv[0] == "--":
-        args.argv = args.argv[1:]
-    return args.func(args)
-
-
-# ---- Training ----
-
-
-def main_train(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm train``."""
-    return _deprecated("attacklm-train", "attacklm train", argv or sys.argv[1:])
-
-
-def main_train_all(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm train --all``."""
-    args = argv or sys.argv[1:]
-    return _deprecated(
-        "attacklm-train-all",
-        "attacklm train --all",
-        ["--all"] + list(args),
-    )
-
-
-def main_train_lora(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm train``."""
-    return _deprecated("attacklm-train-lora", "attacklm train", argv or sys.argv[1:])
-
-
-def main_hpo(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm train --hpo``."""
-    args = argv or sys.argv[1:]
-    return _deprecated("attacklm-hpo", "attacklm train --hpo", ["--hpo"] + list(args))
-
-
-# ---- Data / Init ----
-
-
-def main_extract(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm init --extract-only``."""
-    return _deprecated(
-        "attacklm-extract",
-        "attacklm init --extract-only",
-        ["--extract-only"] + list(argv or []),
-    )
-
-
-def main_buckets(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm init --buckets-only``."""
-    return _deprecated(
-        "attacklm-buckets",
-        "attacklm init --buckets-only",
-        ["--buckets-only"] + list(argv or []),
-    )
-
-
-def main_attribute(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm init --attribute-only``."""
-    return _deprecated(
-        "attacklm-attribute",
-        "attacklm init --attribute-only",
-        ["--attribute-only"] + list(argv or []),
-    )
-
-
-def main_clone(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm init --clone-only``."""
-    return _deprecated(
-        "attacklm-clone",
-        "attacklm init --clone-only",
-        ["--clone-only"] + list(argv or []),
-    )
-
-
-def main_init(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm init``."""
-    return _deprecated("attacklm-init", "attacklm init", argv or sys.argv[1:])
-
-
-# ---- Balance ----
-
-
-def main_balance(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm balance``."""
-    return _deprecated("attacklm-balance", "attacklm balance", argv or sys.argv[1:])
-
-
-# ---- Build ----
-
-
-def main_merge(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm build --merge-only``."""
-    return _deprecated(
-        "attacklm-merge",
-        "attacklm build --merge-only",
-        ["--merge-only"] + list(argv or []),
-    )
-
-
-def main_gguf(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm build --gguf-only``."""
-    return _deprecated(
-        "attacklm-gguf",
-        "attacklm build --gguf-only",
-        ["--gguf-only"] + list(argv or []),
-    )
-
-
-def main_build(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm build``."""
-    return _deprecated("attacklm-build", "attacklm build", argv or sys.argv[1:])
-
-
-# ---- Eval ----
-
-
-def main_eval(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm eval``."""
-    return _deprecated("attacklm-eval", "attacklm eval", argv or sys.argv[1:])
-
-
-def main_collect_ref(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm eval --collect-ref``."""
-    return _deprecated(
-        "attacklm-collect-ref",
-        "attacklm eval --collect-ref",
-        ["--collect-ref"] + list(argv or []),
-    )
-
-
-def main_score(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm eval --score``."""
-    return _deprecated(
-        "attacklm-score", "attacklm eval --score", ["--score"] + list(argv or [])
-    )
-
-
-def main_compare(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm eval --compare``."""
-    return _deprecated(
-        "attacklm-compare", "attacklm eval --compare", ["--compare"] + list(argv or [])
-    )
-
-
-def main_golden(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm eval --golden``."""
-    return _deprecated(
-        "attacklm-golden", "attacklm eval --golden", ["--golden"] + list(argv or [])
-    )
-
-
-# ---- Inference / Demo ----
-
-
-def main_infer(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm infer``."""
-    return _deprecated("attacklm-infer", "attacklm infer", argv or sys.argv[1:])
-
-
-def main_demo(argv: Sequence[str] | None = None) -> int:
-    """Deprecated: use ``attacklm demo``."""
-    return _deprecated("attacklm-demo", "attacklm demo", argv or sys.argv[1:])
 
 
 if __name__ == "__main__":

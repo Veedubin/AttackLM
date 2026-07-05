@@ -226,37 +226,13 @@ all-rocm = ["attacklm[train-rocm,extract,convert]"]
 
 # ── Console script entry points ───────────────────────────────────────────────
 #
-# v0.8.0+: The unified ``attacklm`` command (subcommand-based) is the primary
-# interface.  The old hyphenated commands are DEPRECATED but kept for one
-# release cycle.  They print a deprecation warning and delegate to the new
-# subcommand.  They will be removed in v0.9.0.
+# v0.8.0+ introduced the unified ``attacklm`` command (subcommand-based).
+# The old hyphenated commands (attacklm-train, attacklm-merge, etc.) were
+# deprecated in v0.8.x and removed in v0.9.3.
 
 [project.scripts]
-# New unified CLI
+# Unified CLI (the only entry point since v0.9.3)
 attacklm = "attacklm.cli:main"
-
-# Deprecated (v0.8.x) — to be removed in v0.9.0
-attacklm-train = "attacklm.cli:main_train"
-attacklm-train-all = "attacklm.cli:main_train_all"
-attacklm-hpo = "attacklm.cli:main_hpo"
-attacklm-infer = "attacklm.cli:main_infer"
-attacklm-merge = "attacklm.cli:main_merge"
-attacklm-gguf = "attacklm.cli:main_gguf"
-attacklm-demo = "attacklm.cli:main_demo"
-attacklm-extract = "attacklm.cli:main_extract"
-attacklm-buckets = "attacklm.cli:main_buckets"
-attacklm-attribute = "attacklm.cli:main_attribute"
-attacklm-clone = "attacklm.cli:main_clone"
-attacklm-init = "attacklm.cli:main_init"
-attacklm-balance = "attacklm.cli:main_balance"
-attacklm-build = "attacklm.cli:main_build"
-attacklm-train-lora = "attacklm.cli:main_train_lora"
-attacklm-eval = "attacklm.cli:main_eval"
-attacklm-collect-ref = "attacklm.cli:main_collect_ref"
-attacklm-score = "attacklm.cli:main_score"
-attacklm-compare = "attacklm.cli:main_compare"
-attacklm-golden = "attacklm.cli:main_golden"
-attacklm-pipeline = "attacklm.scripts.pipeline:main"
 
 # ── Hatch build configuration ─────────────────────────────────────────────────
 
@@ -264,7 +240,7 @@ attacklm-pipeline = "attacklm.scripts.pipeline:main"
 packages = ["src/attacklm"]
 
 # Include scripts/ in the wheel so CLI entry points can find them.
-# Without this, `attacklm-train-all` etc. fail with "script not found"
+# Without this, the unified ``attacklm`` command fails with "script not found"
 # because _SCRIPTS_DIR resolves to site-packages/scripts/ which is empty.
 # scripts/ is ~200KB of Python — negligible for the wheel.
 [tool.hatch.build.targets.wheel.force-include]
