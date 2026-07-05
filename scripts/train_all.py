@@ -420,6 +420,8 @@ def build_train_cmd(
         cmd.append("--fp16")
     if getattr(args, "fp32", False):
         cmd.append("--fp32")
+    if getattr(args, "fp8", False):
+        cmd.append("--fp8")
     if not getattr(args, "use_rslora", True):
         cmd.append("--no-use-rslora")
     if getattr(args, "target_modules", None):
@@ -436,6 +438,8 @@ def build_train_cmd(
         cmd.append("--use-qgalore")
     if getattr(args, "spectrum", False):
         cmd.append("--spectrum")
+    if getattr(args, "mixed_precision_lora", False):
+        cmd.append("--mixed-precision-lora")
     if getattr(args, "multi_gpu", False):
         cmd.append("--multi-gpu")
     # DeepSpeed / torch.compile / LOMO flags
@@ -451,6 +455,16 @@ def build_train_cmd(
         cmd.extend(["--compile-mode", args.compile_mode])
     if getattr(args, "use_lomo", False):
         cmd.append("--use-lomo")
+    if getattr(args, "use_coap", False):
+        cmd.append("--use-coap")
+    if getattr(args, "coap_rank", None) and args.coap_rank != 128:
+        cmd.extend(["--coap-rank", str(args.coap_rank)])
+    if getattr(args, "coap_8bit", False):
+        cmd.append("--coap-8bit")
+    if getattr(args, "use_flashoptim", False):
+        cmd.append("--use-flashoptim")
+    if getattr(args, "bitnet", False):
+        cmd.append("--bitnet")
     if getattr(args, "live_lr", False):
         cmd.append("--live-lr")
     if getattr(args, "early_stop_steps", None):
@@ -768,6 +782,16 @@ def main():
         help="Force float32 (no mixed precision) in train_template.py.",
     )
     parser.add_argument(
+        "--fp8",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable FP8 mixed-precision training (requires H100/Blackwell GPU). "
+            "Cuts memory and compute ~50%% vs BF16. Uses Transformer Engine. "
+            "Passed through to train_template.py (default: OFF)."
+        ),
+    )
+    parser.add_argument(
         "--use-rslora",
         dest="use_rslora",
         action="store_true",
@@ -846,6 +870,17 @@ def main():
         "with low signal-to-noise ratio, focusing training on impactful layers. "
         "Passed through to train_template.py (default: OFF).",
     )
+    parser.add_argument(
+        "--mixed-precision-lora",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable mixed-precision LoRA (2-bit for robust layers, 4-bit for "
+            "sensitive). Saves 35-45%% VRAM vs uniform 4-bit. Experimental: "
+            "adds infrastructure and classification logic. "
+            "Passed through to train_template.py (default: OFF)."
+        ),
+    )
     # ---- DeepSpeed / torch.compile / LOMO flags ----
     parser.add_argument(
         "--use-deepspeed",
@@ -890,6 +925,18 @@ def main():
         action="store_true",
         default=False,
         help="Enable LOMO optimizer (forwarded to train_template.py)",
+    )
+    parser.add_argument(
+        "--bitnet",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable BitNet b1.58 mode for ternary-weight models. "
+            "BitNet uses ternary weights (-1, 0, +1) = 1.58 bits/weight, "
+            "achieving 60-75% VRAM savings vs FP16. Requires a natively "
+            "trained BitNet base model (e.g. microsoft/bitnet-b1.58-2B4T). "
+            "Forwarded to train_template.py (default: OFF)."
+        ),
     )
     parser.add_argument(
         "--auto-tune",
@@ -1095,6 +1142,10 @@ def main():
         out(f"  torch.compile: {args.compile_mode}")
     if args.use_lomo:
         out("  LOMO:          enabled")
+    if args.fp8:
+        out("  FP8:           enabled (Transformer Engine)")
+    if getattr(args, "bitnet", False):
+        out("  BitNet:        enabled (ternary weights -1, 0, +1)")
     out(f"  Log file:      {log_path}")
     out(f"  Models:        {len(MODELS)} total")
     out("")
