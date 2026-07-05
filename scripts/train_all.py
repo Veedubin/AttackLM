@@ -412,6 +412,8 @@ def build_train_cmd(
         cmd.append("--use-dora")
     if getattr(args, "loftq_init", False):
         cmd.append("--loftq-init")
+    if getattr(args, "pissa_init", False):
+        cmd.append("--pissa-init")
     if getattr(args, "bf16", False):
         cmd.append("--bf16")
     if getattr(args, "fp16", False):
@@ -445,6 +447,8 @@ def build_train_cmd(
         cmd.extend(["--compile-mode", args.compile_mode])
     if getattr(args, "use_lomo", False):
         cmd.append("--use-lomo")
+    if getattr(args, "auto_tune", False):
+        cmd.append("--auto-tune")
     # v0.1.6+: pass dataset specs so train_template can record them in
     # state.json[dataset.specs] (reproducibility).
     if dataset_specs:
@@ -722,6 +726,18 @@ def main():
         default=False,
         help="Use LoftQ initialization in train_template.py (default: OFF).",
     )
+    parser.add_argument(
+        "--pissa-init",
+        action="store_true",
+        default=False,
+        help=(
+            "Use PiSSA (Principal Singular values Adaptation) initialization in "
+            "train_template.py. Initializes LoRA weights from the SVD of pre-trained "
+            "weights instead of random Kaiming init, giving faster convergence and "
+            "lower final loss. Only meaningful with LoRA/QLoRA (not GaLore). "
+            "Paper: arXiv:2404.02948. Default: OFF."
+        ),
+    )
     _mp_group = parser.add_mutually_exclusive_group()
     _mp_group.add_argument(
         "--bf16",
@@ -847,6 +863,14 @@ def main():
         action="store_true",
         default=False,
         help="Enable LOMO optimizer (forwarded to train_template.py)",
+    )
+    parser.add_argument(
+        "--auto-tune",
+        action="store_true",
+        default=False,
+        help="Auto-tune batch_size and max_length for your GPU. "
+        "Runs VRAM probing and benchmark passes to find the compute-bound "
+        "sweet spot. Passed through to train_template.py.",
     )
     # ---- Experience replay flags ----
     parser.add_argument(

@@ -54,6 +54,7 @@ def run_train(job_name: str, train_cfg: dict) -> bool:
         "use_rslora",
         "moe_safe_target",
         "loftq_init",
+        "pissa_init",
         "resume_from_checkpoint",
         "no_timestamp",
         "force",

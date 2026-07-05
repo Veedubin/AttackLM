@@ -2653,6 +2653,60 @@ def main() -> None:
             compute_dtype = torch.float32
             # FP32 path: no need to set bnb_config compute dtype (remains default)
 
+    # --- Auto-tune VRAM (before model load) ---
+    # If --auto-tune is set, probe the GPU to find optimal max_length and
+    # batch_size.  The function loads the model, benchmarks several lengths,
+    # and deletes it to free VRAM before the real training load below.
+    if args.auto_tune:
+        from transformers import AutoModelForCausalLM as _AutoModelForCausalLM
+
+        def _auto_tune_load_model():
+            """Minimal model loader for auto_tune_vram benchmarking.
+
+            Uses the same loading strategy as the main model load below,
+            but simplified: no config patching for flash-attn, no LoRA
+            prep, no checkpoint detection. Just load and return.
+            """
+            _load_kwargs = dict(
+                trust_remote_code=True,
+                dtype=compute_dtype,
+            )
+            if not args.multi_gpu:
+                _load_kwargs["device_map"] = None
+            else:
+                _load_kwargs["device_map"] = "auto"
+            if skip_quantization:
+                pass  # MoE-safe / Unsloth / GaLore: no quantization_config
+            elif quant_method is None:
+                _load_kwargs["quantization_config"] = bnb_config
+            # pre-quantized models: let HF auto-detect from config
+
+            if args.use_unsloth and _unsloth_available:
+                # Unsloth: use FastLanguageModel (handles 4-bit internally)
+                _model, _tok = FastLanguageModel.from_pretrained(
+                    model_name=base_model_resolved,
+                    max_seq_length=args.max_length,
+                    load_in_4bit=True,
+                    dtype=None,
+                    trust_remote_code=True,
+                )
+                return _model, _tok
+            else:
+                _model = _AutoModelForCausalLM.from_pretrained(
+                    base_model_resolved, **_load_kwargs
+                )
+                return _model, tokenizer
+
+        tuned = auto_tune_vram(args, _auto_tune_load_model)
+        if tuned:
+            args.max_length = tuned.get("max_length", args.max_length)
+            args.batch_size = tuned.get("batch_size", args.batch_size)
+            console.print(
+                f"  [green]Auto-tune result:[/green] "
+                f"max_length={args.max_length}, batch_size={args.batch_size}, "
+                f"tok_per_sec={tuned.get('tok_per_sec', '?')}"
+            )
+
     # --- Load base model ---
     # Detect pre-existing quantization scheme (FP8, GPTQ, AWQ, BnB, ...) by
     # reading the model's config.json. Without this, we'd unconditionally
