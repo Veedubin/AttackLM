@@ -17,6 +17,12 @@ from unittest.mock import MagicMock, patch
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
+# Mock optional deps that may not be installed in test envs
+_mock_bs4 = MagicMock()
+_mock_bs4.BeautifulSoup = MagicMock()
+sys.modules["bs4"] = _mock_bs4
+sys.modules["requests"] = MagicMock()
+
 
 # =========================================================================
 # New extractors added in v0.10.0

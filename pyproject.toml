@@ -187,6 +187,7 @@ extract = [
     "pyyaml",
     "requests",
     "tqdm",
+    "beautifulsoup4",  # needed by extract_0xdf_writeups.py
 ]
 convert = [
     "gguf",
