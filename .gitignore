@@ -225,3 +225,5 @@ archive/
 unsloth_compiled_cache/
 data/datasets/buckets/ATTRIBUTION.md
 data/datasets/buckets/GEMINI_RESEARCH_2026-06-11.md
+data/CTF-Dojo/
+data/NYU_CTF_Bench/
