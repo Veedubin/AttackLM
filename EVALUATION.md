@@ -40,7 +40,7 @@ The top 3-4 candidates are selected based on:
 
 ---
 
-## Current Candidates (v0.4.0)
+## Current Candidates (v0.10.0)
 
 | Rank | Model | Size | VRAM (QLoRA) | Rationale |
 |------|-------|------|-------------|-----------|
@@ -81,7 +81,7 @@ For each candidate, run these 4 patterns in order:
 
 **Duration**: ~15 minutes
 
-**What it measures**: Negative log-likelihood (NLL) and longest common prefix (LCP) against reference continuations from the current best model.
+**What it measures**: Negative log-likelihood (NLL) and longest common prefix (LCP) against reference continuations from the current best model. **v0.10.0 now integrates Judge-and-Revise quality filtering to prune noise from the evaluation pipeline.**
 
 **Output**: Per-bucket delta report showing where candidate improves or regresses.
 
@@ -175,4 +175,4 @@ Full evaluation (all 4 patterns, ~30 minutes) is reserved for candidate selectio
 
 ---
 
-*Last updated: 2026-06-22 — AttackLM v0.4.0*
+*Last updated: 2026-06-22 — AttackLM v0.10.0*

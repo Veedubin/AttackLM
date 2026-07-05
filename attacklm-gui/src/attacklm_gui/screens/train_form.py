@@ -114,6 +114,10 @@ class TrainFormScreen(Screen):
                             "7B Q-GaLore",
                             "7B QLoRA Default",
                             "DeepSpeed 40B+",
+                            "COAP 8-bit",
+                            "FlashOptim",
+                            "FP8 (H100/Blackwell)",
+                            "BitNet 2B",
                         ]
                     ],
                     id="preset-select",
@@ -220,6 +224,27 @@ class TrainFormScreen(Screen):
                         value="-1",
                     )
 
+                with TabPane("Evolved Pairs", id="tab-evolved"):
+                    yield self._row(
+                        "Evolved Ratio",
+                        "evolved_ratio",
+                        placeholder="0.2",
+                        value="0.2",
+                    )
+                    yield Label(
+                        "Fraction of training data from evolved pairs (0.0-1.0)",
+                        classes="form-help",
+                    )
+                    yield self._row(
+                        "Evolved Dir",
+                        "evolved_dir",
+                        placeholder="data/evolved-pairs",
+                    )
+                    yield Label(
+                        "Directory containing evolved pair data",
+                        classes="form-help",
+                    )
+
                 with TabPane("Hardware", id="tab-hardware"):
                     yield Label("Precision:", classes="form-label")
                     yield Select(
@@ -274,6 +299,31 @@ class TrainFormScreen(Screen):
                     yield Static("LOMO Optimizer", classes="section-header")
                     yield self._checkbox_row(
                         "Enable LOMO (full-param, low VRAM)", "use_lomo"
+                    )
+
+                    yield Static("COAP Optimizer", classes="section-header")
+                    yield self._checkbox_row("Use COAP", "use_coap")
+                    yield self._row(
+                        "COAP Rank", "coap_rank", placeholder="128", value="128"
+                    )
+                    yield self._checkbox_row("COAP 8-bit Quantization", "coap_8bit")
+
+                    yield Static("FlashOptim", classes="section-header")
+                    yield self._checkbox_row("Use FlashOptim", "use_flashoptim")
+
+                    yield Static("Experimental Precision", classes="section-header")
+                    yield self._checkbox_row("FP8 Training", "fp8")
+                    yield Label(
+                        "⚠ Requires H100/Blackwell GPU",
+                        classes="form-help",
+                    )
+                    yield self._checkbox_row("BitNet Mode", "bitnet")
+                    yield self._checkbox_row(
+                        "Mixed Precision LoRA", "mixed_precision_lora"
+                    )
+                    yield Label(
+                        "⚠ Experimental — may be unstable",
+                        classes="form-help",
                     )
 
             with Horizontal(id="button-row"):
@@ -425,6 +475,32 @@ class TrainFormScreen(Screen):
         if values.get("use_lomo"):
             cmd.append("--use-lomo")
 
+        # Evolved Pairs
+        if values.get("evolved_ratio"):
+            cmd.extend(["--evolved-ratio", values["evolved_ratio"]])
+        if values.get("evolved_dir"):
+            cmd.extend(["--evolved-dir", values["evolved_dir"]])
+
+        # COAP
+        if values.get("use_coap"):
+            cmd.append("--use-coap")
+        if values.get("coap_rank"):
+            cmd.extend(["--coap-rank", values["coap_rank"]])
+        if values.get("coap_8bit"):
+            cmd.append("--coap-8bit")
+
+        # FlashOptim
+        if values.get("use_flashoptim"):
+            cmd.append("--use-flashoptim")
+
+        # Experimental precision
+        if values.get("fp8"):
+            cmd.append("--fp8")
+        if values.get("bitnet"):
+            cmd.append("--bitnet")
+        if values.get("mixed_precision_lora"):
+            cmd.append("--mixed-precision-lora")
+
         # Training mode
         if values.get("train"):
             cmd.append("--train")
@@ -480,6 +556,9 @@ class TrainFormScreen(Screen):
             "galore_rank": "galore_rank",
             "early_stop_steps": "early_stop_steps",
             "optim": "optim",
+            "evolved_ratio": "evolved_ratio",
+            "evolved_dir": "evolved_dir",
+            "coap_rank": "coap_rank",
         }
         bool_map = {
             "use_qgalore": "use_qgalore",
@@ -492,6 +571,12 @@ class TrainFormScreen(Screen):
             "deepspeed_offload": "deepspeed_offload",
             "compile": "compile",
             "use_lomo": "use_lomo",
+            "use_coap": "use_coap",
+            "coap_8bit": "coap_8bit",
+            "use_flashoptim": "use_flashoptim",
+            "fp8": "fp8",
+            "bitnet": "bitnet",
+            "mixed_precision_lora": "mixed_precision_lora",
         }
         select_map = {
             "deepspeed_stage": "deepspeed_stage",

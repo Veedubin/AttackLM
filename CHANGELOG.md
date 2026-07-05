@@ -1,6 +1,24 @@
-# Changelog
+## [0.10.0] — 2026-07-05 — Memory Optimization & Dataset Expansion
 
-## [0.9.5] — 2026-07-05 — CI/CD, test fixes, CLI tests, GitHub Releases
+### Phase 1: Critical Fixes
+- Resolved PiSSA convergence issues and `auto_tune_vram` instability.
+
+### Phase 2: CLI Evolution
+- Introduced new subcommands: `steer`, `bench`, and `pipeline` for professional model lifecycle management.
+
+### Phase 3: Dataset Expansion
+- Added 8 new security dataset extractors, increasing potential training pairs to ~460K.
+
+### Phase 4: Training Quality
+- Implemented Judge-and-Revise filtering, CoT-Self-Instruct, Constitutional AI alignment, and Doc-to-QA synthesis.
+
+### Phase 5: Memory Optimization
+- Integration of 7 state-of-the-art optimization methods: COAP, FlashOptim, Unsloth GC, Mixed-precision LoRA, FP8, BitNet, and SignRoundV2.
+
+### Phase 6: Finalization
+- GUI updates to support new optimizations, complete documentation overhaul, and expanded test suite.
+
+---
 
 ### Added
 - **GitHub Actions CI**: `.github/workflows/ci.yml` — runs on push/PR to main, matrix across Python 3.11/3.12/3.13, full test suite + ruff lint

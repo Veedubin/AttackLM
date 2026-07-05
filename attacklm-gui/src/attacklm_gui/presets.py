@@ -176,6 +176,62 @@ BUILTIN_PRESETS: list[Preset] = [
             "optim": "adamw_torch",
         },
     ),
+    Preset(
+        name="COAP 8-bit",
+        description="COAP optimizer with 8-bit quantization for memory-efficient training",
+        params={
+            "use_coap": True,
+            "coap_8bit": True,
+            "coap_rank": 128,
+            "epochs": 20,
+            "batch_size": 1,
+            "max_length": 8192,
+            "packing": True,
+            "early_stop_steps": 5,
+            "optim": "paged_adamw_8bit",
+        },
+    ),
+    Preset(
+        name="FlashOptim",
+        description="FlashOptim accelerated training for modern GPUs",
+        params={
+            "use_flashoptim": True,
+            "epochs": 20,
+            "batch_size": 1,
+            "max_length": 12000,
+            "packing": True,
+            "early_stop_steps": 5,
+            "live_lr": True,
+            "optim": "paged_adamw_8bit",
+        },
+    ),
+    Preset(
+        name="FP8 (H100/Blackwell)",
+        description="FP8 precision training — requires H100 or Blackwell GPU",
+        params={
+            "fp8": True,
+            "epochs": 20,
+            "batch_size": 2,
+            "max_length": 8192,
+            "packing": True,
+            "early_stop_steps": 5,
+            "optim": "paged_adamw_8bit",
+        },
+    ),
+    Preset(
+        name="BitNet 2B",
+        description="BitNet 1.58-bit training with microsoft/bitnet-b1.58-2B4T base",
+        params={
+            "bitnet": True,
+            "base_model": "microsoft/bitnet-b1.58-2B4T",
+            "epochs": 20,
+            "batch_size": 1,
+            "max_length": 8192,
+            "packing": True,
+            "early_stop_steps": 5,
+            "optim": "paged_adamw_8bit",
+        },
+    ),
 ]
 
 

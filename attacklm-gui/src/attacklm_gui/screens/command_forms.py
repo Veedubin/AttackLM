@@ -1,6 +1,6 @@
 """Simpler command form screens for non-training AttackLM commands.
 
-Uses the unified 'attacklm <subcommand>' CLI format (v0.8.0+).
+Uses the unified 'attacklm <subcommand>' CLI format (v0.10.0+).
 """
 
 from __future__ import annotations
@@ -8,7 +8,7 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
-from textual.widgets import Button, Input, Label, RichLog, Static
+from textual.widgets import Button, Input, Label, RichLog, Select, Static
 
 
 class _BaseCommandScreen(Screen):
@@ -347,6 +347,114 @@ class PipelineFormScreen(_BaseCommandScreen):
             cmd = ["attacklm", "pipeline"]
             if values.get("config"):
                 cmd.extend(["--config", values["config"]])
+            import asyncio
+
+            asyncio.create_task(self._run_and_display(cmd))
+
+
+class SteerFormScreen(_BaseCommandScreen):
+    """Steering: extract/apply/sweep/diagnose activation vectors.
+
+    Uses 'attacklm steer' with mode selector.
+    """
+
+    def compose(self) -> ComposeResult:
+        with Container(id="cmd-container"):
+            yield Label("Steer Model", id="cmd-title")
+            yield Horizontal(
+                Label("Mode:", classes="form-label"),
+                Select(
+                    [
+                        ("extract", "extract"),
+                        ("apply", "apply"),
+                        ("sweep", "sweep"),
+                        ("diagnose", "diagnose"),
+                    ],
+                    id="steer_mode",
+                    value="extract",
+                ),
+                classes="form-row",
+            )
+            yield self._row(
+                "Model Path",
+                "model",
+                placeholder="models/attacklm-3b-qgalore-spectrum",
+            )
+            yield self._row(
+                "Output Dir",
+                "output",
+                placeholder="steering/vectors",
+            )
+            yield self._row("Extra flags", "flags", placeholder="--layers 12 16 20")
+            with Horizontal(id="cmd-button-row"):
+                yield Button("Run", id="btn-run", variant="primary")
+                yield Button("Back", id="btn-back")
+            yield RichLog(id="cmd-output", highlight=True, wrap=True)
+
+    def _get_values(self) -> dict:
+        values = super()._get_values()
+        select = self.query_one("#steer_mode", Select)
+        if select.value is not None:
+            values["steer_mode"] = select.value
+        return values
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-back":
+            self.app.pop_screen()
+        elif event.button.id == "btn-run":
+            values = self._get_values()
+            mode = values.get("steer_mode", "extract")
+            cmd = ["attacklm", "steer", mode]
+            if values.get("model"):
+                cmd.extend(["--model", values["model"]])
+            if values.get("output"):
+                cmd.extend(["--output", values["output"]])
+            if values.get("flags"):
+                cmd.extend(values["flags"].split())
+            import asyncio
+
+            asyncio.create_task(self._run_and_display(cmd))
+
+
+class BenchFormScreen(_BaseCommandScreen):
+    """Benchmark: evaluate model performance.
+
+    Uses 'attacklm bench' with argv passthrough.
+    """
+
+    def compose(self) -> ComposeResult:
+        with Container(id="cmd-container"):
+            yield Label("Benchmark", id="cmd-title")
+            yield self._row(
+                "Model Path",
+                "model",
+                placeholder="models/attacklm-3b-qgalore-spectrum",
+            )
+            yield self._row(
+                "Benchmark",
+                "benchmark",
+                placeholder="mmlu (or leave empty for default)",
+            )
+            yield self._row(
+                "Extra flags", "flags", placeholder="--shots 5 --batch-size 8"
+            )
+            with Horizontal(id="cmd-button-row"):
+                yield Button("Run", id="btn-run", variant="primary")
+                yield Button("Back", id="btn-back")
+            yield RichLog(id="cmd-output", highlight=True, wrap=True)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-back":
+            self.app.pop_screen()
+        elif event.button.id == "btn-run":
+            values = self._get_values()
+            cmd = ["attacklm", "bench"]
+            if values.get("model"):
+                cmd.extend(["--model", values["model"]])
+            if values.get("benchmark"):
+                cmd.extend(["--benchmark", values["benchmark"]])
+            if values.get("flags"):
+                cmd.extend(values["flags"].split())
             import asyncio
 
             asyncio.create_task(self._run_and_display(cmd))
