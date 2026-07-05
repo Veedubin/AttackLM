@@ -9,7 +9,7 @@ from textual.widgets import Button, Label
 
 
 class MainMenuScreen(Screen):
-    """Main menu with command launchers (v0.8.0 unified subcommands)."""
+    """Main menu with command launchers (v0.10.0 unified subcommands)."""
 
     CSS = """
     MainMenuScreen {
@@ -57,8 +57,11 @@ class MainMenuScreen(Screen):
             yield Button("📦  Build & Install", id="btn-build")
             yield Button("🧠  Run Inference", id="btn-infer")
             yield Button("📊  Evaluate", id="btn-eval")
+            yield Button("🧭  Steer Model", id="btn-steer")
+            yield Button("📏  Benchmark", id="btn-bench")
             yield Label(
-                "Presets: 3B Q-GaLore | 3B LoRA | 7B Q-GaLore", id="preset-label"
+                "Presets: 3B Q-GaLore | 3B LoRA | 7B Q-GaLore | COAP | FP8 | BitNet",
+                id="preset-label",
             )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -89,3 +92,11 @@ class MainMenuScreen(Screen):
             from attacklm_gui.screens.command_forms import EvalFormScreen
 
             self.app.push_screen(EvalFormScreen())
+        elif btn_id == "btn-steer":
+            from attacklm_gui.screens.command_forms import SteerFormScreen
+
+            self.app.push_screen(SteerFormScreen())
+        elif btn_id == "btn-bench":
+            from attacklm_gui.screens.command_forms import BenchFormScreen
+
+            self.app.push_screen(BenchFormScreen())

@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
 
-**A high-performance fine-tuning pipeline (QLoRA, GaLore, Q-GaLore, Spectrum, PiSSA, DeepSpeed) for creating MITRE ATT&CK-grounded security AI assistants.**
+**A high-performance fine-tuning pipeline (QLoRA, GaLore, Q-GaLore, Spectrum, PiSSA, DeepSpeed, COAP, FlashOptim, FP8, BitNet) for creating MITRE ATT&CK-grounded security AI assistants.**
 
 ---
 
@@ -87,7 +87,7 @@ By default, AttackLM leverages PyTorch's built-in `torch.backends.cuda.enable_me
 
 ## Features
 
-- **Comprehensive Security Corpus**: 24,652 high-quality training pairs across 18 distinct security sources.
+- **Comprehensive Security Corpus**: 460,000+ high-quality training pairs across 26+ distinct security sources.
 - **Advanced Training Methods**: Support for QLoRA, GaLore, Q-GaLore, Spectrum, and PiSSA to enable training of large models on consumer hardware.
 - **Training Pair Evolution**: New capability to synthetically expand short, factual pairs into complex reasoning examples using three specialized strategies:
 
@@ -97,7 +97,14 @@ By default, AttackLM leverages PyTorch's built-in `torch.backends.cuda.enable_me
 | **Multi-turn** | Decomposes Q&A into interactive conversations | Improved conversational flow and context |
 | **CoT Injection** | Adds explicit "Chain-of-Thought" reasoning steps | Higher logical consistency in complex tasks |
 
-- **Memory Optimization**: Three new techniques to train larger models on consumer hardware:
+- **Memory Optimization**: Seven advanced techniques to train larger models on consumer hardware:
+  - **COAP** — Compressed Optimizer Adaptive Parameterization. Drastic reduction in optimizer state VRAM.
+  - **FlashOptim** — Optimized FlashAttention-2 kernels for specific sequence lengths.
+  - **Unsloth GC** — Aggressive garbage collection and memory pinning for LoRA/QLoRA.
+  - **Mixed-precision LoRA** — Strategic use of FP8/BF16 across adapter layers.
+  - **FP8 Training** — Native 8-bit floating point training (H100/Blackwell).
+  - **BitNet** — 1.58-bit quantization for near-zero VRAM training.
+  - **SignRoundV2** — Advanced stochastic rounding for low-bit weights.
   - **DeepSpeed ZeRO-3 + CPU Offload** — Shards parameters, gradients, and optimizer states across GPU VRAM + system RAM. Train 40B+ parameter models on a 16GB GPU with 64GB system RAM.
   - **torch.compile** — PyTorch 2.x JIT compilation. 20-40% training speedup with 10-20% memory reduction. One flag: `--compile`.
   - **LOMO Optimizer** — Full-parameter fine-tuning (not just adapters) of 7B models on 8GB GPUs.
@@ -192,6 +199,10 @@ Choose your training method based on your available VRAM and quality requirement
 | **Spectrum** | SNR-based layer freezing. Freezes low-SNR layers, trains high-SNR. | Medium | Reduces VRAM, speeds training |
 | **PiSSA** | Principal Singular Values initialization for LoRA. | Same as QLoRA | Better convergence than standard LoRA |
 | **DeepSpeed ZeRO-3** | Shards model across GPU + CPU RAM. Offloads params and optimizer to system memory. | Lowest (model 3-5x VRAM) | Training 40B+ on 16GB GPU |
+| **COAP** | Compressed Optimizer Adaptive Parameterization. | Ultra-Low | Massive models on modest GPUs |
+| **FlashOptim** | Optimized FlashAttention kernels. | Low | High-throughput training |
+| **FP8** | Native 8-bit floating point. | Medium-Low | H100/Blackwell hardware |
+| **BitNet** | 1.58-bit quantization. | Lowest | Near-zero VRAM training |
 | **torch.compile** | PyTorch 2.x JIT compilation. Fuses operations for speed + memory. | 10-20% less than baseline | Any model, free performance |
 | **LOMO** | Fuses gradient computation + parameter update. Never materializes full gradient. | Lowest (7B full-param on 8GB) | Full-parameter quality on tiny GPUs |
 
@@ -298,6 +309,11 @@ The primary entry point for fine-tuning. Supports a variety of parameter-efficie
 - `--compile` — Enable torch.compile (20-40% speedup)
 - `--compile-mode {default,reduce-overhead,max-autotune}` — torch.compile mode (default: reduce-overhead)
 - `--use-lomo` — Enable LOMO full-parameter optimizer
+- `--use-coap` — Enable Compressed Optimizer Adaptive Parameterization
+- `--use-flashoptim` — Enable optimized FlashAttention kernels
+- `--use-fp8` — Enable native FP8 training (H100/Blackwell)
+- `--use-bitnet` — Enable BitNet 1.58b quantization
+- `--use-signround` — Enable SignRoundV2 stochastic rounding
 
 **Examples**
 ```bash
@@ -345,6 +361,8 @@ attacklm train -- --use-deepspeed --deepspeed-config presets/deepspeed/zero2_cpu
 | 16 GB | 64 GB | ZeRO-3 + CPU offload | ~40B |
 | 24 GB | 64 GB | ZeRO-3 + CPU offload | ~70B |
 | 24 GB | 128 GB | ZeRO-3 + CPU offload | ~70B+ |
+| H100/B100 | 128 GB+ | FP8 / FlashOptim | 175B+ |
+| Any GPU | 32 GB+ | BitNet / COAP | 100B+ (Extreme Quant) |
 ```
 
 ---
