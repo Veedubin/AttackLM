@@ -50,7 +50,7 @@ def resolve_model_path(model_id_or_path: str) -> str:
     Otherwise, return it as-is (assumed to be an HF Hub model ID).
     """
     if not model_id_or_path:
-        return model_id_or_path
+        raise ValueError("model_id_or_path must not be empty")
     p = model_id_or_path.rstrip("/")
     is_path = (
         p.startswith(("/", "./", "../", "~/"))

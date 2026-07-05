@@ -13,11 +13,18 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 # Make the scripts/ dir importable
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
+
+# Mock transformers BEFORE importing train_template
+_mock_transformers = MagicMock()
+_mock_transformers.trainer_callback = MagicMock()
+_mock_transformers.trainer_callback.TrainerCallback = MagicMock()
+sys.modules["transformers"] = _mock_transformers
+sys.modules["transformers.trainer_callback"] = _mock_transformers.trainer_callback
 
 import train_template
 
