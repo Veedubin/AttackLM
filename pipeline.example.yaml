@@ -1,7 +1,7 @@
 # AttackLM Training Pipeline — Example Configuration
 # 
 # Usage:
-#   attacklm-pipeline --config pipeline.example.yaml
+#   attacklm pipeline --config pipeline.example.yaml
 #
 # Each job runs sequentially: train → merge → gguf → install.
 # If a stage fails, the pipeline skips to the next job.

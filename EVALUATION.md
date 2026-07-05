@@ -64,7 +64,7 @@ For each candidate, run these 4 patterns in order:
 
 ### Step 1: Golden Vectors (Pattern 2) — Fast Regression Gate
 
-**Script**: `python scripts/golden_vectors.py validate ...`
+**Command**: `attacklm eval --golden ...`
 
 **Duration**: < 2 minutes
 
@@ -77,7 +77,7 @@ For each candidate, run these 4 patterns in order:
 
 ### Step 2: Reference Scoring (Pattern 1) — Quality Comparison
 
-**Script**: `python scripts/score_candidates.py ...` then `python scripts/compare_scores.py ...`
+**Command**: `attacklm eval --collect-ref ...` then `attacklm eval --compare ...`
 
 **Duration**: ~15 minutes
 
@@ -87,7 +87,7 @@ For each candidate, run these 4 patterns in order:
 
 ### Step 3: Domain Benchmark (Pattern 3) — Capability Evaluation
 
-**Script**: `python scripts/domain_bench.py ...`
+**Command**: `attacklm eval --score ...`
 
 **Duration**: ~10 minutes
 
@@ -100,7 +100,7 @@ For each candidate, run these 4 patterns in order:
 
 ### Step 4: Speed Benchmark (Pattern 4) — Performance Comparison
 
-**Script**: `python scripts/speed_bench.py ...`
+**Command**: `attacklm eval --speed ...` (or via `scripts/speed_bench.py`)
 
 **Duration**: ~5 minutes
 
@@ -144,13 +144,13 @@ When iterating quickly (e.g., testing hyperparameter changes), run only:
 
 ```bash
 # Fast gate: 2 minutes
-python scripts/golden_vectors.py validate \
+attacklm eval --golden \
   --base-model <model> --adapter <adapter> \
   --golden data/golden/vectors.json \
   --output /tmp/golden_check.json
 
 # If PASS, run domain benchmark: 10 minutes
-python scripts/domain_bench.py \
+attacklm eval --score \
   --base-model <model> --adapter <adapter> \
   --questions data/bench/questions.jsonl \
   --output /tmp/bench_check.json

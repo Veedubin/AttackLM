@@ -67,9 +67,9 @@ Write a balanced JSONL to data/datasets/balanced/:
     python scripts/balance_buckets.py --profile 7b-128gb \\
         --output data/datasets/balanced/balanced_7b-128gb.jsonl
 
-Then pass that file to attacklm-train:
+Then pass that file to attacklm train:
 
-    attacklm-train --dataset data/datasets/balanced/balanced_7b-128gb.jsonl \\
+    attacklm train --dataset data/datasets/balanced/balanced_7b-128gb.jsonl \\
                    --output models/attacklm-7b-128gb \\
                    --base-model huihui-ai/Qwen2.5-Coder-7B-Instruct-abliterated
 
@@ -104,7 +104,7 @@ from pathlib import Path
 from typing import Iterable
 
 # Reuse the existing bucket plumbing.
-# When invoked as a console script (`attacklm-balance`), the working
+# When invoked as a console script (`attacklm balance`), the working
 # directory may not be the project root, so we need to make sure
 # sibling scripts in this directory are importable. Same pattern
 # as scripts/train_template.py.
@@ -1025,7 +1025,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Wrote {len(selected):,} pairs ({size_mb:.1f} MB) to {args.output}")
     print(
         f"\nNext step:\n"
-        f"  attacklm-train --dataset {args.output} \\\n"
+        f"  attacklm train --dataset {args.output} \\\n"
         f"                 --output models/attacklm-{args.profile.replace('-', '_')}_<timestamp> \\\n"
         f"                 --base-model huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated"
     )

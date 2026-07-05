@@ -5,7 +5,7 @@ Reads a YAML config file defining one or more training jobs.
 Each job runs sequentially: train → merge → gguf → install.
 
 Usage:
-    attacklm-pipeline --config pipeline.yaml
+    attacklm pipeline --config pipeline.yaml
     python scripts/pipeline.py --config pipeline.yaml
 """
 
@@ -36,7 +36,7 @@ def parse_args():
 
 
 def run_train(job_name: str, train_cfg: dict) -> bool:
-    """Run attacklm-train with the given config. Returns True on success."""
+    """Run attacklm train with the given config. Returns True on success."""
     script = str(Path(__file__).parent / "train_template.py")
     cmd = [sys.executable, script, "--train"]
 
@@ -84,7 +84,7 @@ def run_train(job_name: str, train_cfg: dict) -> bool:
 
 
 def run_merge(job_name: str, merge_cfg: dict, train_cfg: dict) -> bool:
-    """Run attacklm-merge to combine LoRA adapter with base model."""
+    """Run attacklm build --merge-only to combine LoRA adapter with base model."""
     script = str(Path(__file__).parent / "merge.py")
 
     # Determine input: merge.output or train.output
@@ -114,7 +114,7 @@ def run_merge(job_name: str, merge_cfg: dict, train_cfg: dict) -> bool:
 
 
 def run_gguf(job_name: str, gguf_cfg: dict, merge_cfg: dict, train_cfg: dict) -> bool:
-    """Run attacklm-gguf to convert merged model to GGUF format."""
+    """Run attacklm build --gguf-only to convert merged model to GGUF format."""
     script = str(Path(__file__).parent / "convert_to_gguf.py")
 
     # Determine input: gguf.output or merge.output or train.output

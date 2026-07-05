@@ -7,13 +7,13 @@ Step 2: llama-quantize → Q4_K_M
 
 Usage:
     # Convert all merged models:
-    attacklm-gguf
+    attacklm build --gguf-only
 
     # Convert a single model:
-    attacklm-gguf --input models/merged/attacklm
+    attacklm build --gguf-only -- --input models/merged/attacklm
 
     # Convert and install to LM Studio:
-    attacklm-gguf --install-lmstudio
+    attacklm build --gguf-only -- --install-lmstudio
 """
 
 import argparse
@@ -95,7 +95,7 @@ def _is_lora_adapter(model_dir: Path) -> bool:
     over from a previous training run), so the old "needs config.json" guard
     let it through and llama.cpp's converter then crashed on the wrong
     architecture. This check is explicit: if adapter_config.json says
-    PEFT_TYPE_LORA, refuse with a pointer to attacklm-merge.
+    PEFT_TYPE_LORA, refuse with a pointer to ``attacklm build --merge-only``.
     """
     ac = model_dir / "adapter_config.json"
     if not ac.exists():
@@ -204,7 +204,7 @@ def main() -> None:
         # from a previous run, so the old "needs config.json" guard passed
         # it through and llama.cpp's converter then crashed on the wrong
         # architecture with `Failed to detect model architecture`. Detect
-        # PEFT adapters early and point users at attacklm-merge.
+        # PEFT adapters early and point users at ``attacklm build --merge-only``.
         if _is_lora_adapter(input_path):
             # Try to read the auto-detected base from state.json (v0.1.6+)
             # or adapter_config.json (v0.1.5 and earlier) so the hint
@@ -237,11 +237,11 @@ def main() -> None:
                 f"  Need:  a directory with config.json + *.safetensors (full merged weights)"
             )
             print(f"\nFix: merge the adapter into the base first, then convert.")
-            print(f"  attacklm-merge --adapter {args.input} \\")
+            print(f"  attacklm build --merge-only -- --adapter {args.input} \\")
             print(f"                  --base {suggested_base} \\")
             print(f"                  --output models/merged/{input_path.name}")
             print(
-                f"  attacklm-gguf --input models/merged/{input_path.name}"
+                f"  attacklm build --gguf-only -- --input models/merged/{input_path.name}"
                 + (" --install-lmstudio" if args.install_lmstudio else "")
             )
             sys.exit(1)
@@ -250,7 +250,9 @@ def main() -> None:
         ):
             print(f"\nERROR: {args.input} is not a valid merged model directory")
             print("Expected a directory containing config.json and *.safetensors")
-            print("If this is a LoRA adapter, run `attacklm-merge` first (see above).")
+            print(
+                "If this is a LoRA adapter, run ``attacklm build --merge-only`` first (see above)."
+            )
             sys.exit(1)
         models = [input_path]
     else:
@@ -258,9 +260,9 @@ def main() -> None:
         if not models:
             print(f"\nERROR: No merged models found in {MERGED_DIR}")
             print(
-                "Run: attacklm-merge --adapter models/attacklm-single --output models/merged/attacklm"
+                "Run: attacklm build --merge-only -- --adapter models/attacklm-single --output models/merged/attacklm"
             )
-            print("  or: attacklm-merge --merge-all")
+            print("  or: attacklm build --merge-only -- --merge-all")
             sys.exit(1)
 
     GGUF_DIR.mkdir(parents=True, exist_ok=True)

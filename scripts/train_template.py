@@ -583,7 +583,9 @@ Examples:
         help=(
             "Enable torch.compile for the model. Compiles the model with "
             "TorchDynamo for faster training. Requires PyTorch >= 2.0. "
-            "Default: OFF."
+            "INCOMPATIBLE with 4-bit quantized models (BitsAndBytes NF4): "
+            "use --use-galore for full-parameter training or --use-deepspeed "
+            "for ZeRO sharding instead. Default: OFF."
         ),
     )
     parser.add_argument(
@@ -833,7 +835,7 @@ def _resolve_model_path(model_id_or_path: str) -> str:
 #   5. Path has adapter_config.json (peft_type=LORA) but no state.json
 #      → bare LoRA adapter (not a finished run). Existing behavior:
 #        treat as base + apply the adapter on top during loading.
-#        (Used by `attacklm-merge` to find the base, etc.)
+# (Used by `attacklm build --merge-only` to find the base, etc.)
 
 _STATE_VERSION = 1
 
@@ -908,7 +910,7 @@ def write_state(output_dir: str, state: dict) -> None:
     """Atomically write state.json (write to .tmp, then rename).
 
     Atomic write prevents a half-written state.json from being read by
-    a parallel tool (LM Studio scanner, attacklm-merge --merge-all, etc.)
+    a parallel tool (LM Studio scanner, attacklm build --merge-only --merge-all, etc.)
     """
     sp = Path(output_dir) / "state.json"
     tmp = sp.with_suffix(".json.tmp")
@@ -990,7 +992,7 @@ _TIMESTAMP_SUFFIX_RE = __import__("re").compile(
 def resolve_output_path(
     user_output: str, no_timestamp: bool = False, force: bool = False
 ) -> str:
-    """Resolve the --output argument for `attacklm-train` (v0.2.2+).
+    """Resolve the --output argument for `attacklm train` (v0.2.2+).
 
     Rules (in order):
         1. If the path already ends in `_YYYY-MM-DD_HH-MM` (or
@@ -1010,7 +1012,7 @@ def resolve_output_path(
 
     Returns: absolute path string.
 
-    Why: the previous behavior (`attacklm-train --output foo` clobbers
+    Why: the previous behavior (`attacklm train --output foo` clobbers
     `foo/` if it exists) was the source of the "I lost my run"
     footgun. v0.2.2 makes timestamped outputs the default, matching
     what train_all.py does for multi-bucket runs.
@@ -2393,10 +2395,10 @@ def main() -> None:
         "compile_mode": args.compile_mode,
         "lomo": args.use_lomo,
     }
-    # Dataset info: from CLI flags if present (attacklm-train-all sets them)
+    # Dataset info: from CLI flags if present (attacklm train --all sets them)
     # v0.1.6+: dataset_specs records the multi-positional --dataset values
     # the user passed (e.g. ["base/", "tools/metasploit/"]). This makes the
-    # state.json self-describing — `attacklm-train-all` re-running with the
+    # state.json self-describing — `attacklm train --all` re-running with the
     # same specs can reproduce the same combined dataset (same cache key).
     # Source: ATTACKLM_DATASET_SPECS env var set by train_all.py
     # (comma-separated, e.g. "base/,tools/metasploit/"). Falls back to
@@ -3094,6 +3096,26 @@ def main() -> None:
             model = get_peft_model(model, lora_config)
 
         model.print_trainable_parameters()
+
+    # --- torch.compile + 4-bit quantization incompatibility check ---
+    # torch.compile is incompatible with BitsAndBytes 4-bit quantized models.
+    # When skip_quantization is False, the model is loaded with BnB 4-bit (the
+    # default QLoRA path). DeepSpeed ZeRO also provides an alternative that
+    # avoids this conflict by managing memory via sharding instead of quantization.
+    if args.compile and not skip_quantization and not args.use_deepspeed:
+        console.print(
+            "[red]ERROR:[/red] --compile is incompatible with 4-bit quantized models "
+            "(BitsAndBytes NF4).\n"
+            "  torch.compile cannot trace through quantized operators and will produce "
+            "incorrect results or crash.\n"
+            "  Options:\n"
+            "    1. Remove --compile to use QLoRA 4-bit (default, most memory-efficient).\n"
+            "    2. Add --use-galore for full-parameter training with torch.compile "
+            "(needs more VRAM).\n"
+            "    3. Add --use-deepspeed for DeepSpeed ZeRO training with torch.compile "
+            "(CPU offload for large models)."
+        )
+        sys.exit(1)
 
     # --- torch.compile — PyTorch 2.x JIT compilation for speed + memory ---
     if args.compile:

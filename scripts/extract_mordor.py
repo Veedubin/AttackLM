@@ -331,7 +331,7 @@ def main() -> int:
     scenarios = find_scenarios()
     if not scenarios:
         print(f"No Mordor scenarios found in {MORDOR_DIR}", file=sys.stderr)
-        print("Run attacklm-clone or attacklm-init first.", file=sys.stderr)
+        print("Run attacklm init --clone-only or attacklm init first.", file=sys.stderr)
         return 1
 
     if args.max_files > 0:
