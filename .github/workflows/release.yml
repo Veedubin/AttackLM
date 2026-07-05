@@ -22,7 +22,7 @@ jobs:
       - name: Validate version
         run: |
           TAG_VERSION="${GITHUB_REF#refs/tags/v}"
-          PKG_VERSION=$(python -c "from attacklm import __version__; print(__version__)")
+          PKG_VERSION=$(grep -oP '__version__\s*=\s*"\K[^"]+' src/attacklm/__version__.py)
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
             echo "Tag v${TAG_VERSION} != package __version__ ${PKG_VERSION}"
             exit 1
@@ -41,7 +41,9 @@ jobs:
           python-version: "3.13"
 
       - name: Install
-        run: pip install -e ".[dev,extract]"
+        run: |
+          pip install -e ".[dev,extract]"
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Test
         run: pytest tests/ -v
