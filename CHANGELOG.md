@@ -1,3 +1,11 @@
+## [0.10.1] — 2026-07-05 — CI Fix: beautifulsoup4 dependency
+
+### Fixed
+- **Missing `beautifulsoup4` in extract extras**: `extract_0xdf_writeups.py` requires `beautifulsoup4` and `requests` at module level. Added `beautifulsoup4` to `[extract]` extras in `pyproject.toml`.
+- **Test import failure**: `tests/test_new_extractors.py` imports extractor modules directly, triggering `sys.exit(1)` guards when optional deps are missing. Mocked `bs4` and `requests` in `sys.modules` at the top of the test file so CI passes without those packages installed.
+
+---
+
 ## [0.10.0] — 2026-07-05 — Memory Optimization & Dataset Expansion
 
 ### Phase 1: Critical Fixes
