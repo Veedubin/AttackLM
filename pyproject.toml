@@ -38,6 +38,24 @@ classifiers = [
     "Development Status :: 3 - Alpha",
 ]
 
+# ── Runtime dependencies ──────────────────────────────────────────────────────
+# Kept minimal: only what the bundled ``neuralgentics_init`` subpackage needs.
+# All training/inference libs live in the optional-deps groups below so a
+# bare ``pip install attacklm`` stays small and installable on machines
+# without a GPU toolchain.
+#
+# - ``httpx`` — streaming download of the neuralgentics GitHub release
+#   tarball (``attacklm --init``). Only stdlib + httpx are used for the
+#   download/verify/extract path.
+# - ``pydantic`` — the state file model (``StateFile`` / ``FileRecord``) is a
+#   pydantic v2 ``BaseModel`` with ``model_config = ConfigDict(extra="forbid")``.
+#   Re-implementing it as a dataclass would lose the strict-schema validation
+#   that the ``detect_user_modifications`` corruption-recovery path relies on.
+dependencies = [
+    "httpx>=0.27",
+    "pydantic>=2.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/Veedubin/AttackLM"
 Repository = "https://github.com/Veedubin/AttackLM"
@@ -193,6 +211,10 @@ convert = [
     "gguf",
     "llama-cpp-python",
 ]
+# Dataset dependency — pulled in by `attacklm init`
+dataset = [
+    "attacklm-dataset>=0.1.0",
+]
 # Unsloth: 2-5x faster training, 70% less VRAM.
 # NOT INCLUDED as an extra because it requires trl<=0.24.0 which conflicts
 # with our trl==1.5.1. Install in a separate venv:
@@ -226,10 +248,10 @@ eval = [
 # at install time. Resolving `attacklm[all]` on a build/CI server without
 # that index URL would fail.
 all = [
-    "attacklm[train-cuda,extract,convert]",
+    "attacklm[train-cuda,extract,convert,dataset]",
 ]
-all-cuda = ["attacklm[train-cuda,extract,convert]"]
-all-rocm = ["attacklm[train-rocm,extract,convert]"]
+all-cuda = ["attacklm[train-cuda,extract,convert,dataset]"]
+all-rocm = ["attacklm[train-rocm,extract,convert,dataset]"]
 
 # ── Console script entry points ───────────────────────────────────────────────
 #

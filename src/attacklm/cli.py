@@ -2,6 +2,7 @@
 
 Usage::
 
+    attacklm --init [--target DIR] [--plugin-version VER] [--offline] [--dry-run]
     attacklm train [--dataset all] [--hpo] [args...]
     attacklm init [--extract-only|--buckets-only|--clone-only] [args...]
     attacklm balance [args...]
@@ -18,7 +19,9 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import os
 import runpy
+import subprocess
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -82,59 +85,79 @@ def _cmd_train(args: argparse.Namespace) -> int:
 
 
 def _cmd_init(args: argparse.Namespace) -> int:
-    """Handle ``attacklm init`` — dispatch to init substeps or full pipeline."""
-    if args.clone_only:
-        return _run_shell_script("clone_repos.sh", args.argv)
-    if args.extract_only:
-        # Run all extractors sequentially
-        extractors = [
-            "extract_atomic_red_team_to_jsonl.py",
-            "extract_caldera_plugins_to_jsonl.py",
-            "parse_metasploit_to_jsonl.py",
-            "extract_rta_to_jsonl.py",
-            "extract_infection_monkey_to_jsonl.py",
-            "extract_ai_tools_to_jsonl.py",
-            "extract_sigma_defensive.py",
-            "extract_mordor.py",
-            "extract_threathunter_playbook.py",
-            "extract_elastic_rules.py",
-            "extract_splunk_content.py",
-            "extract_nist_ir.py",
-        ]
-        for extractor in extractors:
-            print(f"\n=== Running {extractor} ===", file=sys.stderr)
-            rc = _run_python_script(extractor, [])
-            if rc != 0:
-                print(
-                    f"Extractor {extractor} failed with exit code {rc}",
-                    file=sys.stderr,
-                )
-                return rc
-        print(
-            "\n=== All extractors complete. Next: attacklm init --buckets-only ===",
-            file=sys.stderr,
-        )
-        return 0
-    if args.buckets_only:
-        extra_args = list(args.argv)
-        print("\n=== Running setup_buckets.py ===", file=sys.stderr)
-        rc = _run_python_script("setup_buckets.py", extra_args)
-        if rc != 0:
-            return rc
-        print("\n=== Running reorganize_buckets.py ===", file=sys.stderr)
-        return _run_python_script("reorganize_buckets.py", extra_args)
-    # Default: full init pipeline — forward --from-source / --dataset-url
+    """Handle ``attacklm init`` — delegate to attacklm-dataset or download directly."""
+    # Build the argv forwarded to attacklm-dataset. argparse consumes the
+    # init-specific flags (--from-source, --dataset-url, --extract-only,
+    # --buckets-only, --clone-only) so we re-append the ones that are
+    # meaningful to attacklm-dataset's CLI. They are mutually exclusive at
+    # the argparse level, so only one of the three partial-step flags can
+    # be set at a time. The pre-v0.11.0 behavior of running 12 extractors
+    # in-process is gone; attacklm-dataset now owns that orchestration.
     forwarded = list(args.argv)
-    if args.from_source:
+    if getattr(args, "from_source", False):
         forwarded.append("--from-source")
-    if args.dataset_url:
+    if getattr(args, "dataset_url", None):
         forwarded.extend(["--dataset-url", args.dataset_url])
-    return _run_python_script("init_pipeline.py", forwarded)
+    if getattr(args, "extract_only", False):
+        forwarded.append("--extract-only")
+    if getattr(args, "buckets_only", False):
+        forwarded.append("--buckets-only")
+    if getattr(args, "clone_only", False):
+        forwarded.append("--clone-only")
+
+    # Try attacklm-dataset CLI first
+    try:
+        import attacklm_dataset  # noqa: F401  — presence probe only
+
+        # attacklm-dataset is installed — delegate to its CLI
+        result = subprocess.run(
+            [sys.executable, "-m", "attacklm_dataset.cli", "init", *forwarded],
+            cwd=Path.cwd(),
+        )
+        return result.returncode
+    except ImportError:
+        pass
+
+    # Fallback: try local init_pipeline.py if it exists
+    init_script = _SCRIPTS_DIR / "init_pipeline.py"
+    if init_script.exists():
+        return _run_python_script("init_pipeline.py", forwarded)
+
+    # Neither installed nor local — guide the user
+    print(
+        "AttackLM dataset not found.\n"
+        "Install it with:  pip install attacklm-dataset\n"
+        "Or clone it from: https://github.com/Veedubin/attacklm-dataset",
+        file=sys.stderr,
+    )
+    return 1
 
 
 def _cmd_balance(args: argparse.Namespace) -> int:
-    """Handle ``attacklm balance``."""
-    return _run_python_script("balance_buckets.py", args.argv)
+    """Handle ``attacklm balance`` — delegate to attacklm-dataset."""
+    try:
+        import attacklm_dataset  # noqa: F401  — presence probe only
+
+        result = subprocess.run(
+            [sys.executable, "-m", "attacklm_dataset.cli", "balance"] + list(args.argv),
+            cwd=Path.cwd(),
+        )
+        return result.returncode
+    except ImportError:
+        pass
+
+    # Fallback: try local balance_buckets.py
+    balance_script = _SCRIPTS_DIR / "balance_buckets.py"
+    if balance_script.exists():
+        return _run_python_script("balance_buckets.py", args.argv)
+
+    print(
+        "AttackLM dataset not found.\n"
+        "Install it with:  pip install attacklm-dataset\n"
+        "Or clone it from: https://github.com/Veedubin/attacklm-dataset",
+        file=sys.stderr,
+    )
+    return 1
 
 
 def _cmd_steer(args: argparse.Namespace) -> int:
@@ -215,6 +238,63 @@ def _cmd_demo(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Top-level --init handler (neuralgentics OpenCode plugin bootstrap)
+# ---------------------------------------------------------------------------
+
+
+def _handle_neuralgentics_init(args: argparse.Namespace) -> None:
+    """Dispatch ``attacklm --init`` to the neuralgentics_init package.
+
+    Lazy-imports the subpackage so that dataset-only users (the majority
+    case) don't pay the import cost. Catches the package's typed errors
+    and formats them with remediation hints.
+
+    ``--init`` is a TOP-LEVEL flag, NOT a subcommand. It routes to a
+    completely different code path (the OpenCode plugin bootstrap) than
+    the ``attacklm init`` SUBCOMMAND (the training-dataset init flow via
+    attacklm-dataset). They are different operations and intentionally
+    separate.
+    """
+    try:
+        from attacklm.neuralgentics_init import (
+            NeuralgenticsError,
+            format_neuralgentics_error,
+            run_neuralgentics_init,
+        )
+    except ImportError as exc:  # pragma: no cover — defensive
+        print(
+            f"attacklm --init: neuralgentics_init package not importable: {exc}\n"
+            f"This is a packaging bug. Reinstall attacklm or file an issue.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Build the argparse.Namespace ``_run_init`` expects:
+    # target, version, repo, force, dry_run, offline.
+    init_args = argparse.Namespace(
+        target=getattr(args, "target", None) or os.getcwd(),
+        version=getattr(args, "plugin_version", "latest"),
+        repo=getattr(args, "repo", "Veedubin/neuralgentics"),
+        force=bool(getattr(args, "force", False)),
+        dry_run=bool(getattr(args, "dry_run", False)),
+        offline=bool(getattr(args, "offline", False)),
+    )
+
+    try:
+        rc = run_neuralgentics_init(init_args)
+    except NeuralgenticsError as err:
+        print(format_neuralgentics_error(err), file=sys.stderr)
+        sys.exit(getattr(err, "exit_code", 1))
+    except KeyboardInterrupt:
+        print("\n[interrupted]", file=sys.stderr)
+        sys.exit(130)
+    except Exception as exc:  # noqa: BLE001 — last-resort handler
+        print(f"[ERROR] unexpected failure: {exc}", file=sys.stderr)
+        sys.exit(1)
+    sys.exit(rc)
+
+
+# ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
 
@@ -229,6 +309,87 @@ def build_parser() -> argparse.ArgumentParser:
         "--version",
         action="version",
         version=f"%(prog)s {_get_version()}",
+    )
+
+    # ---- top-level --init flag (neuralgentics OpenCode plugin bootstrap) ----
+    # NOTE: this is a top-level flag, NOT a subcommand. It is checked in
+    # main() and routed to the neuralgentics_init package. The existing
+    # ``attacklm init`` SUBCOMMAND below continues to handle the dataset
+    # init flow via attacklm-dataset — they are different operations.
+    parser.add_argument(
+        "--init",
+        action="store_true",
+        default=False,
+        help=(
+            "Initialize the neuralgentics OpenCode plugin in the target "
+            "directory. Downloads the plugin tarball, deep-merges your "
+            "opencode.json, runs npm install, and writes a state file. "
+            "Combine with --target, --plugin-version, --dry-run, --force, "
+            "--offline. (This is a TOP-LEVEL flag, not a subcommand. For "
+            "the dataset init flow, use: attacklm init ...)"
+        ),
+    )
+    parser.add_argument(
+        "--target",
+        type=str,
+        default=None,
+        help=(
+            "Target directory for --init (default: current working directory). "
+            "Used only with --init; ignored otherwise."
+        ),
+    )
+    parser.add_argument(
+        "--plugin-version",
+        type=str,
+        default="latest",
+        help=(
+            "Plugin version to install with --init (default: 'latest'). "
+            "Used only with --init; ignored otherwise. (Note: the top-level "
+            "--version flag prints the attacklm CLI version and exits; this "
+            "flag controls which neuralgentics release --init downloads.)"
+        ),
+    )
+    parser.add_argument(
+        "--repo",
+        type=str,
+        default="Veedubin/neuralgentics",
+        help=(
+            "GitHub owner/repo for --init (default: Veedubin/neuralgentics). "
+            "Used only with --init; ignored otherwise."
+        ),
+    )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        default=False,
+        help=(
+            "Run --init in offline mode (requires bundled tarball; "
+            "currently raises an error since no bundle ships yet). "
+            "Used only with --init; ignored otherwise."
+        ),
+    )
+    # --dry-run / --force are declared at the top level so argparse does not
+    # reject them when used with --init (e.g. ``attacklm --init --dry-run``).
+    # They are only meaningful for --init; subcommands define their own argv
+    # via REMAINDER so these top-level flags don't interfere with subcommand
+    # parsing.
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help=(
+            "Show what --init WOULD do without downloading or writing anything. "
+            "Used only with --init; ignored otherwise."
+        ),
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help=(
+            "Force --init to proceed into a scary target (HOME, /, /tmp) or "
+            "overwrite a symlinked .opencode/. Used only with --init."
+        ),
     )
 
     sub = parser.add_subparsers(
@@ -539,6 +700,15 @@ def main() -> None:
     """Primary entry point for ``attacklm`` command."""
     parser = build_parser()
     args = parser.parse_args()
+
+    # ---- Top-level --init dispatch (neuralgentics OpenCode plugin) ----
+    # If --init was passed, route to the neuralgentics_init package regardless
+    # of whether a subcommand was also given. (No subcommand should be given
+    # alongside --init, but if one is, --init wins for safety — it's an
+    # explicit user intent.) ``_handle_neuralgentics_init`` calls ``sys.exit``.
+    if getattr(args, "init", False):
+        _handle_neuralgentics_init(args)
+        return  # pragma: no cover — _handle_neuralgentics_init always exits
 
     if args.command is None:
         parser.print_help()
