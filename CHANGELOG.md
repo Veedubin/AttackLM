@@ -1,3 +1,45 @@
+## [0.11.1] — 2026-07-07 — `attacklm --init` (neuralgentics plugin bootstrap)
+
+### Added
+- **`attacklm --init` top-level flag**: bootstraps the [neuralgentics](https://github.com/Veedubin/neuralgentics) OpenCode plugin into the current directory. Downloads the plugin release tarball from GitHub, SHA256-verifies it against `checksums.txt`, extracts to the target directory, deep-merges `opencode.json` (preserving the user's `provider` / `mcp` / `lsp` / `formatter` blocks), backs up any existing `.opencode/` to `.opencode-bak-{ts}/` before overwriting, runs `npm install --no-audit --no-fund`, and writes a state file at `.opencode/.neuralgentics-state.json`. Refuses scary targets (`HOME`, `/`, `/tmp`, `$HOME/<dir>` with no project markers) and symlinked `.opencode/` unless `--force` is set.
+  - `attacklm --init [--target DIR] [--plugin-version VER] [--repo OWNER/NAME] [--dry-run] [--force] [--offline]`
+  - Default: `--plugin-version latest`, `--repo Veedubin/neuralgentics`, `--target $PWD`.
+  - `--init` is a TOP-LEVEL flag, NOT a subcommand — to avoid clashing with `argparse action="version"`. The existing `attacklm init` SUBCOMMAND (which delegates to `attacklm-dataset`) is unchanged. The plugin version is `--plugin-version` (not `--version`) for the same reason.
+- **`attacklm.neuralgentics_init` subpackage** (6 modules, 1,754 LoC): the init flow code, recovered from the deleted `neuralgentics-cli` PyPI wheel (commit 9b7723b^). Modular layout: `_init_cmd` (orchestrator), `_download` (GitHub release + SHA256 + tarball), `_merge` (deep-merge `opencode.json`), `_state` (pydantic v2 state file), `_errors` (typed error classes with exit codes 1-19), `__init__` (public API).
+- **24 new tests** in `tests/test_neuralgentics_init.py`: 16 ported from the deleted `neuralgentics-cli` test suite + 7 new init-flow tests + 1 CLI dispatch regression test (`attacklm --init` vs `attacklm init`). All hermetic — full monkeypatching of `httpx` / `subprocess` / `shutil.which`.
+
+### Changed
+- **`attacklm init` SUBCOMMAND**: rewritten to delegate to `attacklm-dataset` (replaces the pre-v0.11.0 in-process orchestration of 12 extractors + `clone_repos.sh` + `setup_buckets.py` + `reorganize_buckets.py`). The argparse flags (`--extract-only`, `--buckets-only`, `--clone-only`, `--from-source`, `--dataset-url`) are now forwarded to `attacklm-dataset init` for it to handle. **Behavior change**: the partial-step flags no longer run attacklm-local scripts — they invoke `attacklm-dataset` instead. The pre-v0.11.0 internal scripts (`scripts/init_pipeline.py`, `scripts/balance_buckets.py`, `scripts/extract_*.py`, etc.) were removed in the v0.11.0 dataset split, so the in-process paths no longer exist.
+- **`attacklm balance` SUBCOMMAND**: rewritten to delegate to `attacklm-dataset` (replaces `_run_python_script("balance_buckets.py", ...)`). Same pattern: `python -m attacklm_dataset.cli balance <argv>`.
+- **`tests/test_cli.py`**: 8 stale tests (the 7 `TestInitSubcommand` + 1 `TestBalanceSubcommand`) updated to assert on the new `subprocess.run` delegation to `attacklm-dataset`, with a new helper `_mock_attacklm_dataset_delegate(monkeypatch)` that stubs the sibling package and captures the delegated command.
+
+### Added (runtime deps)
+- `httpx>=0.27` — streaming download of the neuralgentics GitHub release tarball (`attacklm --init`).
+- `pydantic>=2.0` — the state file model (`StateFile` / `FileRecord` / `BackendRecord`) is a pydantic v2 `BaseModel` with `model_config = ConfigDict(extra="forbid")`. Strict schema validation drives the corruption-recovery path.
+
+### Known limitations
+- `--offline` is accepted but raises `OfflineNoBundle` (no bundled tarball ships yet — planned for a future release).
+- The init flow requires `opencode` and `npm` on `PATH`; raises typed `OpencodeNotFound` (exit 4) / `NpmNotFound` (exit 5) with remediation hints if missing.
+
+---
+
+## [0.11.0] — 2026-07-06 — Dataset Split
+
+### Changed
+- **Dataset split into standalone package**: The MITRE ATT&CK dataset (24,652 pairs, 16 sources) has been extracted into the independent [attacklm-dataset](https://github.com/Veedubin/attacklm-dataset) package.
+- `attacklm init` and `attacklm balance` now delegate to `attacklm-dataset` CLI when installed, with fallback to local scripts.
+- `train_all.py` and `train_template.py` now resolve data paths from `attacklm-dataset` package or `ATTACKLM_DATA_DIR` environment variable.
+- Added `attacklm-dataset>=0.1.0` as an optional dependency in the `dataset` extras group.
+
+### Removed
+- All data files (`data/` tree) moved to attacklm-dataset
+- All extractor scripts (`scripts/extract_*.py`) moved to attacklm-dataset
+- All acquisition scripts (`scripts/acquire_*.py`) moved to attacklm-dataset
+- Data tooling scripts (`bucket_loader.py`, `balance_buckets.py`, `evolve_pairs.py`, etc.) moved to attacklm-dataset
+- `ATTRIBUTION.md` moved to attacklm-dataset
+
+---
+
 ## [0.10.1] — 2026-07-05 — CI Fix: beautifulsoup4 dependency
 
 ### Fixed

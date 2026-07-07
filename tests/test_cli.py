@@ -7,8 +7,8 @@ actually executing any scripts.
 
 from __future__ import annotations
 
-import subprocess
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -32,6 +32,50 @@ def _strip_leading_doubledash(args):
     """
     if hasattr(args, "argv") and args.argv and args.argv[0] == "--":
         args.argv = args.argv[1:]
+
+
+class _FakeCompletedProcess:
+    """Stand-in for :class:`subprocess.CompletedProcess` with a configurable rc."""
+
+    def __init__(self, returncode: int = 0) -> None:
+        self.returncode = returncode
+        self.stdout = ""
+        self.stderr = ""
+
+
+def _mock_attacklm_dataset_delegate(
+    monkeypatch: pytest.MonkeyPatch, *, returncode: int = 0
+) -> dict[str, object]:
+    """Stub the ``attacklm_dataset`` import + capture the delegated ``subprocess.run``.
+
+    As of v0.11.0, ``attacklm init`` and ``attacklm balance`` delegate to
+    ``attacklm-dataset`` via :func:`subprocess.run` when that sibling
+    package is importable. The test venv does NOT have ``attacklm-dataset``
+    installed, so we inject a stub module into :data:`sys.modules` (so the
+    ``import attacklm_dataset`` probe succeeds) and patch
+    ``cli.subprocess.run`` so we can assert on the delegated command
+    without actually executing anything.
+
+    Returns a ``captured`` dict the caller can inspect. ``captured["cmd"]``
+    is the argv list passed to ``subprocess.run`` (the second positional
+    arg in our code: ``subprocess.run([...], cwd=...)``). ``captured["cwd"]``
+    is the working directory.
+    """
+    # 1) Stub the package so the `import attacklm_dataset` probe succeeds.
+    stub = types.ModuleType("attacklm_dataset")
+    monkeypatch.setitem(sys.modules, "attacklm_dataset", stub)
+
+    # 2) Capture the delegated subprocess.run call.
+    captured: dict[str, object] = {"calls": []}
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        captured["calls"].append({"cmd": list(cmd), "kwargs": dict(kwargs)})
+        captured["cmd"] = list(cmd)
+        captured["cwd"] = kwargs.get("cwd")
+        return _FakeCompletedProcess(returncode=returncode)
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+    return captured
 
 
 # ---------------------------------------------------------------------------
@@ -104,142 +148,120 @@ class TestTrainSubcommand:
 
 
 class TestInitSubcommand:
-    """Test that ``attacklm init`` dispatches correctly."""
+    """Test that ``attacklm init`` dispatches to ``attacklm-dataset`` correctly.
+
+    As of v0.11.0, ``attacklm init`` delegates to the ``attacklm-dataset``
+    CLI via :func:`subprocess.run` (when the sibling package is installed)
+    and falls back to a local ``init_pipeline.py`` script otherwise. The
+    pre-v0.11.0 behavior of running 12 extractors in-process is gone —
+    that orchestration now lives in ``attacklm-dataset``.
+
+    These tests assert on the *delegated* subprocess command, not on
+    internal extractor lists.
+    """
 
     def test_init_default(self, monkeypatch):
-        """attacklm init -- --yes → init_pipeline.py"""
-        captured = {}
-
-        def fake_run(name, argv):
-            captured["name"] = name
-            captured["argv"] = list(argv)
-            return 0
-
-        monkeypatch.setattr(cli, "_run_python_script", fake_run)
+        """``attacklm init -- --yes`` → ``python -m attacklm_dataset.cli init --yes``."""
+        captured = _mock_attacklm_dataset_delegate(monkeypatch)
         parser = cli.build_parser()
         args = parser.parse_args(["init", "--", "--yes"])
         _strip_leading_doubledash(args)
         rc = args.func(args)
         assert rc == 0
-        assert captured["name"] == "init_pipeline.py"
-        assert "--yes" in captured["argv"]
+        cmd = captured["cmd"]
+        assert cmd[0] == sys.executable
+        assert cmd[1:3] == ["-m", "attacklm_dataset.cli"]
+        assert cmd[3] == "init"
+        assert "--yes" in cmd
 
     def test_init_from_source(self, monkeypatch):
-        """attacklm init --from-source -- --yes → init_pipeline.py with --from-source appended."""
-        captured = {}
-
-        def fake_run(name, argv):
-            captured["name"] = name
-            captured["argv"] = list(argv)
-            return 0
-
-        monkeypatch.setattr(cli, "_run_python_script", fake_run)
+        """``attacklm init --from-source -- --yes`` → forwards ``--from-source``."""
+        captured = _mock_attacklm_dataset_delegate(monkeypatch)
         parser = cli.build_parser()
         args = parser.parse_args(["init", "--from-source", "--", "--yes"])
         _strip_leading_doubledash(args)
         rc = args.func(args)
         assert rc == 0
-        assert captured["name"] == "init_pipeline.py"
-        assert "--yes" in captured["argv"]
-        assert "--from-source" in captured["argv"]
+        cmd = captured["cmd"]
+        assert cmd[0] == sys.executable
+        assert cmd[1:3] == ["-m", "attacklm_dataset.cli"]
+        assert cmd[3] == "init"
+        assert "--from-source" in cmd
+        assert "--yes" in cmd
 
     def test_init_extract_only(self, monkeypatch):
-        """attacklm init --extract-only → multiple _run_python_script calls."""
-        calls = []
+        """``attacklm init --extract-only`` → forwards the flag to attacklm-dataset.
 
-        def fake_run(name, argv):
-            calls.append({"name": name, "argv": list(argv)})
-            return 0
-
-        monkeypatch.setattr(cli, "_run_python_script", fake_run)
+        We do NOT assert on the internal extractor list anymore — that is
+        ``attacklm-dataset``'s responsibility, not attacklm's.
+        """
+        captured = _mock_attacklm_dataset_delegate(monkeypatch)
         parser = cli.build_parser()
         args = parser.parse_args(["init", "--extract-only"])
         _strip_leading_doubledash(args)
         rc = args.func(args)
         assert rc == 0
-        # Should have called all 12 extractors
-        assert len(calls) == 12
-        expected_extractors = [
-            "extract_atomic_red_team_to_jsonl.py",
-            "extract_caldera_plugins_to_jsonl.py",
-            "parse_metasploit_to_jsonl.py",
-            "extract_rta_to_jsonl.py",
-            "extract_infection_monkey_to_jsonl.py",
-            "extract_ai_tools_to_jsonl.py",
-            "extract_sigma_defensive.py",
-            "extract_mordor.py",
-            "extract_threathunter_playbook.py",
-            "extract_elastic_rules.py",
-            "extract_splunk_content.py",
-            "extract_nist_ir.py",
-        ]
-        actual_names = [c["name"] for c in calls]
-        assert actual_names == expected_extractors
+        cmd = captured["cmd"]
+        assert cmd[0] == sys.executable
+        assert cmd[1:3] == ["-m", "attacklm_dataset.cli"]
+        assert cmd[3] == "init"
+        assert "--extract-only" in cmd
 
     def test_init_extract_only_stops_on_failure(self, monkeypatch):
-        """If an extractor fails, --extract-only should stop and return non-zero."""
-        calls = []
+        """If the delegated subprocess returns non-zero, ``attacklm init`` returns that rc.
 
-        def fake_run(name, argv):
-            calls.append({"name": name, "argv": list(argv)})
-            # Fail on the 3rd extractor
-            if len(calls) == 3:
-                return 1
-            return 0
-
-        monkeypatch.setattr(cli, "_run_python_script", fake_run)
+        This replaces the old in-process stop-on-failure test. The behavior
+        is now: pass everything through to ``attacklm-dataset``; bubble up
+        its exit code.
+        """
+        _mock_attacklm_dataset_delegate(monkeypatch, returncode=1)
         parser = cli.build_parser()
         args = parser.parse_args(["init", "--extract-only"])
         _strip_leading_doubledash(args)
         rc = args.func(args)
         assert rc == 1
-        assert len(calls) == 3  # Stopped after the 3rd (failed) call
 
     def test_init_clone_only(self, monkeypatch):
-        """attacklm init --clone-only → clone_repos.sh (shell script)."""
-        captured = {}
+        """``attacklm init --clone-only`` → forwards the flag to attacklm-dataset.
 
-        def fake_shell(name, argv):
-            captured["name"] = name
-            captured["argv"] = list(argv)
-            return 0
-
-        monkeypatch.setattr(cli, "_run_shell_script", fake_shell)
+        The pre-v0.11.0 behavior of invoking ``scripts/clone_repos.sh`` in
+        a subprocess is gone — ``attacklm-dataset`` now owns the clone
+        orchestration.
+        """
+        captured = _mock_attacklm_dataset_delegate(monkeypatch)
         parser = cli.build_parser()
         args = parser.parse_args(["init", "--clone-only"])
         _strip_leading_doubledash(args)
         rc = args.func(args)
         assert rc == 0
-        assert captured["name"] == "clone_repos.sh"
+        cmd = captured["cmd"]
+        assert cmd[0] == sys.executable
+        assert cmd[1:3] == ["-m", "attacklm_dataset.cli"]
+        assert cmd[3] == "init"
+        assert "--clone-only" in cmd
 
     def test_init_buckets_only(self, monkeypatch):
-        """attacklm init --buckets-only → setup_buckets.py + reorganize_buckets.py."""
-        calls = []
+        """``attacklm init --buckets-only`` → forwards the flag to attacklm-dataset.
 
-        def fake_run(name, argv):
-            calls.append({"name": name, "argv": list(argv)})
-            return 0
-
-        monkeypatch.setattr(cli, "_run_python_script", fake_run)
+        The pre-v0.11.0 behavior of running ``setup_buckets.py`` then
+        ``reorganize_buckets.py`` in sequence is gone — that orchestration
+        now lives in ``attacklm-dataset``.
+        """
+        captured = _mock_attacklm_dataset_delegate(monkeypatch)
         parser = cli.build_parser()
         args = parser.parse_args(["init", "--buckets-only"])
         _strip_leading_doubledash(args)
         rc = args.func(args)
         assert rc == 0
-        assert len(calls) == 2
-        assert calls[0]["name"] == "setup_buckets.py"
-        assert calls[1]["name"] == "reorganize_buckets.py"
+        cmd = captured["cmd"]
+        assert cmd[0] == sys.executable
+        assert cmd[1:3] == ["-m", "attacklm_dataset.cli"]
+        assert cmd[3] == "init"
+        assert "--buckets-only" in cmd
 
     def test_init_dataset_url(self, monkeypatch):
-        """attacklm init --dataset-url URL → init_pipeline.py with --dataset-url URL."""
-        captured = {}
-
-        def fake_run(name, argv):
-            captured["name"] = name
-            captured["argv"] = list(argv)
-            return 0
-
-        monkeypatch.setattr(cli, "_run_python_script", fake_run)
+        """``attacklm init --dataset-url URL`` → forwards URL to attacklm-dataset."""
+        captured = _mock_attacklm_dataset_delegate(monkeypatch)
         parser = cli.build_parser()
         args = parser.parse_args(
             ["init", "--dataset-url", "https://example.com/ds.tar.gz"]
@@ -247,9 +269,12 @@ class TestInitSubcommand:
         _strip_leading_doubledash(args)
         rc = args.func(args)
         assert rc == 0
-        assert captured["name"] == "init_pipeline.py"
-        assert "--dataset-url" in captured["argv"]
-        assert "https://example.com/ds.tar.gz" in captured["argv"]
+        cmd = captured["cmd"]
+        assert cmd[0] == sys.executable
+        assert cmd[1:3] == ["-m", "attacklm_dataset.cli"]
+        assert cmd[3] == "init"
+        assert "--dataset-url" in cmd
+        assert "https://example.com/ds.tar.gz" in cmd
 
 
 # ---------------------------------------------------------------------------
@@ -258,26 +283,27 @@ class TestInitSubcommand:
 
 
 class TestBalanceSubcommand:
-    """Test that ``attacklm balance`` dispatches correctly."""
+    """Test that ``attacklm balance`` dispatches to ``attacklm-dataset`` correctly.
+
+    As of v0.11.0, ``attacklm balance`` delegates to ``attacklm-dataset``
+    via :func:`subprocess.run` (the in-process ``balance_buckets.py``
+    runner was removed in the dataset split).
+    """
 
     def test_balance(self, monkeypatch):
-        """attacklm balance -- --target-total 5000 → balance_buckets.py"""
-        captured = {}
-
-        def fake_run(name, argv):
-            captured["name"] = name
-            captured["argv"] = list(argv)
-            return 0
-
-        monkeypatch.setattr(cli, "_run_python_script", fake_run)
+        """``attacklm balance -- --target-total 5000`` → delegates to attacklm-dataset."""
+        captured = _mock_attacklm_dataset_delegate(monkeypatch)
         parser = cli.build_parser()
         args = parser.parse_args(["balance", "--", "--target-total", "5000"])
         _strip_leading_doubledash(args)
         rc = args.func(args)
         assert rc == 0
-        assert captured["name"] == "balance_buckets.py"
-        assert "--target-total" in captured["argv"]
-        assert "5000" in captured["argv"]
+        cmd = captured["cmd"]
+        assert cmd[0] == sys.executable
+        assert cmd[1:3] == ["-m", "attacklm_dataset.cli"]
+        assert cmd[3] == "balance"
+        assert "--target-total" in cmd
+        assert "5000" in cmd
 
 
 # ---------------------------------------------------------------------------
