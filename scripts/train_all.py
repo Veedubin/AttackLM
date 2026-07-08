@@ -42,14 +42,22 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-# Make bucket_loader importable
+# Make bucket_loader importable — prefer attacklm-dataset package
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bucket_loader import (  # noqa: E402
-    build_combined,
-    get_tactic_buckets,
-    get_orchestrator_bucket,
-    get_bucket,
-)
+try:
+    from attacklm_dataset.scripts.bucket_loader import (  # noqa: E402
+        build_combined,
+        get_tactic_buckets,
+        get_orchestrator_bucket,
+        get_bucket,
+    )
+except ImportError:
+    from bucket_loader import (  # noqa: E402
+        build_combined,
+        get_tactic_buckets,
+        get_orchestrator_bucket,
+        get_bucket,
+    )
 
 from attacklm._project_root import (
     BASE_DIR,
@@ -1179,7 +1187,13 @@ def main():
         # v0.1.6+: --dataset (multi-positional) takes precedence over
         # the legacy --include-* flags. Old flags are still honored
         # for backward compat and translate to --dataset specs.
-        from bucket_loader import resolve_dataset_specs, format_specs_human
+        try:
+            from attacklm_dataset.scripts.bucket_loader import (
+                resolve_dataset_specs,
+                format_specs_human,
+            )
+        except ImportError:
+            from bucket_loader import resolve_dataset_specs, format_specs_human
 
         if args.dataset:
             # User used the new --dataset flag
