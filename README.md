@@ -26,10 +26,14 @@
 Get from zero to a trained security model in four commands:
 
 ```bash
-# 1. Install the full training stack
+# 1. Install the full training stack (includes dataset)
 pip install "attacklm[all]"
 
-# 2. Initialize the MITRE-grounded dataset (downloads pre-built tarball)
+> **Note**: The MITRE ATT&CK dataset is now a separate package. `attacklm init` will
+> automatically use [attacklm-dataset](https://github.com/Veedubin/attacklm-dataset)
+> if installed, or guide you to install it.
+
+# 2. Initialize the MITRE-grounded dataset
 attacklm init --yes
 
 # 3. Balance the dataset to prevent source-bias (e.g., Metasploit overfitting)
@@ -87,7 +91,7 @@ By default, AttackLM leverages PyTorch's built-in `torch.backends.cuda.enable_me
 
 ## Features
 
-- **Comprehensive Security Corpus**: 460,000+ high-quality training pairs across 26+ distinct security sources.
+- **Comprehensive Security Corpus**: 24,652 high-quality training pairs across 16 security sources (via the [attacklm-dataset](https://github.com/Veedubin/attacklm-dataset) package).
 - **Advanced Training Methods**: Support for QLoRA, GaLore, Q-GaLore, Spectrum, and PiSSA to enable training of large models on consumer hardware.
 - **Training Pair Evolution**: New capability to synthetically expand short, factual pairs into complex reasoning examples using three specialized strategies:
 
@@ -225,10 +229,10 @@ The dataset is meticulously partitioned into "buckets" to allow granular control
 ### Core Composition
 | Category | Source Examples | Approx. Pairs | License |
 | :--- | :--- | :--- | :--- |
-| **Offensive** | Metasploit, Atomic Red Team | 15,000+ | BSD-3 / MIT |
-| **Defensive** | Sigma, Elastic, Splunk | 7,000+ | DRL-1.1 / Apache-2.0 |
-| **AI Security** | Garak, Promptfoo | 100+ | Mixed |
-| **Meta/IR** | NIST IR, Orchestrator | 500+ | Public Domain |
+| **Offensive** | Metasploit, Atomic Red Team | 15,000 | BSD-3 / MIT |
+| **Defensive** | Sigma, Elastic, Splunk | 7,000 | DRL-1.1 / Apache-2.0 |
+| **AI Security** | Garak, Promptfoo | 1,652 | Mixed |
+| **Meta/IR** | NIST IR, Orchestrator | 1,000 | Public Domain |
 
 **Total Records**: 24,652  
 **Base Models**: Qwen2.5-Coder (3B, 7B)

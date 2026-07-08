@@ -79,6 +79,49 @@ from device_utils import (  # noqa: E402  (import after sys.path tweak)
 # Apply the allocator env vars at import time, before any tensor allocation.
 setup_allocator_env()
 
+
+def _resolve_data_dir() -> Path:
+    """Find the attacklm-dataset data directory."""
+    import os
+
+    # Check env var
+    env_dir = os.environ.get("ATTACKLM_DATA_DIR")
+    if env_dir:
+        return Path(env_dir)
+
+    # Check if attacklm-dataset is installed
+    try:
+        import attacklm_dataset
+
+        return (
+            Path(attacklm_dataset.__file__).parent.parent
+            / "data"
+            / "datasets"
+            / "buckets"
+            / "sources"
+        )
+    except ImportError:
+        pass
+
+    # Fallback: look in CWD
+    cwd_path = Path.cwd() / "data" / "datasets" / "buckets" / "sources"
+    if cwd_path.exists():
+        return cwd_path
+
+    # Fallback: look for attacklm-dataset clone
+    clone_path = (
+        Path.cwd() / "attacklm-dataset" / "data" / "datasets" / "buckets" / "sources"
+    )
+    if clone_path.exists():
+        return clone_path
+
+    raise FileNotFoundError(
+        "AttackLM dataset not found. Run 'attacklm init' first, or set ATTACKLM_DATA_DIR."
+    )
+
+
+DATA_DIR = _resolve_data_dir()
+
 # ---------------------------------------------------------------------------
 # CLI Arguments
 # ---------------------------------------------------------------------------
@@ -734,10 +777,10 @@ Examples:
     parser.add_argument(
         "--evolved-dir",
         type=str,
-        default="data/datasets/evolved",
+        default=str(DATA_DIR.parent.parent / "evolved"),
         help=(
             "Directory containing evolved JSONL files (*_filtered.jsonl). "
-            "Default: data/datasets/evolved"
+            f"Default: {DATA_DIR.parent.parent / 'evolved'}"
         ),
     )
 
