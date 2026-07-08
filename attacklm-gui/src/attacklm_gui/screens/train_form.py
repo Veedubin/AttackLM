@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
+from textual.containers import Container, Horizontal
 from textual.screen import Screen
 from textual.widgets import (
     Button,
@@ -17,6 +16,8 @@ from textual.widgets import (
     TabbedContent,
     TabPane,
 )
+
+from attacklm_gui.widgets import attach_tooltip
 
 
 class TrainFormScreen(Screen):
@@ -270,7 +271,7 @@ class TrainFormScreen(Screen):
                                 (3, "ZeRO-3 (params + grads + optimizer)"),
                             ],
                             id="deepspeed_stage",
-                            value=3,
+                            allow_blank=False,
                         ),
                         classes="form-row",
                     )
@@ -613,6 +614,49 @@ class TrainFormScreen(Screen):
         name = str(select.value) if select.value else "custom"
         values = self._get_form_values()
 
-        preset = Preset(name=name, params=values, description=f"Saved from GUI")
+        preset = Preset(name=name, params=values, description="Saved from GUI")
         preset.save()
         self.notify(f"Saved preset: {name}")
+
+    def on_mount(self) -> None:
+        """Attach tooltips to high-traffic training parameters.
+
+        Mapping of Input IDs → TOOLTIPS keys:
+          epochs → train_epochs
+          batch_size → train_batch_size
+          lora_r → train_lora_r
+          lora_alpha → train_lora_alpha
+          galore_rank → train_galore_rank
+          max_length → train_max_length
+        Checkbox IDs:
+          use_qgalore → train_use_qgalore
+          use_dora → train_use_dora
+          spectrum → train_spectrum (note: spectrum is an Input, not Checkbox)
+        Note: train_learning_rate is not in the form (it uses a preset default).
+        """
+        # Input fields — tooltips by ID
+        input_tooltips: dict[str, str] = {
+            "epochs": "train_epochs",
+            "batch_size": "train_batch_size",
+            "lora_r": "train_lora_r",
+            "lora_alpha": "train_lora_alpha",
+            "galore_rank": "train_galore_rank",
+            "max_length": "train_max_length",
+            "spectrum": "train_spectrum",
+        }
+        for widget_id, tooltip_key in input_tooltips.items():
+            try:
+                attach_tooltip(self.query_one(f"#{widget_id}"), tooltip_key)
+            except Exception:
+                pass
+
+        # Checkbox fields — tooltips by ID
+        checkbox_tooltips: dict[str, str] = {
+            "use_qgalore": "train_use_qgalore",
+            "use_dora": "train_use_dora",
+        }
+        for widget_id, tooltip_key in checkbox_tooltips.items():
+            try:
+                attach_tooltip(self.query_one(f"#{widget_id}"), tooltip_key)
+            except Exception:
+                pass
