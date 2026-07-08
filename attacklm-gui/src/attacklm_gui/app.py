@@ -16,8 +16,17 @@ class AttackLMApp(App):
     """Terminal GUI wrapper for AttackLM CLI tools."""
 
     TITLE = "AttackLM GUI"
-    SUB_TITLE = "v0.10.0"
+    SUB_TITLE = "v0.11.0"
     CSS_PATH = None  # We'll use inline CSS for now
+
+    DEFAULT_CSS = """
+    Tooltip {
+        background: $surface;
+        border: solid $accent;
+        padding: 0 1;
+        max-width: 60;
+    }
+    """
 
     BINDINGS = [
         Binding("q", "quit", "Quit", show=True),
@@ -27,6 +36,9 @@ class AttackLMApp(App):
 
     def __init__(self) -> None:
         super().__init__()
+        # Textual 2.0+ supports tooltip_delay as an App attribute.
+        # 0.5s hover before showing — comfortable for terminal users.
+        self.tooltip_delay = 0.5
         self.attacklm_dir = self._find_attacklm_dir()
 
     def _find_attacklm_dir(self) -> Path:
