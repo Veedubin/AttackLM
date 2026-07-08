@@ -1,7 +1,6 @@
 """CLI entry point for attacklm-gui."""
 
 import sys
-from pathlib import Path
 
 
 def main() -> int:

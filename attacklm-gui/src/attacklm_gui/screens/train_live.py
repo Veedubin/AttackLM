@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
@@ -11,7 +11,6 @@ from textual.reactive import reactive
 from textual.screen import Screen
 from textual.widgets import (
     Button,
-    Footer,
     Label,
     ProgressBar,
     RichLog,
