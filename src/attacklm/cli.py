@@ -217,19 +217,11 @@ def _cmd_eval(args: argparse.Namespace) -> int:
 
 def _cmd_gui(_args: argparse.Namespace) -> int:
     """Handle ``attacklm gui`` — launch the TUI."""
-    try:
-        from attacklm_gui.app import AttackLMApp  # type: ignore[import-untyped]
+    from attacklm.gui.app import AttackLMApp
 
-        app = AttackLMApp()
-        app.run()
-        return 0
-    except ImportError:
-        print(
-            "attacklm gui: attacklm-gui is not installed.\n"
-            "  Install with: pip install attacklm-gui",
-            file=sys.stderr,
-        )
-        return 1
+    app = AttackLMApp()
+    app.run()
+    return 0
 
 
 def _cmd_demo(args: argparse.Namespace) -> int:

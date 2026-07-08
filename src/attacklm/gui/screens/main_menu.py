@@ -7,7 +7,7 @@ from textual.containers import Container
 from textual.screen import Screen
 from textual.widgets import Button, Label
 
-from attacklm_gui.widgets import attach_tooltip
+from attacklm.gui.widgets import attach_tooltip
 
 
 class MainMenuScreen(Screen):
@@ -90,38 +90,38 @@ class MainMenuScreen(Screen):
         btn_id = event.button.id
 
         if btn_id == "btn-train":
-            from attacklm_gui.screens.train_form import TrainFormScreen
+            from attacklm.gui.screens.train_form import TrainFormScreen
 
             self.app.push_screen(TrainFormScreen())
         elif btn_id == "btn-init":
-            from attacklm_gui.screens.command_forms import InitFormScreen
+            from attacklm.gui.screens.command_forms import InitFormScreen
 
             self.app.push_screen(InitFormScreen())
         elif btn_id == "btn-balance":
-            from attacklm_gui.screens.command_forms import BalanceFormScreen
+            from attacklm.gui.screens.command_forms import BalanceFormScreen
 
             self.app.push_screen(BalanceFormScreen())
         elif btn_id == "btn-build":
-            from attacklm_gui.screens.command_forms import BuildFormScreen
+            from attacklm.gui.screens.command_forms import BuildFormScreen
 
             self.app.push_screen(BuildFormScreen())
         elif btn_id == "btn-infer":
-            from attacklm_gui.screens.command_forms import InferFormScreen
+            from attacklm.gui.screens.command_forms import InferFormScreen
 
             self.app.push_screen(InferFormScreen())
         elif btn_id == "btn-eval":
-            from attacklm_gui.screens.command_forms import EvalFormScreen
+            from attacklm.gui.screens.command_forms import EvalFormScreen
 
             self.app.push_screen(EvalFormScreen())
         elif btn_id == "btn-audit":
-            from attacklm_gui.screens.audit import AuditFormScreen
+            from attacklm.gui.screens.audit import AuditFormScreen
 
             self.app.push_screen(AuditFormScreen())
         elif btn_id == "btn-steer":
-            from attacklm_gui.screens.command_forms import SteerFormScreen
+            from attacklm.gui.screens.command_forms import SteerFormScreen
 
             self.app.push_screen(SteerFormScreen())
         elif btn_id == "btn-bench":
-            from attacklm_gui.screens.command_forms import BenchFormScreen
+            from attacklm.gui.screens.command_forms import BenchFormScreen
 
             self.app.push_screen(BenchFormScreen())

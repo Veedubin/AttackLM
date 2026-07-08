@@ -206,7 +206,7 @@ class TrainLiveScreen(Screen):
 
     def _start_runner(self) -> None:
         """Launch the training command in a subprocess."""
-        from attacklm_gui.runner import CommandRunner
+        from attacklm.gui.runner import CommandRunner
 
         self._runner = CommandRunner()
         self._runner_task = asyncio.create_task(self._stream_output())

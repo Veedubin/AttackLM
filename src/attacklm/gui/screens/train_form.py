@@ -17,7 +17,7 @@ from textual.widgets import (
     TabPane,
 )
 
-from attacklm_gui.widgets import attach_tooltip
+from attacklm.gui.widgets import attach_tooltip
 
 
 class TrainFormScreen(Screen):
@@ -531,13 +531,13 @@ class TrainFormScreen(Screen):
                 values["train"] = True
             cmd = self._build_command(values)
 
-            from attacklm_gui.screens.train_live import TrainLiveScreen
+            from attacklm.gui.screens.train_live import TrainLiveScreen
 
             self.app.push_screen(TrainLiveScreen(cmd))
 
     def _load_preset(self) -> None:
         """Load a preset into the form."""
-        from attacklm_gui.presets import Preset
+        from attacklm.gui.presets import Preset
 
         select = self.query_one("#preset-select", Select)
         name = str(select.value) if select.value else ""
@@ -608,7 +608,7 @@ class TrainFormScreen(Screen):
 
     def _save_preset(self) -> None:
         """Save current form values as a preset."""
-        from attacklm_gui.presets import Preset
+        from attacklm.gui.presets import Preset
 
         select = self.query_one("#preset-select", Select)
         name = str(select.value) if select.value else "custom"

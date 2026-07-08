@@ -5,7 +5,7 @@ import sys
 
 def main() -> int:
     """Launch the AttackLM TUI."""
-    from attacklm_gui.app import AttackLMApp
+    from attacklm.gui.app import AttackLMApp
 
     app = AttackLMApp()
     app.run()

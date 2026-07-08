@@ -22,8 +22,8 @@ from textual.widgets import (
     TabPane,
 )
 
-from attacklm_gui.screens.command_forms import _BaseCommandScreen
-from attacklm_gui.widgets import attach_tooltip
+from attacklm.gui.screens.command_forms import _BaseCommandScreen
+from attacklm.gui.widgets import attach_tooltip
 
 
 class AuditFormScreen(_BaseCommandScreen):

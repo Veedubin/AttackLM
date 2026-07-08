@@ -5,15 +5,15 @@ from __future__ import annotations
 import pytest
 from textual.widgets import Static
 
-from attacklm_gui.app import AttackLMApp
-from attacklm_gui.screens.audit import AuditFormScreen
-from attacklm_gui.widgets import TOOLTIPS, attach_tooltip
+from attacklm.gui.app import AttackLMApp
+from attacklm.gui.screens.audit import AuditFormScreen
+from attacklm.gui.widgets import TOOLTIPS, attach_tooltip
 
 
 def _patch_presets(monkeypatch, tmp_path):
     """Monkeypatch preset dir and ensure_builtin_presets for test isolation."""
-    monkeypatch.setattr("attacklm_gui.presets.PRESETS_DIR", tmp_path)
-    monkeypatch.setattr("attacklm_gui.app.ensure_builtin_presets", lambda: None)
+    monkeypatch.setattr("attacklm.gui.presets.PRESETS_DIR", tmp_path)
+    monkeypatch.setattr("attacklm.gui.app.ensure_builtin_presets", lambda: None)
 
 
 class TestAuditScreen:
