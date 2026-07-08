@@ -38,17 +38,22 @@ attacklm-gui
 ### Main Menu
 
 ```
-┌──────────────────────────────────────┐
-│         AttackLM GUI v0.1.0          │
-│                                      │
-│  🏋️  Train Model                     │
-│  🚀  Init Dataset                    │
-│  ⚖️  Balance Dataset                 │
-│  📦  Build & Install                 │
-│  🧠  Run Inference                   │
-│  📊  Evaluate                        │
-└──────────────────────────────────────┘
+┌──────────────────────────────────────────┐
+│         AttackLM GUI v0.1.0              │
+│                                          │
+│  🏋️  Train Model                         │
+│  🚀  Init Dataset                        │
+│  ⚖️  Balance Dataset                     │
+│  📦  Build & Install                     │
+│  🧠  Run Inference                       │
+│  📊  Evaluate                            │
+│  🧭  Steer Model                         │
+│  📏  Benchmark                           │
+│  🔍  Audit (MIA / Extraction)            │
+└──────────────────────────────────────────┘
 ```
+
+Every menu button has a **tooltip** — hover with the mouse (or focus with the keyboard and read the footer) to see a one-sentence description of what the screen does.
 
 ### Training Form
 
@@ -102,6 +107,11 @@ Controls:
 | **Build** | Merge → GGUF → install to LM Studio |
 | **Eval** | Retention eval, collect-ref, score, compare, golden |
 | **Pipeline** | Run a YAML training pipeline |
+| **Audit (🔍)** | Run an inversion-attack audit on a trained model. Two tabs: **Extraction** (Carlini 2021 prefix-completion probing) and **MIA** (membership inference attack). Delegates to `attacklm audit`, which calls `attacklm-dataset/scripts/inversion_audit.py` with the new `--attack {extraction, mia, all}` and `--mia-method {reference, zlib, per_token, lira, all}` flags (v0.4.0+). See `attacklm-dataset/docs/ATTACK_TAXONOMY.md` for the attack taxonomy. |
+
+### Tooltips
+
+Every input field, select, and button across the TUI has a **tooltip** — hover with the mouse to see a one-sentence explanation of what it does. Tooltip text is centralized in `src/attacklm_gui/widgets/tooltips.py` so it is reviewable in one place. The `DEFAULT_CSS` rule styles tooltips with a surface background, accent border, and 60-character max width. Hover delay is 0.5 seconds (`App.tooltip_delay`).
 
 ## Keyboard Shortcuts
 
@@ -118,22 +128,25 @@ Controls:
 ```
 attacklm-gui/
 ├── src/attacklm_gui/
-│   ├── app.py              # Textual App entry point
+│   ├── app.py              # Textual App entry point (DEFAULT_CSS for Tooltip styling)
 │   ├── cli.py              # CLI entry point
 │   ├── runner.py           # Subprocess manager + output parser
-│   ├── presets.py          # Save/load training presets
+│   ├── presets.py          # Save/load training presets (slugify-safe filenames)
 │   ├── screens/
-│   │   ├── main_menu.py    # Command launcher (6 buttons)
-│   │   ├── train_form.py   # Training parameter form
+│   │   ├── main_menu.py    # Command launcher (9 buttons including Audit)
+│   │   ├── train_form.py   # Training parameter form (with tooltips)
 │   │   ├── train_live.py   # Live training monitor
-│   │   └── command_forms.py # Init, Balance, Infer, Build, Eval, Pipeline screens
+│   │   ├── command_forms.py # Init, Balance, Infer, Build, Eval, Pipeline screens
+│   │   └── audit.py        # Inversion-attack audit (Extraction / MIA tabs)
 │   └── widgets/
-│       └── __init__.py
+│       ├── __init__.py
+│       └── tooltips.py     # Centralized tooltip text (~30 entries)
 └── tests/
-    └── test_gui.py
+    ├── test_gui.py         # Existing tests + TestTooltipsRetrofit
+    └── test_audit.py       # New: 7 tests for the audit screen and tooltips
 ```
 
-The GUI never touches AttackLM's internal logic. It constructs CLI command strings and runs them via `asyncio.create_subprocess_exec`. All training, extraction, and inference logic stays in `scripts/*.py`.
+The GUI never touches AttackLM's internal logic. It constructs CLI command strings and runs them via `asyncio.create_subprocess_exec`. All training, extraction, and inference logic stays in `scripts/*.py`. The audit screen delegates to the `attacklm audit` subcommand, which is a thin wrapper around `attacklm-dataset/scripts/inversion_audit.py` — the TUI does not depend on `attacklm-dataset` directly.
 
 ## Requirements
 
