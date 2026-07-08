@@ -16,7 +16,7 @@ class AttackLMApp(App):
     """Terminal GUI wrapper for AttackLM CLI tools."""
 
     TITLE = "AttackLM GUI"
-    SUB_TITLE = "v0.11.0"
+    SUB_TITLE = "v0.10.0"  # Updated at release time by re-release agent
     CSS_PATH = None  # We'll use inline CSS for now
 
     DEFAULT_CSS = """
