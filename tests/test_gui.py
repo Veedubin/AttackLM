@@ -1,7 +1,7 @@
 """Tests for the AttackLM GUI."""
 
-from attacklm_gui.runner import parse_training_line, TrainingMetrics
-from attacklm_gui.presets import Preset, BUILTIN_PRESETS
+from attacklm.gui.runner import parse_training_line, TrainingMetrics
+from attacklm.gui.presets import Preset, BUILTIN_PRESETS
 
 
 class TestTrainingLineParser:
@@ -81,7 +81,7 @@ class TestPresets:
         assert "3B LoRA Default" in names
 
     def test_preset_save_load(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("attacklm_gui.presets.PRESETS_DIR", tmp_path)
+        monkeypatch.setattr("attacklm.gui.presets.PRESETS_DIR", tmp_path)
 
         preset = Preset(
             name="test-preset",
@@ -97,7 +97,7 @@ class TestPresets:
         assert loaded.params["batch_size"] == 2
 
     def test_preset_list(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("attacklm_gui.presets.PRESETS_DIR", tmp_path)
+        monkeypatch.setattr("attacklm.gui.presets.PRESETS_DIR", tmp_path)
 
         Preset(name="preset-a", params={}).save()
         Preset(name="preset-b", params={}).save()
@@ -107,7 +107,7 @@ class TestPresets:
         assert "preset-b" in names
 
     def test_preset_delete(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("attacklm_gui.presets.PRESETS_DIR", tmp_path)
+        monkeypatch.setattr("attacklm.gui.presets.PRESETS_DIR", tmp_path)
 
         Preset(name="to-delete", params={}).save()
         assert Preset.delete("to-delete") is True
@@ -123,7 +123,7 @@ class TestCommandBuilding:
     """Test that the train form builds correct CLI commands."""
 
     def test_basic_command(self):
-        from attacklm_gui.screens.train_form import TrainFormScreen
+        from attacklm.gui.screens.train_form import TrainFormScreen
 
         # We can't easily test the full screen, but we can test _build_command
         # by creating a minimal mock
@@ -150,7 +150,7 @@ class TestCommandBuilding:
         assert "--train" in cmd
 
     def test_galore_command(self):
-        from attacklm_gui.screens.train_form import TrainFormScreen
+        from attacklm.gui.screens.train_form import TrainFormScreen
 
         screen = TrainFormScreen.__new__(TrainFormScreen)
 
@@ -171,7 +171,7 @@ class TestCommandBuilding:
         assert "0.5" in cmd
 
     def test_lora_command(self):
-        from attacklm_gui.screens.train_form import TrainFormScreen
+        from attacklm.gui.screens.train_form import TrainFormScreen
 
         screen = TrainFormScreen.__new__(TrainFormScreen)
 
@@ -193,7 +193,7 @@ class TestCommandBuilding:
         assert "--use-qgalore" not in cmd
 
     def test_dry_run_no_train_flag(self):
-        from attacklm_gui.screens.train_form import TrainFormScreen
+        from attacklm.gui.screens.train_form import TrainFormScreen
 
         screen = TrainFormScreen.__new__(TrainFormScreen)
 
@@ -224,7 +224,7 @@ class TestTooltipsRetrofit:
 
     def test_train_form_tooltip_keys_are_defined(self) -> None:
         """The train-form tooltip keys exist in the TOOLTIPS dict."""
-        from attacklm_gui.widgets import TOOLTIPS
+        from attacklm.gui.widgets import TOOLTIPS
 
         required = {
             "train_epochs",
@@ -251,7 +251,8 @@ class TestTooltipsRetrofit:
         src = (
             Path(__file__).parent.parent
             / "src"
-            / "attacklm_gui"
+            / "attacklm"
+            / "gui"
             / "screens"
             / "train_form.py"
         )

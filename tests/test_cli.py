@@ -629,35 +629,27 @@ class TestCLIEdgeCases:
 
 
 class TestGUISubcommand:
-    """Test that ``attacklm gui`` handles missing attacklm-gui gracefully."""
+    """Test that ``attacklm gui`` launches the TUI.
 
-    def test_gui_import_error(self, monkeypatch):
-        """attacklm gui with missing attacklm-gui should return 1."""
-        # Ensure the import fails
-        import importlib
-
-        monkeypatch.setitem(sys.modules, "attacklm_gui", None)
-        monkeypatch.setattr(
-            importlib,
-            "import_module",
-            lambda _: (_ for _ in ()).throw(ImportError("no module")),
-        )
-        parser = cli.build_parser()
-        args = parser.parse_args(["gui"])
-        rc = args.func(args)
-        assert rc == 1
+    The TUI was folded into the main attacklm package in v0.12.0 (was
+    a separate ``attacklm_gui`` package in v0.11.1 and earlier). The
+    ``attacklm gui`` subcommand always returns 0 if the TUI launches
+    successfully; it raises if the import fails (no graceful fallback
+    because the TUI is now a first-class part of the package).
+    """
 
     def test_gui_success(self, monkeypatch):
-        """attacklm gui with attacklm-gui installed should return 0."""
+        """attacklm gui with the TUI installed should return 0."""
 
         class FakeApp:
             def run(self):
                 pass
 
-        fake_module = type(sys)("attacklm_gui.app")
+        fake_module = type(sys)("attacklm.gui.app")
         fake_module.AttackLMApp = FakeApp
-        monkeypatch.setitem(sys.modules, "attacklm_gui", fake_module)
-        monkeypatch.setitem(sys.modules, "attacklm_gui.app", fake_module)
+        monkeypatch.setitem(sys.modules, "attacklm", type(sys)("attacklm"))
+        monkeypatch.setitem(sys.modules, "attacklm.gui", type(sys)("attacklm.gui"))
+        monkeypatch.setitem(sys.modules, "attacklm.gui.app", fake_module)
 
         parser = cli.build_parser()
         args = parser.parse_args(["gui"])

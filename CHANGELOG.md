@@ -1,3 +1,31 @@
+## [0.12.0] — 2026-07-08 — TUI folded into the main package + MIA Track 2 audit subcommand
+
+### Changed (BREAKING)
+- **TUI folded into the main `attacklm` package.** The standalone `attacklm-gui` PyPI package (v0.1.0) is no longer distributed. All TUI code now lives at `src/attacklm/gui/` inside the main `attacklm` package. `textual>=2.0` is now a required (not optional) dependency of `attacklm`. Launch with `attacklm gui` (the subcommand was already wired in v0.11.1, but the import path was `attacklm_gui.app`; now it is `attacklm.gui.app`).
+
+  **Migration**: `pip install attacklm` now pulls the TUI automatically. Users who previously did `pip install attacklm-gui` should uninstall that and just install `attacklm`. The `attacklm-gui` console script (from the old package) is no longer installed; use `attacklm gui` instead.
+
+- **CLI test fix**: `tests/test_cli.py::TestGUISubcommand::test_gui_import_error` was removed (the import is no longer optional — the TUI is bundled with the main package). `test_gui_success` was updated to mock `attacklm.gui.app` instead of `attacklm_gui.app`.
+
+### Added
+- **`attacklm audit` subcommand**: runs an inversion-attack audit (extraction or MIA) on a trained model. Delegates to `attacklm-dataset/scripts/inversion_audit.py` via `subprocess.run`. Accepts `--attack {extraction, mia, all}`, `--mia-method {reference, zlib, per_token, lira, all}`, `--mia-threshold-mode {median, percentile, holdout_file}`, `--mia-percentile`, `--model`, `--dataset-root`, `--source-filter`, `--top-k`, `--max-new-tokens`, `--temperature`, `--max-records`, `--dry-run`. See `attacklm-dataset/docs/ATTACK_TAXONOMY.md` for the attack taxonomy.
+- **TUI: new Audit screen** with 2 tabs (Extraction / MIA). Built on top of the existing `_BaseCommandScreen` pattern. Form fields construct the `attacklm audit` command; output streamed to a `RichLog`.
+- **TUI: tooltips on every widget**. Centralized tooltip text in `src/attacklm/gui/widgets/tooltips.py` (~30 entries). `attach_tooltip(widget, key)` helper for one-line attachment. `DEFAULT_CSS` in `app.py` for Tooltip styling (background, border, padding, max-width). `App.tooltip_delay = 0.5s` hover delay. Retro-fitted tooltips on all 9 main menu buttons, all high-traffic train form inputs, and all command form Back buttons.
+
+### Fixed (drive-by)
+- `presets.py` (in `src/attacklm/gui/presets.py`): `FP8 (H100/Blackwell)` was creating an invalid filename (`fp8_(h100/blackwell).json`) on Linux because the slash survives the previous `lower().replace(' ', '_')` slugify. Now uses a proper regex slugify via a new `_slugify()` helper. Fixes a real bug that affected all users on first run.
+- `screens/train_form.py`: `Select(value=3)` for `deepspeed_stage` was silently broken under Textual 8.x (the value is silently overwritten with `Select.NULL` when options are tuples). Dropped the explicit value; the downstream code already defaults to 3.
+
+### Tests
+- 7 new tests in `tests/test_audit.py` (audit screen mount, widget presence, tooltip coverage, dict-key presence, no-op attachment).
+- 2 new structural tests in `tests/test_gui.py::TestTooltipsRetrofit` (train form tooltip keys defined, train form on_mount wires up the 9 high-traffic fields).
+
+### Reference
+- Per architect plan approved 2026-07-08 (deepseek-v4-pro:cloud).
+- Memory: `d4657ab9-53d4-49a4-b4bd-3de7816b3868` (architectural decision), `88c25f43-5d1d-4756-804e-4b0ad6b1dc19` (MIA research), `fb19c94e-dd7b-4e02-821c-3fb32eb1abac` (session summary).
+
+---
+
 ## [0.11.1] — 2026-07-07 — `attacklm --init` (neuralgentics plugin bootstrap)
 
 ### Added

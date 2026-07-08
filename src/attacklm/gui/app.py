@@ -8,8 +8,8 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import Header, Footer
 
-from attacklm_gui.presets import ensure_builtin_presets
-from attacklm_gui.screens.main_menu import MainMenuScreen
+from attacklm.gui.presets import ensure_builtin_presets
+from attacklm.gui.screens.main_menu import MainMenuScreen
 
 
 class AttackLMApp(App):
