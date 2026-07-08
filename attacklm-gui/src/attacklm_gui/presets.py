@@ -3,12 +3,23 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 
 PRESETS_DIR = Path.home() / ".config" / "attacklm" / "presets"
+
+
+def _slugify(name: str) -> str:
+    """Slugify a preset name: lowercase, replace any non-alphanumeric run
+    with a single underscore. Used as the on-disk filename.
+
+    Avoids filesystem errors on names with "/" or other special chars
+    (e.g. "FP8 (H100/Blackwell)" → "fp8_h100_blackwell.json").
+    """
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
 
 @dataclass
@@ -21,7 +32,7 @@ class Preset:
 
     @property
     def filename(self) -> str:
-        return f"{self.name.lower().replace(' ', '_')}.json"
+        return f"{_slugify(self.name)}.json"
 
     @property
     def path(self) -> Path:
@@ -41,7 +52,7 @@ class Preset:
     @classmethod
     def load(cls, name: str) -> Preset | None:
         """Load a preset by name."""
-        filename = f"{name.lower().replace(' ', '_')}.json"
+        filename = f"{_slugify(name)}.json"
         path = PRESETS_DIR / filename
         if not path.exists():
             return None
@@ -70,7 +81,7 @@ class Preset:
     @classmethod
     def delete(cls, name: str) -> bool:
         """Delete a preset by name. Returns True if deleted."""
-        filename = f"{name.lower().replace(' ', '_')}.json"
+        filename = f"{_slugify(name)}.json"
         path = PRESETS_DIR / filename
         if path.exists():
             path.unlink()

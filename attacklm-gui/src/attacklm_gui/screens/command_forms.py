@@ -8,7 +8,7 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
-from textual.widgets import Button, Input, Label, RichLog, Select, Static
+from textual.widgets import Button, Input, Label, RichLog, Select
 
 
 class _BaseCommandScreen(Screen):
@@ -66,6 +66,10 @@ class _BaseCommandScreen(Screen):
     }
     """
 
+    BACK_BUTTON_TOOLTIP = (
+        "Go back to the main menu. Shortcut: press 'm' for main menu, 'q' to quit."
+    )
+
     def _row(
         self, label: str, input_id: str, placeholder: str = "", value: str = ""
     ) -> Horizontal:
@@ -104,6 +108,11 @@ class _BaseCommandScreen(Screen):
 
         await process.wait()
         log.write(f"\n[bold]Exit code: {process.returncode}[/]")
+
+    def on_mount(self) -> None:
+        """Attach tooltip to the Back button in every derived screen."""
+        for btn in self.query("#btn-back"):
+            btn.tooltip = self.BACK_BUTTON_TOOLTIP
 
 
 class InitFormScreen(_BaseCommandScreen):

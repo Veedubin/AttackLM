@@ -7,9 +7,11 @@ from textual.containers import Container
 from textual.screen import Screen
 from textual.widgets import Button, Label
 
+from attacklm_gui.widgets import attach_tooltip
+
 
 class MainMenuScreen(Screen):
-    """Main menu with command launchers (v0.10.0 unified subcommands)."""
+    """Main menu with command launchers (v0.11.0 — added Audit screen)."""
 
     CSS = """
     MainMenuScreen {
@@ -57,12 +59,31 @@ class MainMenuScreen(Screen):
             yield Button("📦  Build & Install", id="btn-build")
             yield Button("🧠  Run Inference", id="btn-infer")
             yield Button("📊  Evaluate", id="btn-eval")
+            yield Button("🔍  Audit", id="btn-audit")
             yield Button("🧭  Steer Model", id="btn-steer")
             yield Button("📏  Benchmark", id="btn-bench")
             yield Label(
                 "Presets: 3B Q-GaLore | 3B LoRA | 7B Q-GaLore | COAP | FP8 | BitNet",
                 id="preset-label",
             )
+
+    def on_mount(self) -> None:
+        """Attach tooltips to all menu buttons."""
+        for btn_id, tooltip_key in [
+            ("#btn-train", "btn-train"),
+            ("#btn-init", "btn-init"),
+            ("#btn-balance", "btn-balance"),
+            ("#btn-build", "btn-build"),
+            ("#btn-infer", "btn-infer"),
+            ("#btn-eval", "btn-eval"),
+            ("#btn-audit", "btn-audit"),
+            ("#btn-steer", "btn-steer"),
+            ("#btn-bench", "btn-bench"),
+        ]:
+            try:
+                attach_tooltip(self.query_one(btn_id), tooltip_key)
+            except Exception:
+                pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -92,6 +113,10 @@ class MainMenuScreen(Screen):
             from attacklm_gui.screens.command_forms import EvalFormScreen
 
             self.app.push_screen(EvalFormScreen())
+        elif btn_id == "btn-audit":
+            from attacklm_gui.screens.audit import AuditFormScreen
+
+            self.app.push_screen(AuditFormScreen())
         elif btn_id == "btn-steer":
             from attacklm_gui.screens.command_forms import SteerFormScreen
 

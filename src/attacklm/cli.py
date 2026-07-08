@@ -237,6 +237,88 @@ def _cmd_demo(args: argparse.Namespace) -> int:
     return _run_python_script("demo.py", args.argv)
 
 
+def _cmd_audit(args: argparse.Namespace) -> int:
+    """Handle ``attacklm audit`` — delegate to attacklm-dataset."""
+    # Try attacklm-dataset CLI first
+    try:
+        import attacklm_dataset  # noqa: F401  — presence probe only
+
+        # Build the argv for attacklm-dataset's inversion_audit
+        forwarded = [
+            "--attack",
+            args.attack,
+            "--model",
+            args.model,
+            "--dataset-root",
+            args.dataset_root,
+        ]
+        if args.mia_method:
+            forwarded.extend(["--mia-method", args.mia_method])
+        if args.mia_threshold_mode:
+            forwarded.extend(["--mia-threshold-mode", args.mia_threshold_mode])
+        if args.mia_percentile:
+            forwarded.extend(["--mia-percentile", str(args.mia_percentile)])
+        if args.source_filter:
+            forwarded.extend(["--source-filter", *args.source_filter])
+        if args.top_k:
+            forwarded.extend(["--top-k", str(args.top_k)])
+        if args.max_new_tokens:
+            forwarded.extend(["--max-new-tokens", str(args.max_new_tokens)])
+        if args.temperature:
+            forwarded.extend(["--temperature", str(args.temperature)])
+        if args.max_records:
+            forwarded.extend(["--max-records", str(args.max_records)])
+        if args.dry_run:
+            forwarded.append("--dry-run")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "attacklm_dataset.cli", "audit", *forwarded],
+            cwd=Path.cwd(),
+        )
+        return result.returncode
+    except ImportError:
+        pass
+
+    # Fallback: try local inversion_audit.py
+    audit_script = _SCRIPTS_DIR / "inversion_audit.py"
+    if audit_script.exists():
+        forwarded = [
+            "--attack",
+            args.attack,
+            "--model",
+            args.model,
+            "--dataset-root",
+            args.dataset_root,
+        ]
+        if args.mia_method:
+            forwarded.extend(["--mia-method", args.mia_method])
+        if args.mia_threshold_mode:
+            forwarded.extend(["--mia-threshold-mode", args.mia_threshold_mode])
+        if args.mia_percentile:
+            forwarded.extend(["--mia-percentile", str(args.mia_percentile)])
+        if args.source_filter:
+            forwarded.extend(["--source-filter", *args.source_filter])
+        if args.top_k:
+            forwarded.extend(["--top-k", str(args.top_k)])
+        if args.max_new_tokens:
+            forwarded.extend(["--max-new-tokens", str(args.max_new_tokens)])
+        if args.temperature:
+            forwarded.extend(["--temperature", str(args.temperature)])
+        if args.max_records:
+            forwarded.extend(["--max-records", str(args.max_records)])
+        if args.dry_run:
+            forwarded.append("--dry-run")
+        return _run_python_script("inversion_audit.py", forwarded)
+
+    print(
+        "AttackLM dataset not found.\n"
+        "Install it with:  pip install attacklm-dataset\n"
+        "Or clone it from: https://github.com/Veedubin/attacklm-dataset",
+        file=sys.stderr,
+    )
+    return 1
+
+
 # ---------------------------------------------------------------------------
 # Top-level --init handler (neuralgentics OpenCode plugin bootstrap)
 # ---------------------------------------------------------------------------
@@ -664,6 +746,89 @@ def build_parser() -> argparse.ArgumentParser:
         description="Launch the AttackLM terminal GUI for interactive training.",
     )
     gui_p.set_defaults(func=_cmd_gui)
+
+    # ---- audit ----
+    audit_p = sub.add_parser(
+        "audit",
+        help="Inversion-attack audit (extraction / MIA)",
+        description=(
+            "Run an inversion-attack audit on a trained AttackLM model. "
+            "Supports extraction (Carlini 2021 prefix-completion) and "
+            "MIA (Carlini 2022 reference attack + per-token loss + LiRA). "
+            "See attacklm-dataset/docs/ATTACK_TAXONOMY.md."
+        ),
+    )
+    audit_p.add_argument(
+        "--attack",
+        choices=["extraction", "mia", "all"],
+        default="all",
+        help="Attack class to run (default: all)",
+    )
+    audit_p.add_argument(
+        "--mia-method",
+        choices=["reference", "zlib", "per_token", "lira", "all"],
+        default="per_token",
+        help="MIA scoring algorithm (default: per_token)",
+    )
+    audit_p.add_argument(
+        "--mia-threshold-mode",
+        choices=["median", "percentile", "holdout_file"],
+        default="percentile",
+        help="How to derive the membership threshold (default: percentile)",
+    )
+    audit_p.add_argument(
+        "--mia-percentile",
+        type=int,
+        default=5,
+        help="Percentile for the threshold (default 5)",
+    )
+    audit_p.add_argument(
+        "--model",
+        required=True,
+        help="Path to trained model",
+    )
+    audit_p.add_argument(
+        "--dataset-root",
+        required=True,
+        help="Path to per-source dataset root",
+    )
+    audit_p.add_argument(
+        "--source-filter",
+        nargs="*",
+        default=[],
+        help="Optional: only probe these sources",
+    )
+    audit_p.add_argument(
+        "--top-k",
+        type=int,
+        default=20,
+        help="Carlini 2021 K (number of completions per prefix)",
+    )
+    audit_p.add_argument(
+        "--max-new-tokens",
+        type=int,
+        default=256,
+        help="Per-completion token budget (Carlini 2021 default)",
+    )
+    audit_p.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+        help="Sampling temperature (default 1.0)",
+    )
+    audit_p.add_argument(
+        "--max-records",
+        type=int,
+        default=50,
+        help="Max records per source",
+    )
+    audit_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Print the command that would be run, don't execute",
+    )
+    audit_p.set_defaults(func=_cmd_audit)
 
     # ---- demo ----
     demo_p = sub.add_parser(
