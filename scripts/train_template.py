@@ -1,4 +1,37 @@
 #!/usr/bin/env python3
+# PROVENANCE METADATA — scripts/train_template.py
+# =============================================================================
+# Attack class:        N/A (this file is the QLoRA fine-tuning training
+#                     pipeline; it does not implement an attack)
+# Original authors:    Veedubin (in-repo author)
+# Paper title:         N/A (internal; based on the QLoRA / GaLore / PiSSA
+#                     methods referenced in the docstring below)
+# Year / venue:        2026 / in-repo
+# Paper URL:           N/A
+# Canonical repo:      https://github.com/Veedubin/AttackLM
+#
+# Implementation:
+#   Type:              ORIGINAL_WORK (orchestration of off-the-shelf
+#                     HuggingFace + PEFT + bitsandbytes + DeepSpeed
+#                     training methods; no algorithm-level port)
+#   Lines of port:     N/A
+#   Upstream license:  N/A
+#
+# Underlying methods (each is a separate research paper, all integrated
+# via their official HuggingFace / PEFT implementations):
+#   - QLoRA: Dettmers et al. 2023, https://arxiv.org/abs/2305.14314
+#   - GaLore: Zhao et al. 2024, https://arxiv.org/abs/2403.03507
+#   - Q-GaLore: Zhao et al. 2024 (same paper, Q-quantized variant)
+#   - PiSSA: Meng et al. 2024, https://arxiv.org/abs/2404.02948
+#   - Spectrum: https://github.com/OptimalScale/Spectrum (community)
+#   - DeepSpeed: Rasley et al. 2020, https://arxiv.org/abs/2007.00051
+#
+# Data sources: N/A (this file is a trainer; it operates on whatever
+# JSONL the user passes via --dataset)
+#
+# Rights claim contact: veedubin.legal@example.com
+# See:                  https://github.com/Veedubin/attacklm-dataset/blob/main/RIGHTS.md
+# =============================================================================
 """
 AttackLM — QLoRA Fine-Tuning Template
 

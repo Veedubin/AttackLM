@@ -18,7 +18,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# Make the scripts/ dir importable (same pattern as test_balance_buckets.py)
+# Make the scripts/ dir importable (canonical location of train_template.py
+# and device_utils.py; the dataset-ingest scripts live in the attacklm-dataset
+# repo, not here)
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 

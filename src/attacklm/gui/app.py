@@ -1,6 +1,35 @@
+from __future__ import annotations
+
+# PROVENANCE METADATA — src/attacklm/gui/app.py
+# ================================================================================
+# Attack class:        N/A (this file is a Textual TUI wrapper around the
+#                      CLI; it does not implement any attack)
+# Original authors:    Veedubin (in-repo author)
+# Paper title:         N/A (internal)
+# Year / venue:        2026 / in-repo
+# Paper URL:           N/A
+# Canonical repo:      https://github.com/Veedubin/AttackLM (this repo)
+#
+# Implementation:
+#   Type:              ORIGINAL_WORK (TUI wrapper around the CLI)
+#   Lines of port:     N/A
+#   Upstream license:  N/A
+#
+# TUI framework:       Textual (https://github.com/Textualize/textual),
+#                      MIT License, Will McGuinness / Textualize
+#
+# Related attack papers (implemented in the attacklm-dataset sibling repo,
+# invoked via the `attacklm audit` subcommand from this TUI):
+#   - Carlini et al. 2021 — https://arxiv.org/abs/2012.07805
+#   - Carlini et al. 2022 — https://arxiv.org/abs/2112.03570
+#
+# Data sources: N/A
+#
+# Rights claim contact: veedubin.legal@example.com
+# See:                  https://github.com/Veedubin/attacklm-dataset/blob/main/RIGHTS.md
+# ================================================================================
 """Main Textual application for AttackLM GUI."""
 
-from __future__ import annotations
 
 from pathlib import Path
 

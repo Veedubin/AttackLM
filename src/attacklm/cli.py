@@ -1,3 +1,37 @@
+from __future__ import annotations
+
+# PROVENANCE METADATA — src/attacklm/cli.py
+# ================================================================================
+# Attack class:        N/A (this file is the unified CLI driver; the
+#                      `attacklm audit` subcommand delegates to
+#                      attacklm-dataset/scripts/inversion_audit.py which
+#                      implements the Carlini 2021 + 2022 attacks — see
+#                      that file for the per-attack paper provenance)
+# Original authors:    Veedubin (in-repo author)
+# Paper title:         N/A (internal; see attacklm-dataset for the papers)
+# Year / venue:        2026 / in-repo
+# Paper URL:           N/A
+# Canonical repo:      https://github.com/Veedubin/AttackLM (this repo)
+#
+# Implementation:
+#   Type:              ORIGINAL_WORK (CLI orchestration only)
+#   Lines of port:     N/A
+#   Upstream license:  N/A
+#
+# Related attack papers (implemented in the attacklm-dataset sibling repo,
+# invoked via subprocess from this CLI):
+#   - Carlini et al. 2021 — https://arxiv.org/abs/2012.07805
+#   - Carlini et al. 2022 — https://arxiv.org/abs/2112.03570
+#   - Shi et al. 2024 MUSE — https://arxiv.org/abs/2407.06460
+#   - See https://github.com/Veedubin/attacklm-dataset/blob/main/RIGHTS.md
+#     for the full rights statement and per-paper attribution.
+#
+# Data sources: N/A (this file is a CLI driver; it operates on whatever
+# the user passes via the various subcommand flags)
+#
+# Rights claim contact: veedubin.legal@example.com
+# See:                  https://github.com/Veedubin/attacklm-dataset/blob/main/RIGHTS.md
+# ================================================================================
 """AttackLM unified CLI with argparse subcommands.
 
 Usage::
@@ -16,7 +50,6 @@ Usage::
     attacklm demo [args...]
 """
 
-from __future__ import annotations
 
 import argparse
 import os
