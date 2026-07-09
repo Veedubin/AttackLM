@@ -802,13 +802,23 @@ Examples:
             "Default: 0.0 (no evolved pairs)."
         ),
     )
+    # Default for --evolved-dir: try to resolve relative to the
+    # attacklm-dataset data dir (the canonical location); fall back to
+    # a hardcoded path that mirrors the per-source layout. This keeps
+    # `parse_args()` callable in environments without the data dir
+    # (CI, fresh test runners) — the data dir resolution is lazy
+    # and never raises during argparse construction.
+    try:
+        _evolved_default = str(_data_dir().parent.parent / "evolved")
+    except FileNotFoundError:
+        _evolved_default = "data/datasets/evolved"
     parser.add_argument(
         "--evolved-dir",
         type=str,
-        default=str(_data_dir().parent.parent / "evolved"),
+        default=_evolved_default,
         help=(
             "Directory containing evolved JSONL files (*_filtered.jsonl). "
-            f"Default: {_data_dir().parent.parent / 'evolved'}"
+            f"Default: {_evolved_default}"
         ),
     )
 
