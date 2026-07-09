@@ -234,6 +234,7 @@ galore = [
 ]
 dev = [
     "pytest",
+    "pytest-asyncio",  # needed by tests/test_audit.py (async Pilot tests)
     "ruff",
     "mypy",
     "ipython",

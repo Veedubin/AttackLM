@@ -1,4 +1,30 @@
-## [0.12.2] — 2026-07-09 — Second CI blocker fix: restore `device_utils.py`
+## [0.12.3] — 2026-07-09 — Third CI blocker fix: pytest-asyncio dep + drop test_new_extractors.py
+
+### Fixed
+- **Added `pytest-asyncio` to `[dev]` dependencies in `pyproject.toml`.** The new `tests/test_audit.py` (added in v0.12.0) uses `@pytest.mark.asyncio` on async Pilot tests, which requires `pytest-asyncio` to be installed. Locally it was installed; CI's `pip install -e ".[dev,extract]"` was missing the dep, so the 5 audit tests failed with `async def functions are not natively supported`.
+
+### Removed
+- **`tests/test_new_extractors.py` (361 LoC, 34 tests).** All 34 tests in this file use `importlib.import_module(...)` to dynamically load extractor scripts that were moved to `attacklm-dataset` in the v0.11.0 cleanup (`0cde31f`). In CI, the dynamic imports raised `ModuleNotFoundError: No module named 'extract_0xdf_writeups'` (and 8 others). Locally the tests passed because the untracked scripts were still on disk from the pre-cleanup era. The extractors are now tested (or should be) inside the `attacklm-dataset` repo instead.
+
+### About v0.12.0 / v0.12.1 / v0.12.2 (predecessors)
+
+| Tag | Status | Reason |
+|---|---|---|
+| v0.12.0 | on origin, no PyPI | First CI blocker: `DATA_DIR` raised at import time + 5 dead test files |
+| v0.12.1 | on origin, no PyPI | Second CI blocker: `device_utils.py` not in repo |
+| v0.12.2 | on origin, no PyPI | Third CI blocker: `pytest-asyncio` not in `[dev]` deps + `test_new_extractors.py` references missing scripts |
+| v0.12.3 | on origin, **published to PyPI** | All CI blockers fixed |
+
+### Reference
+- v0.12.0 release CI: https://github.com/Veedubin/AttackLM/actions/runs/28972432153 (Test step failed)
+- v0.12.1 release CI: https://github.com/Veedubin/AttackLM/actions/runs/28996006495 (Test step failed)
+- v0.12.2 release CI: https://github.com/Veedubin/AttackLM/actions/runs/28996218553 (Test step failed)
+- v0.12.2 main CI: https://github.com/Veedubin/AttackLM/actions/runs/28996218159 (Test step failed)
+- v0.12.3 release CI: TBD (this release)
+
+---
+
+## [0.12.2] — 2026-07-09 — Second CI blocker fix: restore `device_utils.py` (BROKEN, see v0.12.3)
 
 ### Fixed
 - **Restored `scripts/device_utils.py`** (338 LoC). The v0.11.0 dataset-split cleanup commit (`0cde31f`) deleted this file along with the dataset-prep scripts, but `train_template.py`, `eval_retention.py`, `_eval_loader.py`, and `collect_reference.py` all `from device_utils import ...` at module level. Without it, `import train_template` fails at `ModuleNotFoundError: No module named 'device_utils'`, which broke 5 test files in CI (`test_coap_flashoptim`, `test_fp8_bitnet`, `test_memory_optimization`, `test_mixed_precision`, `test_training_integration`).
