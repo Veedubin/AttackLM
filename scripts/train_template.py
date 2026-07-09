@@ -26,6 +26,7 @@ Dependencies:
 """
 
 import argparse
+import functools
 import json
 import os
 import sys
@@ -120,7 +121,34 @@ def _resolve_data_dir() -> Path:
     )
 
 
-DATA_DIR = _resolve_data_dir()
+# DATA_DIR is resolved lazily via _data_dir() so that test modules can
+# `import train_template` without the dataset dir being present in the
+# environment. The v0.11.0 dataset-split cleanup (`0cde31f`) moved the
+# data into the `attacklm-dataset` sibling package, so importing
+# `train_template` in a clean CI environment (no `attacklm init` run)
+# was raising FileNotFoundError. See _resolve_data_dir() above.
+@functools.lru_cache(maxsize=1)
+def _data_dir() -> Path:
+    """Resolve the attacklm-dataset data dir, cached after first call.
+
+    Call this at the moment you actually need the data dir (e.g. inside
+    ``parse_args()`` when computing a default path), NOT at module import
+    time. Tests that ``import train_template`` without a configured
+    attacklm-dataset data dir will succeed; only attempts to *use* the
+    data dir will raise.
+    """
+    return _resolve_data_dir()
+
+
+def __getattr__(name: str) -> object:
+    """Lazy module attribute (PEP 562). Lets external callers do
+    ``import train_template; train_template.DATA_DIR`` without the
+    data dir being present at import time. Returns the result of
+    ``_data_dir()`` on first access."""
+    if name == "DATA_DIR":
+        return _data_dir()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 # ---------------------------------------------------------------------------
 # CLI Arguments
@@ -777,10 +805,10 @@ Examples:
     parser.add_argument(
         "--evolved-dir",
         type=str,
-        default=str(DATA_DIR.parent.parent / "evolved"),
+        default=str(_data_dir().parent.parent / "evolved"),
         help=(
             "Directory containing evolved JSONL files (*_filtered.jsonl). "
-            f"Default: {DATA_DIR.parent.parent / 'evolved'}"
+            f"Default: {_data_dir().parent.parent / 'evolved'}"
         ),
     )
 

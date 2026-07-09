@@ -1,3 +1,32 @@
+## [0.12.1] — 2026-07-09 — CI blocker fix: lazy `DATA_DIR` + drop dead tests
+
+### Fixed
+- **`scripts/train_template.py`: `DATA_DIR` is now resolved lazily via `_data_dir()` + PEP 562 `__getattr__`.** Previously, `DATA_DIR = _resolve_data_dir()` ran at module-import time, so any test or tool that did `import train_template` in a clean environment (no `attacklm init` run, no `attacklm-dataset` data dir present) raised `FileNotFoundError: AttackLM dataset not found...`. The v0.11.0 dataset-split cleanup (`0cde31f`) moved the data into the `attacklm-dataset` sibling package, which made this latent bug surface in CI. Now `import train_template` succeeds in any environment; the data dir is only resolved when actually needed (e.g. inside `parse_args()` when computing the `--evolved-dir` default). The two call sites in `parse_args()` were updated to call `_data_dir()`.
+
+### Removed
+- **5 dead test files that referenced scripts deleted in the v0.11.0 cleanup commit (`0cde31f`)**:
+  - `tests/test_balance_buckets.py` (386 LoC) — referenced `scripts/balance_buckets.py` and `scripts/bucket_loader.py` (deleted)
+  - `tests/test_evolve_pairs.py` (1,777 LoC) — referenced `scripts/evolve_pairs.py` and `scripts/filter_evolved.py` (deleted)
+  - `tests/test_init_pipeline.py` (623 LoC) — referenced `init_pipeline.py` (deleted)
+  - `tests/test_replay_mixer.py` (481 LoC) — referenced `scripts/replay_mixer.py` (deleted)
+  - `tests/test_thinking_models.py` (55 LoC) — referenced `generate_synthetic_scarce.py` (deleted)
+
+  Net: -3,322 LoC of dead test code. These tests had been failing at COLLECT time in the v0.12.0 release CI but the failure was masked in earlier releases (v0.11.1 still had the scripts; v0.11.1-1 failed at version-validation before tests ran). The `train_template.py`-dependent tests (`test_coap_flashoptim`, `test_fp8_bitnet`, `test_memory_optimization`, `test_mixed_precision`) had also been failing on the same import error; they pass now that `DATA_DIR` is lazy.
+
+### Why this is a 0.12.1 (not 0.12.0 amend)
+- v0.12.0 was tagged and pushed to `origin` successfully. Its release CI failed at the `Test` step. No PyPI publish happened.
+- A version bump to 0.12.1 is the right call here per the NEVER-FORCE-PUSH-TAGS rule: once a tag is pushed, it is immutable. The cost of a new version is 1 line in `pyproject.toml` and `__version__.py`; the cost of force-pushing a tag is broken PyPI + broken `git pull` for anyone who fetched the old tag.
+- 0.12.0 is preserved on origin for reproducibility; 0.12.1 is the new "install this" release.
+
+### Tests
+- 401 passed, 1 skipped, 0 failed in `pytest tests/ -q` (was 569 collect, 64 failed before this change).
+
+### Reference
+- v0.12.0 release CI run that caught this: https://github.com/Veedubin/AttackLM/actions/runs/28972432153 (Test step failure, Build + Publish skipped).
+- v0.11.1 (the previous passing release) had the deleted scripts; v0.11.1-1 had them deleted but its release CI failed at version-validation (`Tag v0.11.1-1 != package __version__ 0.11.1`), so the test failures were never observed in CI.
+
+---
+
 ## [0.12.0] — 2026-07-08 — TUI folded into the main package + MIA Track 2 audit subcommand
 
 ### Changed (BREAKING)
