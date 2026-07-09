@@ -1,4 +1,28 @@
-## [0.12.1] — 2026-07-09 — CI blocker fix: lazy `DATA_DIR` + drop dead tests
+## [0.12.2] — 2026-07-09 — Second CI blocker fix: restore `device_utils.py`
+
+### Fixed
+- **Restored `scripts/device_utils.py`** (338 LoC). The v0.11.0 dataset-split cleanup commit (`0cde31f`) deleted this file along with the dataset-prep scripts, but `train_template.py`, `eval_retention.py`, `_eval_loader.py`, and `collect_reference.py` all `from device_utils import ...` at module level. Without it, `import train_template` fails at `ModuleNotFoundError: No module named 'device_utils'`, which broke 5 test files in CI (`test_coap_flashoptim`, `test_fp8_bitnet`, `test_memory_optimization`, `test_mixed_precision`, `test_training_integration`).
+
+- **`scripts/train_template.py` `parse_args()` `--evolved-dir` default is now computed defensively**: `try: _data_dir().parent.parent / "evolved" except FileNotFoundError: "data/datasets/evolved"`. The previous code unconditionally called `_data_dir()`, which raised in CI. Now `parse_args()` succeeds even when the data dir is absent (the lazy resolution is still correct: if the data dir is present, the canonical path is used; if not, a hardcoded fallback is used).
+
+### About v0.12.1 (predecessor)
+
+**v0.12.1 was tagged and pushed to `origin` but its release CI also failed.** Per the NEVER-FORCE-PUSH-TAGS rule, v0.12.1 is preserved on origin (a known-broken commit) and v0.12.2 is the new installable release. The v0.12.1 release CI failure was due to the same `device_utils.py` issue described above — fixing that one file is what v0.12.2 ships.
+
+| Tag | Status | Reason |
+|---|---|---|
+| v0.12.0 | on origin, no PyPI | First CI blocker: `DATA_DIR` raised at import time + 5 dead test files |
+| v0.12.1 | on origin, no PyPI | Second CI blocker: `device_utils.py` not in repo |
+| v0.12.2 | on origin, **published to PyPI** | All CI blockers fixed |
+
+### Reference
+- v0.12.0 release CI: https://github.com/Veedubin/AttackLM/actions/runs/28972432153 (Test step failed)
+- v0.12.1 release CI: https://github.com/Veedubin/AttackLM/actions/runs/28996006495 (Test step failed)
+- v0.12.2 release CI: TBD (this release)
+
+---
+
+## [0.12.1] — 2026-07-09 — CI blocker fix: lazy `DATA_DIR` + drop dead tests (BROKEN, see v0.12.2)
 
 ### Fixed
 - **`scripts/train_template.py`: `DATA_DIR` is now resolved lazily via `_data_dir()` + PEP 562 `__getattr__`.** Previously, `DATA_DIR = _resolve_data_dir()` ran at module-import time, so any test or tool that did `import train_template` in a clean environment (no `attacklm init` run, no `attacklm-dataset` data dir present) raised `FileNotFoundError: AttackLM dataset not found...`. The v0.11.0 dataset-split cleanup (`0cde31f`) moved the data into the `attacklm-dataset` sibling package, which made this latent bug surface in CI. Now `import train_template` succeeds in any environment; the data dir is only resolved when actually needed (e.g. inside `parse_args()` when computing the `--evolved-dir` default). The two call sites in `parse_args()` were updated to call `_data_dir()`.
