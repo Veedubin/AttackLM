@@ -3,519 +3,518 @@
 [![PyPI version](https://img.shields.io/pypi/v/attacklm.svg?label=version&color=blue)](https://pypi.org/project/attacklm/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://docs.python.org/3.10/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
+[![Tests: 368+](https://img.shields.io/badge/tests-368%2B-brightgreen.svg)](#testing)
+[![GH release: v0.12.3](https://img.shields.io/badge/release-v0.12.3-blue.svg)](https://github.com/Veedubin/AttackLM/releases)
 
-**A high-performance fine-tuning pipeline (QLoRA, GaLore, Q-GaLore, Spectrum, PiSSA, DeepSpeed, COAP, FlashOptim, FP8, BitNet) for creating MITRE ATT&CK-grounded security AI assistants.**
+**A security-AI fine-tuning platform and research toolkit.**
+
+AttackLM is two things in one package:
+
+1. **A fine-tuning pipeline** for MITRE ATT&CK-grounded security LLMs.
+   Trains Qwen2.5-Coder, DeepSeek, and other open models on a curated
+   security corpus (24K+ training pairs, 18 sources) using parameter-
+   efficient methods (QLoRA, GaLore, PiSSA, Spectrum) and full-parameter
+   methods (DeepSpeed ZeRO-3 + CPU offload, LOMO, FP8, BitNet).
+
+2. **A research toolkit** for owner-side model security testing.
+   `attacklm audit` runs inversion attacks (Carlini 2021 prefix-
+   completion extraction, Carlini 2022 reference attack, per-token
+   loss, and LiRA shadow-model MIA) against your own model so you
+   can quantify what it memorized before deployment.
+
+Both are wired into a **terminal GUI** (`attacklm gui`) for
+interactive use over SSH, WSL, or headless servers.
+
+The training data lives in the companion package
+**[Veedubin/attacklm-dataset](https://github.com/Veedubin/attacklm-dataset)**
+(since v0.11.0). `attacklm init` automatically uses it when installed,
+or guides you to install it.
 
 ---
 
 ## Table of Contents
+- [Why AttackLM?](#why-attacklm)
 - [Quickstart](#quickstart)
-- [Installation Guide](#installation-guide)
-- [Features](#features)
-- [Usage](#usage)
-- [Dataset & Attribution](#dataset--attribution)
+- [Installation](#installation)
+- [What you can do](#what-you-can-do)
+  - [Train a security LLM](#train-a-security-llm)
+  - [Audit a model for memorized data](#audit-a-model-for-memorized-data)
+  - [Run the TUI](#run-the-tui)
+- [Training methods](#training-methods)
+- [Dataset & provenance](#dataset--provenance)
+- [Research toolkit (audit)](#research-toolkit-audit)
 - [Architecture](#architecture)
-- [CLI Reference](#cli-reference)
-- [License & Contributing](#license--contributing)
+- [CLI reference](#cli-reference)
+- [Testing](#testing)
+- [License & contributing](#license--contributing)
 
 ---
+
+## Why AttackLM?
+
+Offensive-security LLM tooling is fragmented:
+- **Trainers** (Axolotl, LLaMA-Factory) give you no domain data.
+- **Security datasets** (MITRE Caldera, Atomic Red Team) give you no
+  training harness.
+- **Research tools** (membership-inference libraries) are
+  paper-specific and don't ship with a usable pipeline.
+
+AttackLM is the integration point. The same install that gives you
+QLoRA + DeepSpeed + 24K curated security pairs also gives you an
+audit harness (Carlini 2021 extraction + MIA 4 ways) and a
+terminal UI that runs over SSH. The data is per-record attributed
+to its upstream source (BSD-3, DRL-1.1, Apache-2.0, MIT, etc.),
+so the legal audit is part of the package, not a TODO.
 
 ## Quickstart
 
-Get from zero to a trained security model in four commands:
-
 ```bash
-# 1. Install the full training stack (includes dataset)
+# 1. Install the full stack (trainer + dataset)
 pip install "attacklm[all]"
 
-> **Note**: The MITRE ATT&CK dataset is now a separate package. `attacklm init` will
-> automatically use [attacklm-dataset](https://github.com/Veedubin/attacklm-dataset)
-> if installed, or guide you to install it.
-
-# 2. Initialize the MITRE-grounded dataset
+# 2. Pull the per-record-attributed security corpus
 attacklm init --yes
 
-# 3. Balance the dataset to prevent source-bias (e.g., Metasploit overfitting)
-attacklm balance
+# 3. Build a balanced training subset
+attacklm balance --profile 7b-16gb --preset red-team
 
-# 4. Launch training on Qwen2.5-Coder
-attacklm train -- --dataset all --epochs 5 --train
+# 4. Train (QLoRA on Qwen2.5-Coder-3B, 10 epochs)
+attacklm train -- --dataset data/datasets/balanced/balanced_7b-16gb.jsonl --epochs 10 --train
+
+# 5. (Optional) Audit the trained model for memorization
+attacklm audit --attack all --mia-method per_token --model models/attacklm-single_TIMESTAMP
 ```
 
----
+The `--dataset ...` path is local; the model checkpoints are local;
+nothing leaves your machine.
 
-## Installation Guide
+## Installation
 
 ### Prerequisites
 - **OS**: Linux (Ubuntu recommended) or WSL2
 - **Python**: 3.10+
-- **Hardware**: NVIDIA GPU with 8GB+ VRAM (RTX 30-series/40-series) or AMD ROCm compatible GPU.
+- **Hardware**: NVIDIA GPU with 8GB+ VRAM (RTX 30-series/40-series)
+  or AMD ROCm-compatible GPU
 
-### Installation
-Install based on your hardware acceleration preference:
+### Pip (recommended)
 
-**NVIDIA CUDA (Recommended)**
 ```bash
+# NVIDIA CUDA
 pip install "attacklm[all]"
-# OR using uv for faster installation
+
+# AMD ROCm
+pip install "attacklm[all-rocm]"
+
+# uv (faster)
 uv pip install "attacklm[all]"
 ```
 
-**AMD ROCm**
+### From source
+
 ```bash
-pip install "attacklm[all-rocm]"
+git clone https://github.com/Veedubin/AttackLM.git
+cd AttackLM
+pip install -e ".[all]"
 ```
 
-**Verification**
+### Verify
+
 ```bash
-attacklm --version
+attacklm --version       # 0.12.3
+attacklm --help
+pytest tests/ -q         # 368 passed
 ```
 
-### Memory Optimization: Flash-Attention vs. SDP
-AttackLM is designed for maximum accessibility without sacrificing the efficiency of modern attention mechanisms.
+### Memory optimization note
 
-**The Problem with `flash-attn`**
-Traditional `flash-attn` installations require a full CUDA toolkit, specific NVCC versions, and lengthy source compilation, which frequently fails in constrained environments or varying OS versions.
-
-**The AttackLM Solution: Memory Efficient SDP**
-By default, AttackLM leverages PyTorch's built-in `torch.backends.cuda.enable_mem_efficient_sdp()`. 
-
-- **Technical Advantage**: It implements the same $\mathcal{O}(1)$ tiled algorithm as FlashAttention. 
-- **VRAM Impact**: At a sequence length of 12,000, a standard $\mathcal{O}(n^2)$ attention matrix would consume ~8GB of VRAM just for the matrix. Memory Efficient SDP keeps this overhead constant.
-- **Zero Friction**: No compilation required. It works natively across all supported PyTorch/CUDA environments.
-
-*Note: If you have a perfectly configured environment and want the absolute maximum throughput, you can still install the standalone flash-attention: `pip install "attacklm[flash-attn]"`.*
+By default, AttackLM uses PyTorch's built-in
+`torch.backends.cuda.enable_mem_efficient_sdp()` instead of
+`flash-attn`. Same $\mathcal{O}(1)$ tiled-attention algorithm, zero
+compilation, works on every supported PyTorch/CUDA environment. At
+sequence length 12,000, a vanilla $\mathcal{O}(n^2)$ attention
+matrix would consume ~8GB of VRAM just for the matrix; SDP keeps
+that constant. If you have a perfectly tuned environment and want
+the absolute maximum throughput, `pip install "attacklm[flash-attn]"`
+gets you standalone FlashAttention-2.
 
 ---
 
-## Features
+## What you can do
 
-- **Comprehensive Security Corpus**: 24,652 high-quality training pairs across 16 security sources (via the [attacklm-dataset](https://github.com/Veedubin/attacklm-dataset) package).
-- **Advanced Training Methods**: Support for QLoRA, GaLore, Q-GaLore, Spectrum, and PiSSA to enable training of large models on consumer hardware.
-- **Training Pair Evolution**: New capability to synthetically expand short, factual pairs into complex reasoning examples using three specialized strategies:
+### Train a security LLM
 
-| Strategy | Approach | Impact |
+Five end-to-end workflows, from "I have nothing" to "I have a GGUF
+file Ollama can serve":
+
+| Workflow | Time | What you get |
 | :--- | :--- | :--- |
-| **Evol-Instruct** | Rewrites responses with deeper reasoning and edge cases | 3-5x increase in response length/depth |
-| **Multi-turn** | Decomposes Q&A into interactive conversations | Improved conversational flow and context |
-| **CoT Injection** | Adds explicit "Chain-of-Thought" reasoning steps | Higher logical consistency in complex tasks |
+| **Quick Start** | 5 min install, ~1h train | QLoRA adapter on Qwen2.5-Coder-3B |
+| **Maximum Quality** | ~3h train | GaLore + Spectrum + 20% evolved pairs |
+| **HPO $\rightarrow$ Train $\rightarrow$ Deploy** | variable | Hyperparameter-swept adapter, merged into a local GGUF |
+| **Evolve Pairs $\rightarrow$ Filter $\rightarrow$ Train** | ~30 min evolve | Synthetic expansion of short factual pairs |
+| **40B+ on 16GB GPU** | overnight | DeepSpeed ZeRO-3 + CPU offload |
 
-- **Memory Optimization**: Seven advanced techniques to train larger models on consumer hardware:
-  - **COAP** — Compressed Optimizer Adaptive Parameterization. Drastic reduction in optimizer state VRAM.
-  - **FlashOptim** — Optimized FlashAttention-2 kernels for specific sequence lengths.
-  - **Unsloth GC** — Aggressive garbage collection and memory pinning for LoRA/QLoRA.
-  - **Mixed-precision LoRA** — Strategic use of FP8/BF16 across adapter layers.
-  - **FP8 Training** — Native 8-bit floating point training (H100/Blackwell).
-  - **BitNet** — 1.58-bit quantization for near-zero VRAM training.
-  - **SignRoundV2** — Advanced stochastic rounding for low-bit weights.
-  - **DeepSpeed ZeRO-3 + CPU Offload** — Shards parameters, gradients, and optimizer states across GPU VRAM + system RAM. Train 40B+ parameter models on a 16GB GPU with 64GB system RAM.
-  - **torch.compile** — PyTorch 2.x JIT compilation. 20-40% training speedup with 10-20% memory reduction. One flag: `--compile`.
-  - **LOMO Optimizer** — Full-parameter fine-tuning (not just adapters) of 7B models on 8GB GPUs.
+See the [CLI reference](#cli-reference) below for every flag.
 
-- **Zero-Config Setup**: One-shot `init` command that handles dataset retrieval, extraction, and bucket organization.
-- **Anti-Bias Balancing**: Integrated balancing engine to ensure the model learns diverse tactics rather than just the most voluminous sources.
-- **Provenance Tracking**: Strict per-source attribution and license tracking for every record in the dataset.
-- **Terminal GUI**: A professional Textual-based TUI that eliminates the need to memorize 40+ CLI flags. Features include:
-  - **Tabbed Training Form** — 40+ parameters organized across Basic, LoRA, GaLore, Advanced, and Hardware tabs
-  - **Live Training Monitor** — Real-time loss sparkline, VRAM gauge, token throughput, and scrolling log output
-  - **Built-in Presets** — One-click configurations for 3B/7B models (Q-GaLore Spectrum, QLoRA, etc.)
-  - **One-Click Commands** — Init, Balance, Infer, Build, and Eval all accessible from the main menu
-  - **Pause/Resume Controls** — SIGSTOP/SIGCONT the training process without losing progress
-  - **Zero Dependencies** — No X11, no GPU, no browser required. Works over SSH, WSL, and headless servers.
-- **Deployment Ready**: Built-in merge and conversion pipeline to export adapters to GGUF format for LM Studio or Ollama.
-- **Rock-Solid Stability**: 26/26 core tests passing.
+### Audit a model for memorized data
 
----
+`attacklm audit` is the **research toolkit** side. It runs four
+attack classes against a model you point it at (your own model —
+this is for owner-side testing, not adversary work):
 
-## Usage & Workflows
+| Attack class | Paper | What it measures |
+| :--- | :--- | :--- |
+| **Prefix-completion extraction** | Carlini et al. 2021 ([arXiv:2012.07805](https://arxiv.org/abs/2012.07805)) | Whether the model can regenerate verbatim training data given a prefix. |
+| **MIA reference attack (loss + zlib)** | Carlini et al. 2022 ([arXiv:2112.03570](https://arxiv.org/abs/2112.03570)) | Whether per-record loss is lower on members than on non-members. |
+| **MIA per-token loss** | Shi et al. (MUSE) 2024 ([arXiv:2407.06460](https://arxiv.org/abs/2407.06460)) | Same idea, normalized by suffix-token count (removes length bias). |
+| **MIA LiRA (likelihood ratio)** | Carlini et al. 2022 §4 ([arXiv:2112.03570](https://arxiv.org/abs/2112.03570)) | The "10× more powerful at low FPR" MIA. Requires K shadow-model loss files. |
 
-AttackLM provides a set of curated workflows to take you from raw data to a deployed security model.
+Output is per-record JSONL (chmod 0600) plus a `summary.json` and
+`threshold.md`. Use `--attack extraction` or `--attack mia` to
+scope to a single class; `--mia-method {reference,zlib,per_token,lira,all}`
+to pick a MIA variant. See
+[attacklm-dataset/docs/ATTACK_TAXONOMY.md](https://github.com/Veedubin/attacklm-dataset/blob/main/docs/ATTACK_TAXONOMY.md)
+for the full design.
 
-### Common Workflows
+The audit harness is **hermetic** — it does not call out to any
+network, does not require GPU, runs on a CPU laptop in minutes.
+Mocked model loaders mean you can test the audit pipeline in CI
+without owning a real model.
 
-**Workflow 1: Quick Start (5 minutes to training)**
-```bash
-# 1. Install the full training stack
-pip install "attacklm[all]"
-
-# 2. Initialize the MITRE-grounded dataset
-attacklm init --yes
-
-# 3. Balance the dataset for your hardware (e.g., 7B model on 16GB VRAM)
-attacklm balance --profile 7b-16gb --preset red-team
-
-# 4. Launch training on Qwen2.5-Coder
-attacklm train -- --dataset data/datasets/balanced/balanced_7b-16gb.jsonl --epochs 10 --train
-```
-
-**Workflow 2: Maximum Quality (GaLore + Spectrum + Evolved Pairs)**
-```bash
-attacklm init --yes
-attacklm balance --profile 7b-16gb
-attacklm train --all -- --single-model --use-galore --spectrum --evolved-ratio 0.2 --epochs 20 --train
-```
-
-**Workflow 3: HPO $\rightarrow$ Train $\rightarrow$ Deploy**
-```bash
-# 1. Run Hyper-Parameter Optimization sweep to find best settings
-attacklm train --hpo -- --dataset data/datasets/balanced/balanced_7b-16gb.jsonl
-
-# 2. Train with optimized parameters
-attacklm train -- --dataset data/datasets/balanced/balanced_7b-16gb.jsonl --lora-r 64 --lora-alpha 128 --epochs 15 --train
-
-# 3. Merge adapter and convert to GGUF for local deployment
-attacklm build -- --adapter models/attacklm_TIMESTAMP --name attacklm-v1
-```
-
-**Workflow 4: Evolve Pairs $\rightarrow$ Filter $\rightarrow$ Train**
-```bash
-# 1. Synthetically expand short pairs into complex reasoning examples
-python scripts/evolve_pairs.py --strategy all --source metasploit-framework --count 500
-
-# 2. Filter evolved pairs for quality
-python scripts/filter_evolved.py --input data/datasets/evolved/ --all
-
-# 3. Train with a high ratio of evolved pairs
-attacklm train --all -- --single-model --evolved-ratio 0.3 --epochs 10 --train
-```
-
-**Workflow 5: Train 40B+ on 16GB GPU (DeepSpeed + CPU offload)**
-```bash
-# Workflow 5: Train 40B+ on 16GB GPU (DeepSpeed + CPU offload)
-attacklm init --yes
-attacklm balance --profile 7b-16gb
-attacklm train -- --dataset data/datasets/balanced/balanced_7b-16gb.jsonl \
-  --base-model Qwen/Qwen2.5-32B-Instruct \
-  --use-deepspeed --deepspeed-stage 3 \
-  --compile --epochs 5 --train
-```
-
-### Training Methods Explained
-
-Choose your training method based on your available VRAM and quality requirements:
-
-| Method | Description | VRAM | Best For |
-| :--- | :--- | :--- | :--- |
-| **QLoRA** | 4-bit quantized base + LoRA adapters. Only trains small adapter matrices. | Lowest (~8GB for 3B) | Quick experiments, limited VRAM |
-| **GaLore** | Full-parameter training with gradient low-rank projection. | Medium (~16GB for 3B) | Best quality on consumer GPUs |
-| **Q-GaLore** | GaLore with quantization. Balances quality and VRAM. | Medium-Low | High quality on 16GB GPUs |
-| **Spectrum** | SNR-based layer freezing. Freezes low-SNR layers, trains high-SNR. | Medium | Reduces VRAM, speeds training |
-| **PiSSA** | Principal Singular Values initialization for LoRA. | Same as QLoRA | Better convergence than standard LoRA |
-| **DeepSpeed ZeRO-3** | Shards model across GPU + CPU RAM. Offloads params and optimizer to system memory. | Lowest (model 3-5x VRAM) | Training 40B+ on 16GB GPU |
-| **COAP** | Compressed Optimizer Adaptive Parameterization. | Ultra-Low | Massive models on modest GPUs |
-| **FlashOptim** | Optimized FlashAttention kernels. | Low | High-throughput training |
-| **FP8** | Native 8-bit floating point. | Medium-Low | H100/Blackwell hardware |
-| **BitNet** | 1.58-bit quantization. | Lowest | Near-zero VRAM training |
-| **torch.compile** | PyTorch 2.x JIT compilation. Fuses operations for speed + memory. | 10-20% less than baseline | Any model, free performance |
-| **LOMO** | Fuses gradient computation + parameter update. Never materializes full gradient. | Lowest (7B full-param on 8GB) | Full-parameter quality on tiny GPUs |
-
-### Terminal GUI
-
-For an interactive experience, use `attacklm gui`. This eliminates the need to memorize dozens of CLI flags and provides a real-time training dashboard with VRAM gauges and loss sparklines.
+### Run the TUI
 
 ```bash
 attacklm gui
 ```
+
+A Textual-based terminal UI that runs over SSH, WSL, or headless
+servers (no X11, no browser, no GPU required). Features:
+
+- **Tabbed training form** — 40+ parameters across Basic, LoRA,
+  GaLore, Advanced, Hardware tabs
+- **Live training monitor** — loss sparkline, VRAM gauge, token
+  throughput, scrolling log
+- **Built-in presets** — one-click configurations for 3B/7B
+  (Q-GaLore Spectrum, QLoRA, etc.)
+- **Audit screen** — 2 tabs (Extraction / MIA), each form
+  constructs the `attacklm audit` CLI command with hover
+  tooltips on every field
+- **Pause/Resume** — SIGSTOP/SIGCONT the training process without
+  losing progress
+- **One-click commands** — Init, Balance, Infer, Build, Eval,
+  Audit, Demo all from the main menu
+
 ---
 
+## Training methods
 
----
+Choose by available VRAM and target quality:
 
-## Dataset & Attribution
-
-The dataset is meticulously partitioned into "buckets" to allow granular control over training composition.
-
-### Core Composition
-| Category | Source Examples | Approx. Pairs | License |
+| Method | Description | VRAM | Best for |
 | :--- | :--- | :--- | :--- |
-| **Offensive** | Metasploit, Atomic Red Team | 15,000 | BSD-3 / MIT |
-| **Defensive** | Sigma, Elastic, Splunk | 7,000 | DRL-1.1 / Apache-2.0 |
-| **AI Security** | Garak, Promptfoo | 1,652 | Mixed |
-| **Meta/IR** | NIST IR, Orchestrator | 1,000 | Public Domain |
+| **QLoRA** | 4-bit quantized base + LoRA adapters. Trains small adapter matrices only. | Lowest (~8GB for 3B) | Quick experiments, limited VRAM |
+| **GaLore** | Full-parameter training with gradient low-rank projection. | Medium (~16GB for 3B) | Best quality on consumer GPUs |
+| **Q-GaLore** | GaLore with quantization. | Medium-Low | High quality on 16GB GPUs |
+| **Spectrum** | SNR-based layer freezing. Trains high-SNR layers only. | Medium | Reduces VRAM, speeds training |
+| **PiSSA** | Principal Singular Values initialization for LoRA. | Same as QLoRA | Better convergence than standard LoRA |
+| **DeepSpeed ZeRO-3** | Shards model across GPU + CPU RAM. Offloads params/optimizer to system memory. | Lowest (model 3-5× VRAM) | Training 40B+ on 16GB GPU |
+| **COAP** | Compressed Optimizer Adaptive Parameterization. | Ultra-Low | Massive models on modest GPUs |
+| **FlashOptim** | Optimized FlashAttention kernels. | Low | High-throughput training |
+| **FP8** | Native 8-bit floating point. | Medium-Low | H100/Blackwell hardware |
+| **BitNet** | 1.58-bit quantization. | Lowest | Near-zero VRAM training |
+| **torch.compile** | PyTorch 2.x JIT compilation. Fuses operations. | 10-20% less than baseline | Any model, free performance |
+| **LOMO** | Fuses gradient computation + parameter update. Never materializes full gradient. | Lowest (7B full-param on 8GB) | Full-parameter quality on tiny GPUs |
 
-**Total Records**: 24,652  
-**Base Models**: Qwen2.5-Coder (3B, 7B)
+### Hardware reference
 
-For a complete mapping of every record to its original source and license, see [ATTRIBUTION.md](ATTRIBUTION.md).
-
----
-
-## Architecture
-
-AttackLM employs a deterministic pipeline that separates raw data extraction from training logic.
-
-```text
-AttackLM/
-├── data/
-│   └── datasets/
-│       └── buckets/
-│           └── sources/
-│               └── <source>/
-│                   └── <bucket>/
-│                       └── <tactic>/
-│                           └── data.jsonl
-```
-
-This hierarchy ensures that the pipeline can be rebuilt from upstream sources without introducing hallucinations, while allowing the `balance` command to target specific tactics or sources for weighted sampling.
-
----
-
-## CLI Reference
-
-AttackLM uses a tiered command structure. Top-level flags are handled by the dispatcher, while flags following the `--` separator are forwarded directly to the specialized training or inference scripts.
-
-### 1. `attacklm train` — Core Training Engine
-The primary entry point for fine-tuning. Supports a variety of parameter-efficient and full-parameter methods.
-
-**Dispatcher Flags**
-- `--all` — Train all buckets (multi-model or single-model combined)
-- `--hpo` — Run hyperparameter optimization sweep instead of standard training
-
-**Forwarded Arguments (Post-`--`)**
-- `--dataset <path>` — Path to JSONL dataset or `all` for all buckets
-- `--base-model <model>` — HuggingFace model ID (default: `Qwen/Qwen2.5-Coder-3B-Instruct`)
-- `--output <dir>` — Output directory for trained model
-- `--epochs <n>` — Number of training epochs (default: 3)
-- `--batch-size <n>` — Per-device batch size (default: 1)
-- `--max-length <n>` — Maximum sequence length in tokens (default: 1024)
-- `--lora-r <n>` — LoRA rank (default: 16)
-- `--lora-alpha <n>` — LoRA alpha scaling (default: 32)
-- `--lora-dropout <n>` — LoRA dropout rate (default: 0.05)
-- `--use-galore` — Enable GaLore full-parameter training
-- `--use-qgalore` — Enable Q-GaLore (quantized GaLore)
-- `--spectrum` — Enable Spectrum layer freezing (SNR-based)
-- `--use-pissa` — Enable PiSSA initialization
-- `--packing` — Enable example packing for throughput
-- `--train` — Execute training (omitting this performs a dry-run with stats)
-- `--eval-split <n>` — Fraction held out for eval (default: 0.1)
-- `--early-stop-steps <n>` — Early stopping patience in eval steps
-- `--save-steps <n>` — Save checkpoint every N steps
-- `--gradient-accumulation-steps <n>` — Gradient accumulation steps
-- `--evolved-ratio <n>` — Fraction of training pairs from evolved datasets (0.0-1.0)
-- `--evolved-dir <path>` — Directory containing evolved JSONL files
-- `--replay-ratio <n>` — Fraction of replay (anti-forgetting) examples
-- `--replay-source <path>` — Path to replay source directory
-- `--single-model` — Combine all buckets into one training set
-- `--include-orchestrator` — Include orchestrator bucket
-- `--model-attacks` — Include AI model attack buckets
-- `--include-tools` — Include tool buckets
-- `--moe-safe-target` — Disable 4-bit quantization for MoE models
-- `--multi-gpu` — Enable multi-GPU training
-- `--use-unsloth` — Use Unsloth for faster training
-- `--resume-from-checkpoint` — Resume from last checkpoint
-- `--force` — Force re-tokenization (ignore cache)
-- `--dry-run` — Print what would run without executing
-- `--use-deepspeed` — Enable DeepSpeed ZeRO optimization
-- `--deepspeed-stage {1,2,3}` — ZeRO stage (default: 3)
-- `--deepspeed-config <path>` — Path to custom DeepSpeed JSON config
-- `--no-deepspeed-offload` — Disable CPU offload (GPU-only ZeRO)
-- `--compile` — Enable torch.compile (20-40% speedup)
-- `--compile-mode {default,reduce-overhead,max-autotune}` — torch.compile mode (default: reduce-overhead)
-- `--use-lomo` — Enable LOMO full-parameter optimizer
-- `--use-coap` — Enable Compressed Optimizer Adaptive Parameterization
-- `--use-flashoptim` — Enable optimized FlashAttention kernels
-- `--use-fp8` — Enable native FP8 training (H100/Blackwell)
-- `--use-bitnet` — Enable BitNet 1.58b quantization
-- `--use-signround` — Enable SignRoundV2 stochastic rounding
-
-**Examples**
-```bash
-# Single dataset, QLoRA
-attacklm train -- --dataset data/balanced.jsonl --epochs 10 --train
-
-# All buckets, GaLore + Spectrum, single model
-attacklm train --all -- --single-model --use-galore --spectrum --epochs 20 --train
-
-# With 20% evolved pairs
-attacklm train --all -- --single-model --evolved-ratio 0.2 --epochs 10 --train
-
-# HPO sweep
-attacklm train --hpo -- --analyze-only
-
-# Dry-run stats only
-attacklm train -- --dataset data/balanced.jsonl
-```
-
-### DeepSpeed Configuration
-
-AttackLM ships with pre-built DeepSpeed configs in `presets/deepspeed/`:
-
-| Config | ZeRO Stage | CPU Offload | Best For |
-|--------|-----------|-------------|----------|
-| `zero3_cpu_offload.json` | 3 | Params + Optimizer | Single GPU, model > VRAM |
-| `zero3_gpu_only.json` | 3 | None | Multi-GPU setups |
-| `zero2_cpu_offload.json` | 2 | Optimizer only | Faster, model ~2x VRAM |
-
-Auto-generate a config (defaults to ZeRO-3 + CPU offload):
-```bash
-attacklm train -- --use-deepspeed --dataset data/balanced.jsonl --train
-```
-
-Use a custom config:
-```bash
-attacklm train -- --use-deepspeed --deepspeed-config presets/deepspeed/zero2_cpu_offload.json --train
-```
-
-### Hardware Reference
-
-| GPU VRAM | System RAM | Recommended Config | Max Model |
-|----------|-----------|-------------------|-----------|
+| GPU VRAM | System RAM | Recommended | Max model |
+| :--- | :--- | :--- | :--- |
 | 8 GB | 32 GB | ZeRO-2 + CPU offload | ~13B |
 | 16 GB | 64 GB | ZeRO-3 + CPU offload | ~40B |
 | 24 GB | 64 GB | ZeRO-3 + CPU offload | ~70B |
 | 24 GB | 128 GB | ZeRO-3 + CPU offload | ~70B+ |
 | H100/B100 | 128 GB+ | FP8 / FlashOptim | 175B+ |
-| Any GPU | 32 GB+ | BitNet / COAP | 100B+ (Extreme Quant) |
+| Any | 32 GB+ | BitNet / COAP | 100B+ (extreme quant) |
+
+### DeepSpeed configs
+
+Pre-built configs live in `presets/deepspeed/`:
+
+| Config | ZeRO stage | CPU offload | Best for |
+| :--- | :--- | :--- | :--- |
+| `zero3_cpu_offload.json` | 3 | Params + Optimizer | Single GPU, model > VRAM |
+| `zero3_gpu_only.json` | 3 | None | Multi-GPU setups |
+| `zero2_cpu_offload.json` | 2 | Optimizer only | Faster, model ~2× VRAM |
+
+Auto-generate a config (defaults to ZeRO-3 + CPU offload):
+
+```bash
+attacklm train -- --use-deepspeed --dataset data/balanced.jsonl --train
 ```
 
 ---
 
-### 2. `attacklm init` — Dataset Initialization
-Handles the retrieval and organization of the security corpus.
+## Dataset & provenance
 
-**Flags**
-- `--yes` — Skip confirmation prompts
-- `--from-source` — Build from upstream git repos instead of downloading pre-built tarball
-- `--dataset-url <url>` — Override download URL
-- `--extract-only` — Run data extractors only
-- `--buckets-only` — Organize data into buckets only
-- `--attribute-only` — Add source/license attribution only
-- `--clone-only` — Clone upstream repos only
+The training data lives in the separate
+[Veedubin/attacklm-dataset](https://github.com/Veedubin/attacklm-dataset)
+package. It is **not** a Python wheel — it's a data bundle with a
+thin Python wrapper, distributed via a GitHub Releases tarball
+(downloaded by `attacklm init`).
 
-**Examples**
-```bash
-# Default: download pre-built dataset
-attacklm init --yes
+**Composition (24,652 records, 18 sources, 11 active):**
 
-# Build from source (clone repos, extract, attribute, bucket)
-attacklm init --from-source
+| Category | Source examples | Approx. pairs | License |
+| :--- | :--- | :--- | :--- |
+| **Offensive** | Metasploit, Atomic Red Team, MITRE Stockpile | 15,000+ | BSD-3 / MIT / Apache-2.0 |
+| **Defensive** | Sigma, Elastic, Splunk, Mordor, ThreatHunter | 7,000+ | DRL-1.1 / Apache-2.0 |
+| **AI Security** | Garak, Promptfoo, PromptMap | 100+ | MIT / Apache-2.0 |
+| **Meta/IR** | NIST IR, Orchestrator | 500+ | Public Domain / MIT |
+| **Synthetic** | LLM-generated, AttackLM synthetic, Replay | 2,000+ | GPL-3.0 / MIT |
 
-# Re-extract only (after updating extractors)
-attacklm init --extract-only
+**Per-record provenance.** Every record carries:
+
+```json
+{
+  "source": "atomic-red-team",
+  "source_uri": "https://github.com/redcanaryco/atomic-red-team",
+  "license": "MIT",
+  "license_uri": "https://opensource.org/licenses/MIT",
+  "rights_contact": "see data/REMOVAL.md"
+}
 ```
+
+Three high-risk sources (RTA, infection_monkey, BPL) are excluded
+from the public dataset and live only at
+`archive/restricted-sources/` (gitignored, never re-ingested).
+
+For the full per-record attribution, see
+[data/ATTRIBUTION.md](https://github.com/Veedubin/attacklm-dataset/blob/main/data/ATTRIBUTION.md).
+For the legal rights statement (the "trend" DMCA-style notice),
+see
+[attacklm-dataset/RIGHTS.md](https://github.com/Veedubin/attacklm-dataset/blob/main/RIGHTS.md).
 
 ---
 
-### 3. `attacklm balance` — Subset Generation
-Builds balanced training subsets to prevent overfitting to high-volume sources.
+## Research toolkit (audit)
 
-**Flags**
-- `--profile <name>` — Hardware profile (`3b-16gb`, `7b-16gb`, `7b-24gb`, `7b-128gb`, `custom`)
-- `--preset <name>` — Team preset (`red-team`, `blue-team`, `purple-team`)
-- `--target-total <n>` — Target total pairs (for `custom` profile)
-- `--strategy <name>` — Sampling strategy (`head` for highest quality first, `random`)
-- `--dry-run` — Preview balancing without writing files
+`attacklm audit` is the privacy/security side of the package.
+It is the **owner-side** test for memorization — the question is
+"if I ship this model, what can an attacker extract from it?",
+which the model owner wants to know *before* shipping.
 
-**Examples**
 ```bash
-# Red-team preset for 7B on 16GB
-attacklm balance --profile 7b-16gb --preset red-team
+# Full audit (all attack classes, all MIA methods)
+attacklm audit --attack all --mia-method per_token \
+  --model models/attacklm-single_TIMESTAMP
 
-# Custom: 12,000 pairs, head strategy
-attacklm balance --profile custom --target-total 12000 --strategy head
+# Just prefix-completion extraction
+attacklm audit --attack extraction --max-records 100
 
-# Preview without writing
-attacklm balance --profile 7b-16gb --dry-run
+# Just LiRA MIA (requires pre-computed shadow loss files)
+attacklm audit --attack mia --mia-method lira \
+  --lira-params shadow_params.json
+
+# Dry run (stats only, no real model load)
+attacklm audit --attack all --dry-run
 ```
+
+Output is `data/audit/<date>/` with `summary.json` (aggregate
+metrics, safe to share) and `inversion_results.jsonl` (raw
+reconstructions, chmod 0600, stay workspace-internal).
+
+The audit harness is built on the
+[attacklm-dataset `scripts/inversion/`](https://github.com/Veedubin/attacklm-dataset/tree/main/scripts/inversion)
+package and the design is documented in:
+
+- [ATTACK_TAXONOMY.md](https://github.com/Veedubin/attacklm-dataset/blob/main/docs/ATTACK_TAXONOMY.md)
+  — the 3-attack-class taxonomy, the LLM MI = TDE collapse argument,
+  and the CLI flag mapping
+- [LIRA.md](https://github.com/Veedubin/attacklm-dataset/blob/main/docs/LIRA.md)
+  — LiRA design, K parameter guide, compute cost
+- [MIA_THRESHOLD_CALIBRATION.md](https://github.com/Veedubin/attacklm-dataset/blob/main/docs/MIA_THRESHOLD_CALIBRATION.md)
+  — threshold calibration design
+
+**All attack code is for defensive, audit, and academic-research use
+only** — see [RIGHTS.md](https://github.com/Veedubin/attacklm-dataset/blob/main/RIGHTS.md).
 
 ---
 
-### 4. `attacklm build` — Model Deployment
-Pipeline to merge adapters and export for local LLM runtimes.
+## Architecture
 
-**Flags**
-- `--merge-only` — Merge LoRA adapter into base model only
-- `--gguf-only` — Convert to GGUF format only
-- `--register-ollama` — Register with local Ollama instance
-- `--adapter <path>` — Path to trained adapter directory
-- `--name <name>` — Output model name
-- `--quant <type>` — Quantization: `q4_k_m`, `q5_k_m`, `q8_0`, `f16`
-
-**Examples**
-```bash
-# Full build pipeline: Merge $\rightarrow$ GGUF $\rightarrow$ Ollama
-attacklm build -- --adapter models/attacklm-single_TIMESTAMP --name attacklm-security
-
-# Merge only
-attacklm build --merge-only -- --adapter models/attacklm-single_TIMESTAMP
-
-# GGUF only
-attacklm build --gguf-only -- --adapter models/attacklm-single_TIMESTAMP --quant q4_k_m
 ```
+                    ┌─────────────────────────────────────────┐
+                    │           attacklm (this repo)          │
+                    ├─────────────────────────────────────────┤
+                    │                                         │
+                    │   ┌─────────────┐    ┌──────────────┐  │
+                    │   │   Trainer   │    │    Audit     │  │
+                    │   │  (train.py) │    │  (audit.py)  │  │
+                    │   └──────┬──────┘    └──────┬───────┘  │
+                    │          │                 │          │
+                    │   ┌──────┴─────────────────┴───────┐  │
+                    │   │  TUI (Textual) — attacklm gui  │  │
+                    │   └────────────────────────────────┘  │
+                    │                                         │
+                    └────────────┬────────────────────────────┘
+                                 │ downloads tarball
+                                 ▼
+                    ┌─────────────────────────────────────────┐
+                    │  Veedubin/attacklm-dataset (separate)  │
+                    ├─────────────────────────────────────────┤
+                    │  data/datasets/buckets/sources/<s>/...  │
+                    │  scripts/inversion/{probe,scoring,     │
+                    │    lira,shadow_train,...}              │
+                    │  scripts/extract_<source>_to_jsonl.py  │
+                    └─────────────────────────────────────────┘
+```
+
+The trainer and audit live in the same repo because they share
+infrastructure: the same dataset (via `attacklm-dataset`), the same
+inference code (`scripts/infer.py`), the same model artifact format
+(adapters in `models/attacklm-single_TIMESTAMP/`). The split from
+v0.11.0 isolates the *data* and the *attack code* (which is
+defensive research) from the *training* and *user-facing tools*
+(general-purpose infrastructure).
 
 ---
 
-### 5. `attacklm infer` — Inference & Smoke Testing
-Test trained models against representative security prompts.
+## CLI reference
 
-**Flags**
-- `--adapter <path>` — Path to trained adapter
-- `--base-model <model>` — Base model (default: `Qwen2.5-Coder-3B`)
-- `--prompt <text>` — Single prompt to test
-- `--prompts-file <path>` — JSONL file of prompts
-- `--max-new-tokens <n>` — Max tokens to generate
-- `--temperature <n>` — Sampling temperature
+`attacklm` is a tiered dispatcher. Top-level flags are handled by
+the CLI itself; flags after `--` are forwarded to the underlying
+scripts.
 
-**Examples**
-```bash
-# Single prompt
-attacklm infer -- --adapter models/attacklm-single_TIMESTAMP --prompt "How do I perform T1059.001?"
+### Top-level commands
 
-# Batch from file
-attacklm infer -- --adapter models/attacklm-single_TIMESTAMP --prompts-file prompts.jsonl
-```
+| Command | Purpose |
+| :--- | :--- |
+| `attacklm init` | Initialize the dataset (download tarball or build from source) |
+| `attacklm balance` | Build a balanced training subset (anti-source-bias) |
+| `attacklm train` | Core training engine (QLoRA, GaLore, DeepSpeed, etc.) |
+| `attacklm build` | Merge LoRA adapter, convert to GGUF, register with Ollama |
+| `attacklm infer` | Inference & smoke testing against representative prompts |
+| `attacklm eval` | Retention evaluation, reference collection, regression gates |
+| `attacklm audit` | **Research toolkit** — inversion attack audit (extraction + MIA) |
+| `attacklm steer` | Steering-vector inference (activation intervention) |
+| `attacklm bench` | Domain-specific + speed benchmarks |
+| `attacklm pipeline` | Run the full pipeline (init → balance → train → build) |
+| `attacklm gui` | Launch the TUI |
+| `attacklm demo` | Run the multi-agent orchestrator demo |
+
+### `attacklm train` flags
+
+**Dispatcher flags** (handled by the CLI):
+- `--all` — Train all buckets (multi-model or single-model combined)
+- `--hpo` — Hyperparameter optimization sweep
+
+**Forwarded flags** (after `--`):
+- `--dataset <path>` — Path to JSONL dataset or `all`
+- `--base-model <model>` — HuggingFace model ID (default `Qwen/Qwen2.5-Coder-3B-Instruct`)
+- `--epochs <n>` — default 3
+- `--lora-r <n>`, `--lora-alpha <n>`, `--lora-dropout <n>` — LoRA config
+- `--use-galore`, `--use-qgalore`, `--spectrum`, `--use-pissa` — method toggles
+- `--use-deepspeed`, `--deepspeed-stage {1,2,3}`, `--deepspeed-config <path>` — DeepSpeed
+- `--use-lomo`, `--use-coap`, `--use-flashoptim`, `--use-fp8`, `--use-bitnet`, `--use-signround` — advanced optimizers
+- `--compile`, `--compile-mode {default,reduce-overhead,max-autotune}` — torch.compile
+- `--evolved-ratio <n>`, `--evolved-dir <path>` — evolved pairs
+- `--replay-ratio <n>`, `--replay-source <path>` — anti-forgetting replay
+- `--single-model` — combine all buckets into one
+- `--multi-gpu`, `--moe-safe-target`, `--use-unsloth` — hardware
+- `--train` — execute (omitting performs a dry-run with stats)
+- `--dry-run`, `--force`, `--resume-from-checkpoint` — execution
+
+Full flag list: `attacklm train --help`. See
+[scripts/train_template.py](scripts/train_template.py) for the
+canonical training command with QLoRA/GaLore/PiSSA/Spectrum/DeepSpeed
+attribution comments.
+
+### `attacklm audit` flags
+
+- `--attack {extraction,mia,all}` — attack class (default `all`)
+- `--mia-method {reference,zlib,per_token,lira,all}` — MIA scoring (default `per_token`)
+- `--mia-threshold-mode {median,percentile,holdout_file,lrt}` — threshold derivation
+- `--mia-percentile <n>` — percentile for threshold (default 5)
+- `--model <path>` — model being audited
+- `--source-filter <name>` — restrict to specific source(s)
+- `--top-k <n>` — top-k candidates to evaluate
+- `--max-records <n>` — cap on records to audit
+- `--max-new-tokens <n>`, `--temperature <n>` — generation params
+- `--lira-k <n>` — number of shadow models for LiRA (default 16)
+- `--lira-params <path>` — path to `shadow_params.json`
+- `--dry-run` — stats only, no real model load
+
+Full flag list: `attacklm audit --help`.
 
 ---
 
-### 6. `attacklm eval` — Evaluation Suite
-Run retention evaluation and regression gates.
+## Testing
 
-**Flags**
-- `--collect-ref` — Generate reference continuations from base model
-- `--score` — Score candidate models against references
-- `--compare` — Compare two score TSV files
-- `--golden` — Golden vector generation/validation
-- `--adapter <path>` — Path to trained adapter
-- `--base-model <model>` — Base model for reference collection
+AttackLM is **defensive-tested**, not just smoke-tested. As of
+v0.12.3 there are 368+ tests across 18 test files, all hermetic
+(no network, no GPU required, fast enough to run in CI on every
+PR):
 
-**Examples**
-```bash
-# Full retention evaluation
-attacklm eval -- --adapter models/attacklm-single_TIMESTAMP
-
-# Collect reference outputs
-attacklm eval --collect-ref -- --base-model Qwen/Qwen2.5-Coder-3B-Instruct
-
-# Score a candidate
-attacklm eval --score -- --adapter models/attacklm-single_TIMESTAMP
 ```
+tests/test_audit.py                  (research toolkit)
+tests/test_cli.py                    (CLI dispatcher)
+tests/test_coap_flashoptim.py        (memory optimizers)
+tests/test_collect_reference.py       (eval suite)
+tests/test_compare_scores.py         (eval suite)
+tests/test_domain_bench.py           (benchmarks)
+tests/test_eval_loader.py            (eval suite)
+tests/test_eval_retention.py         (eval suite)
+tests/test_fp8_bitnet.py             (quantized training)
+tests/test_golden_vectors.py         (regression gates)
+tests/test_gui.py                    (TUI smoke + tooltip coverage)
+tests/test_memory_optimization.py    (memory optimizers)
+tests/test_mixed_precision.py        (FP8/BF16)
+tests/test_neuralgentics_init.py     (init flow)
+tests/test_score_candidates.py       (eval suite)
+tests/test_speed_bench.py            (benchmarks)
+tests/test_steering.py               (steering vectors)
+tests/test_training_integration.py   (end-to-end on a tiny model)
+```
+
+Run them all:
+
+```bash
+pip install -e ".[all]"
+pytest tests/ -v
+```
+
+The `test_training_integration.py::TestTrainingIntegration::test_tiny_model_one_step`
+test loads a 1-layer LlamaForCausalLM, runs one forward+backward pass
+through `attacklm.train` on a single 16-token example, and asserts
+the loss is finite. This is the canary for "did someone break the
+core training loop?".
+
+The `test_gui.py` tests mount the TUI under a `run_test()` pilot
+and assert every main-menu button, every tooltip key, and every
+command-form widget is present. Catches "I added a new feature
+but forgot to add a tooltip" regressions.
 
 ---
 
-### 7. `attacklm gui` — Terminal Interface
-Launch the professional Textual-based TUI. Requires `pip install attacklm-gui`.
+## License & contributing
 
-```bash
-attacklm gui
-```
+- **Code**: [MIT](LICENSE)
+- **Training data**: Mixed per-source — see
+  [data/ATTRIBUTION.md](https://github.com/Veedubin/attacklm-dataset/blob/main/data/ATTRIBUTION.md)
+  and [RIGHTS.md](https://github.com/Veedubin/attacklm-dataset/blob/main/RIGHTS.md)
+- **Audit / research-tool code**: Defensive, audit, and academic-
+  research use only. See
+  [RIGHTS.md](https://github.com/Veedubin/attacklm-dataset/blob/main/RIGHTS.md)
+  for the full rights statement and the canonical paper list.
 
-### 8. `attacklm demo` — Orchestrator Demo
-Run a demonstration of the AttackLM multi-agent orchestrator.
+**Contributing**: PRs welcome. For dataset changes, edit the
+extractors in
+[attacklm-dataset/scripts/](https://github.com/Veedubin/attacklm-dataset/tree/main/scripts)
+and re-run `attacklm init --from-source`. For training-method
+additions, edit `scripts/train_template.py`. For audit additions,
+add a module to `attacklm-dataset/scripts/inversion/` and a CLI
+flag in `attacklm audit`.
 
-```bash
-attacklm demo
-```
-
-
----
-
-## License & Contributing
-
-**Code License**: This project is licensed under the [MIT License](LICENSE).
-
-**Data License**: Training data consists of mixed licenses per source. Please refer to [ATTRIBUTION.md](ATTRIBUTION.md) for the full legal mapping.
-
-**Contributing**: We welcome contributions to the extraction pipeline and training methods. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-**History**: For a full list of changes and version milestones, see [CHANGELOG.md](CHANGELOG.md).
+[CHANGELOG.md](CHANGELOG.md) — full version history.
+[TASKS.md](../TASKS.md) — current work-in-progress.
+[HANDOFF.md](../HANDOFF.md) — session continuity notes.
