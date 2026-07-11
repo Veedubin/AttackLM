@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/attacklm.svg?label=version&color=blue)](https://pypi.org/project/attacklm/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://docs.python.org/3.10/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests: 368+](https://img.shields.io/badge/tests-368%2B-brightgreen.svg)](#testing)
+[![Tests: 504+](https://img.shields.io/badge/tests-504%2B-brightgreen.svg)](#testing)
 [![GH release: v0.12.3](https://img.shields.io/badge/release-v0.12.3-blue.svg)](https://github.com/Veedubin/AttackLM/releases)
 
 **A security-AI fine-tuning platform and research toolkit.**
@@ -122,8 +122,17 @@ pip install -e ".[all]"
 ```bash
 attacklm --version       # 0.12.3
 attacklm --help
-pytest tests/ -q         # 368 passed
+pytest tests/ -q         # 504+ passed
 ```
+
+**Note on the audit harness**: AttackLM wraps
+`attacklm-dataset/scripts/inversion_audit.py`. The five bug fixes
+in commit `4386995` of attacklm-dataset (3 correctness/MUST-FIX
++ 2 quality) have been documented in
+[attacklm-dataset/CHANGELOG.md](https://github.com/Veedubin/attacklm-dataset/blob/main/CHANGELOG.md)
+and the [attacklm-dataset README](https://github.com/Veedubin/attacklm-dataset/blob/main/README.md).
+The AttackLM CLI flag set is unchanged; the fixes are in the
+implementation under the hood.
 
 ### Memory optimization note
 
@@ -165,7 +174,7 @@ this is for owner-side testing, not adversary work):
 | Attack class | Paper | What it measures |
 | :--- | :--- | :--- |
 | **Prefix-completion extraction** | Carlini et al. 2021 ([arXiv:2012.07805](https://arxiv.org/abs/2012.07805)) | Whether the model can regenerate verbatim training data given a prefix. |
-| **MIA reference attack (loss + zlib)** | Carlini et al. 2022 ([arXiv:2112.03570](https://arxiv.org/abs/2112.03570)) | Whether per-record loss is lower on members than on non-members. |
+| **MIA reference attack (loss on assistant turn + zlib entropy)** | Carlini et al. 2022 ([arXiv:2112.03570](https://arxiv.org/abs/2112.03570)) | Whether per-record NLL is lower on members than on non-members. After commit `4386995` in `attacklm-dataset`, the reference attack scores the assistant turn only (per MUSE 2023 default), eliminating the prompt-length bias that affected earlier runs. Zlib entropy is computed as a separate calibration signal. |
 | **MIA per-token loss** | Shi et al. (MUSE) 2024 ([arXiv:2407.06460](https://arxiv.org/abs/2407.06460)) | Same idea, normalized by suffix-token count (removes length bias). |
 | **MIA LiRA (likelihood ratio)** | Carlini et al. 2022 §4 ([arXiv:2112.03570](https://arxiv.org/abs/2112.03570)) | The "10× more powerful at low FPR" MIA. Requires K shadow-model loss files. |
 
@@ -451,7 +460,7 @@ Full flag list: `attacklm audit --help`.
 ## Testing
 
 AttackLM is **defensive-tested**, not just smoke-tested. As of
-v0.12.3 there are 368+ tests across 18 test files, all hermetic
+v0.12.3 there are 504+ tests across 24 test files, all hermetic
 (no network, no GPU required, fast enough to run in CI on every
 PR):
 
