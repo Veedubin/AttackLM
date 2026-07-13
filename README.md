@@ -309,10 +309,16 @@ see
 
 `attacklm audit` is the privacy/security side of the package.
 It is the **owner-side** test for memorization — the question is
-"if I ship this model, what can an attacker extract from it?",
+"if I ship this model, what can an attacker extract from itLL?",
 which the model owner wants to know *before* shipping.
 
+### Roadmap: RL post-training
+> Inspired by MAI-Thinking-1 §3.1.1 (Adaptive entropy control) by The Microsoft AI Team, June 2026. Full recipe: [docs/RL_RECIPE.md](docs/RL_RECIPE.md)
+
+AttackLM currently supports SFT. Future versions will incorporate the MAI-Thinking-1 adaptive GRPO recipe to enable stable, reasoning-focused RL climbs. See the full recipe for details on entropy control and length penalties.
+
 ```bash
+# Full audit (all attack la-
 # Full audit (all attack classes, all MIA methods)
 attacklm audit --attack all --mia-method per_token \
   --model models/attacklm-single_TIMESTAMP

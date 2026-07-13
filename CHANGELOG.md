@@ -1,47 +1,9 @@
-## [Unreleased] — 2026-07-10 — Documentation sync with attacklm-dataset audit-bugfixes
+## [0.14.0] — 2026-07-13
 
-This release does **not** change AttackLM code. It is a docs-only
-sync to reflect the audit-bugfix release of attacklm-dataset
-(commit `4386995` in attacklm-dataset/main).
+- Added `docs/RL_RECIPE.md` documenting the MAI-Thinking-1 adaptive GRPO recipe for future use.
+- [Methodology] Documented techniques from MAI-Thinking-1 §3.1.1 (Adaptive entropy control + outer ratio clip), §3.1.2 (Length penalty), §3.4.2 (Coarse vs granular grader) by The Microsoft AI Team, June 2026.
 
-### Changed (docs only)
-- `README.md` audit table: "MIA reference attack (loss + zlib)"
-  updated to "MIA reference attack (loss on assistant turn +
-  zlib entropy)" with a one-line explanation of the change and a
-  link to the attacklm-dataset commit.
-- `README.md` test count: 368+ → 504+, 18 → 24 test files (matches
-  the post-bugfix-2026-07-09 state of this repo).
-- `README.md` added a "Note on the audit harness" subsection in
-  the Verify block, pointing readers to the attacklm-dataset
-  CHANGELOG and README for the underlying bug details.
-
-### What this release does NOT change
-- No code change. The AttackLM `attacklm audit` CLI flag set is
-  unchanged. The bug fixes live in attacklm-dataset and ship
-  via the next `attacklm init` download.
-- No PyPI publish planned. v0.12.3 remains the latest
-  published version on PyPI (https://pypi.org/project/attacklm/).
-
-### About the upstream bug fixes (in attacklm-dataset)
-See [attacklm-dataset/CHANGELOG.md](https://github.com/Veedubin/attacklm-dataset/blob/main/CHANGELOG.md)
-for the full list. Headline:
-- Bug #1 (correctness, MUST FIX): `score_record` was using
-  `_extract_full_text` which leaked the prompt into the NLL and
-  biased all reference MIA scores by prompt length. Switched to
-  `_extract_assistant_turn` per MUSE 2023 default.
-- Bug #2 (crash + wrong metadata, MUST FIX): `save_shadow_params`
-  hardcoded `lira_k=0` and crashed on empty params. Fixed; K is
-  now written by `shadow_train.py` from `len(shadow_losses)`.
-- Bug #3 (evidence chain, MUST FIX): `ProbeResult` now includes
-  `prompt_text` and `best_reconstruction`. The audit artifact
-  (inversion_results.jsonl, chmod 0600) is self-contained for
-  takedown-request evidence.
-- Bug #4 (performance): K=20 sequential `generate()` calls
-  replaced by a single `generate()` with `num_return_sequences`.
-  ~20× speedup.
-- Bug #5 (code smell): `LiRAScore.alpha` dead field removed.
-
-The audit code is now production-ready for a real defensive run.
+Docs-only release. No code changes. No PyPI publish.
 
 ---
 
