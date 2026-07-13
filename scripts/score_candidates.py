@@ -17,6 +17,13 @@ Usage:
 Output: TSV file with columns:
     prompt_id, bucket, category, avg_nll, first_token_matches,
     avg_greedy_lcp, tokens_generated, ref_tokens
+
+RL post-training (planned):
+For the day we add GRPO post-training to AttackLM, see docs/RL_RECIPE.md
+for the adaptive entropy controller + outer ratio clip + coarse-grader
+recipe adapted from MAI-Thinking-1 §3.1.1 by The Microsoft AI Team
+(June 2026). This file is the SFT-time candidate scorer; RL will reuse
+the same `--reference-dir` continuations as the held-out signal.
 """
 
 from __future__ import annotations
