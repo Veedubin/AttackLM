@@ -133,6 +133,14 @@ REPLAY_PLAN.md
 QA_BEFORE_RELEASES.md
 notes/
 
+# ----- Internal docs (per-source methodology, attack surveys, audit reports) -----
+# These are local-only — kept out of the public PyPI/GitHub distribution.
+# RL_RECIPE.md (v0.14.0) is the only intentionally-tracked docs/ file.
+# All new audit/methodology docs (e.g. PROMPT_INJECTION_AUDIT.md, CANARY_EXTRACTION.md,
+# MODEL_ATTACKS_SURVEY.md, etc.) are NOT distributed.
+docs/*.md
+!docs/RL_RECIPE.md
+
 # ============================================================================
 # GENERATED / REGENERABLE DATA — excluded (users generate these themselves)
 # ============================================================================
