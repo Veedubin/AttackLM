@@ -1,3 +1,44 @@
+## [0.17.0] — 2026-07-15
+
+- **Added `scripts/eval_calibration.py`** (Attack 7 from `docs/MODEL_ATTACKS_SURVEY.md`): characterizes model calibration and selective-prediction on in-distribution / near-OOD / OOD inputs. Reports Brier, ECE, and a 20-point selective-prediction operating curve. Reuses `compute_nll` from `attacklm-dataset/scripts/inversion/scoring.py` as the NLL primitive.
+- **Added `docs/CALIBRATION_AUDIT.md`** documenting the methodology, expected results, and reproduction recipe. Gitignored (internal-only).
+- **Added 7 hermetic tests** in `tests/test_attack_audit.py` for the calibration metrics (Brier, ECE, selective sweep).
+
+No new public-facing surface. No PyPI publish (docs-only + internal audit script).
+
+---
+
+## [0.16.0] — 2026-07-15
+
+- **Added the canary-extraction framework** (Attack 3 from `docs/MODEL_ATTACKS_SURVEY.md`):
+  - `scripts/canary_generator.py` — generates N unique canaries (8-char token, 8 prefix templates, 5 suffix templates)
+  - `scripts/canary_inject.py` — inserts canaries into training JSONL at a controlled rate (default 1%)
+  - `scripts/audit_canary_extraction.py` — the extraction probe; reports exact-token, loose-token, and near-verbatim (BLEU-4>0.7) extraction rates
+- **Added `docs/CANARY_EXTRACTION.md`** documenting the three-script workflow, expected extraction rates by insertion rate, and the Carlini 2021 §4.2 / Biderman 2023 reference papers. Gitignored (internal-only).
+- **Added 12 hermetic tests** in `tests/test_attack_audit.py` for the canary framework (generator uniqueness, injector rate, matcher correctness).
+
+No new public-facing surface. No PyPI publish.
+
+---
+
+## [0.15.0] — 2026-07-15
+
+- **Added the prompt-injection and system-prompt-extraction framework** (Attacks 1 + 2 from `docs/MODEL_ATTACKS_SURVEY.md`):
+  - `scripts/_audit_grader.py` — shared refusal/compliance/secret-emission grader (regex-based, English-only v0.1)
+  - `scripts/audit_prompt_injection.py` — Attack 1: tests AttackLM as a VICTIM of prompt injection (21 prompts, 3 tiers: direct / indirect / crescendo)
+  - `scripts/audit_system_prompt.py` — Attack 2: tests system-prompt extraction (49 prompts, 5 tiers: extraction / roleplay / translation / indirect / escalation)
+  - `data/bench/prompt_injection_holdout.jsonl` — 21 prompts, canary-secreted
+  - `data/bench/system_prompt_holdout.jsonl` — 49 prompts, canary-secreted
+- **Added `docs/PROMPT_INJECTION_AUDIT.md`** (Attack 1) and **`docs/SYSTEM_PROMPT_AUDIT.md`** (Attack 2). Both gitignored (internal-only).
+- **Added 18 hermetic tests** in `tests/test_attack_audit.py` for the grader and JSONL I/O.
+- **`.gitignore`**: `docs/*.md` is now gitignored (except the v0.14.0-shipped `RL_RECIPE.md` is still tracked). This keeps the audit docs out of the public distribution.
+
+The model is fine-tuned to GENERATE prompt-injection attacks; this release tests whether it can also DEFEND against them. See `docs/MODEL_ATTACKS_SURVEY.md` for the full survey of 7 model attacks. The 4 shipped here (Attacks 1, 2, 3, 7) are the four with the highest value/effort ratio.
+
+No new public-facing surface. No PyPI publish.
+
+---
+
 ## [0.14.0] — 2026-07-13
 
 - Added `docs/RL_RECIPE.md` documenting the MAI-Thinking-1 adaptive GRPO recipe for future use.
