@@ -2,7 +2,7 @@
 
 - **Added `scripts/eval_calibration.py`** (Attack 7 from `docs/MODEL_ATTACKS_SURVEY.md`): characterizes model calibration and selective-prediction on in-distribution / near-OOD / OOD inputs. Reports Brier, ECE, and a 20-point selective-prediction operating curve. Reuses `compute_nll` from `attacklm-dataset/scripts/inversion/scoring.py` as the NLL primitive.
 - **Added `docs/CALIBRATION_AUDIT.md`** documenting the methodology, expected results, and reproduction recipe. Gitignored (internal-only).
-- **Added 7 hermetic tests** in `tests/test_attack_audit.py` for the calibration metrics (Brier, ECE, selective sweep).
+- **Added 8 hermetic tests** in `tests/test_attack_audit.py` for the calibration metrics (Brier, ECE, selective sweep) and 2 JSONL I/O tests.
 
 No new public-facing surface. No PyPI publish (docs-only + internal audit script).
 
