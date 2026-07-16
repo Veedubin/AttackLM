@@ -1,3 +1,17 @@
+## [0.17.2] — 2026-07-15
+
+- **Gitignore-only fix**: added `CONTEXT.md` to `.gitignore` alongside `HANDOFF.md` and `TASKS.md`. `CONTEXT.md` is the architecture-context file (created in this session); follows the same local-only pattern. Not distributed via the public PyPI/GitHub release.
+
+No code changes. No PyPI publish (gitignore-only).
+
+---
+
+## [0.17.1] — 2026-07-15
+
+- Docs-only: corrected test counts in the v0.15.0/v0.16.0/v0.17.0 CHANGELOG entries (had said "18" / "12" / "7" but the actual split is 11+16+8+2 = 37 total).
+
+---
+
 ## [0.17.0] — 2026-07-15
 
 - **Added `scripts/eval_calibration.py`** (Attack 7 from `docs/MODEL_ATTACKS_SURVEY.md`): characterizes model calibration and selective-prediction on in-distribution / near-OOD / OOD inputs. Reports Brier, ECE, and a 20-point selective-prediction operating curve. Reuses `compute_nll` from `attacklm-dataset/scripts/inversion/scoring.py` as the NLL primitive.
