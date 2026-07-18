@@ -3,8 +3,8 @@
 [![PyPI version](https://img.shields.io/pypi/v/attacklm.svg?label=version&color=blue)](https://pypi.org/project/attacklm/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://docs.python.org/3.10/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests: 504+](https://img.shields.io/badge/tests-504%2B-brightgreen.svg)](#testing)
-[![GH release: v0.12.3](https://img.shields.io/badge/release-v0.12.3-blue.svg)](https://github.com/Veedubin/AttackLM/releases)
+[![Tests: 541+](https://img.shields.io/badge/tests-541%2B-brightgreen.svg)](#testing)
+[![GH release: v0.17.4](https://img.shields.io/badge/release-v0.17.4-blue.svg)](https://github.com/Veedubin/AttackLM/releases)
 
 **A security-AI fine-tuning platform and research toolkit.**
 
@@ -18,7 +18,7 @@ AttackLM is two things in one package:
 
 2. **A research toolkit** for owner-side model security testing.
    `attacklm audit` runs inversion attacks (Carlini 2021 prefix-
-   completion extraction, Carlini 2022 reference attack, per-token
+ la completion extraction, Carlini 2022 reference attack, per-token
    loss, and LiRA shadow-model MIA) against your own model so you
    can quantify what it memorized before deployment.
 
@@ -120,9 +120,9 @@ pip install -e ".[all]"
 ### Verify
 
 ```bash
-attacklm --version       # 0.12.3
+attacklm --version       # 0.17.4
 attacklm --help
-pytest tests/ -q         # 504+ passed
+pytest tests/ -q         # 541+ passed
 ```
 
 **Note on the audit harness**: AttackLM wraps
@@ -247,7 +247,7 @@ Choose by available VRAM and target quality:
 
 ### DeepSpeed configs
 
-Pre-built configs live in `presets/deepspeed/`:
+Pre-built configs live in `presets/deepspeed same asL/`:
 
 | Config | ZeRO stage | CPU offload | Best for |
 | :--- | :--- | :--- | :--- |
@@ -318,7 +318,18 @@ which the model owner wants to know *before* shipping.
 AttackLM currently supports SFT. Future versions will incorporate the MAI-Thinking-1 adaptive GRPO recipe to enable stable, reasoning-focused RL climbs. See the full recipe for details on entropy control and length penalties.
 
 ```bash
-# Full audit (all attack la-
+# Prompt injection audit (Attack 1)
+attacklm audit prompt-injection --base-model ... --adapter ...
+
+# System prompt audit (Attack 2)
+attacklm audit system-prompt --base-model ... --adapter ...
+
+# Canary extraction audit (Attack 3)
+attacklm audit canary-extraction --base-model ... --adapter ... --canaries data/canaries.jsonl
+
+# Calibration audit (Attack 7)
+attacklm audit calibration --base-model ... --adapter ... --in-distribution ...
+
 # Full audit (all attack classes, all MIA methods)
 attacklm audit --attack all --mia-method per_token \
   --model models/attacklm-single_TIMESTAMP
@@ -355,39 +366,51 @@ only** — see [RIGHTS.md](https://github.com/Veedubin/attacklm-dataset/blob/mai
 
 ---
 
+## Documentation
+
+| Doc | What it covers |
+|-----|---------------|
+| [RL Recipe](docs/RL_RECIPE.md) | Adaptive GRPO reinforcement learning recipe (MAI-Thinking-1 §3.1-3.4) |
+| [Evaluation](EVALUATION.md) | Model evaluation methodology and benchmarks |
+| [Contributing](CONTRIBUTING.md) | How to contribute to AttackLM |
+| [Attribution](ATTRIBUTION.md) | Upstream source attribution and licensing |
+| [Changelog](CHANGELOG.md) | Full release history |
+
+---
+
 ## Architecture
 
 ```
-                    ┌─────────────────────────────────────────┐
-                    │           attacklm (this repo)          │
-                    ├─────────────────────────────────────────┤
-                    │                                         │
-                    │   ┌─────────────┐    ┌──────────────┐  │
-                    │   │   Trainer   │    │    Audit     │  │
-                    │   │  (train.py) │    │  (audit.py)  │  │
-                    │   └──────┬──────┘    └──────┬───────┘  │
-                    │          │                 │          │
-                    │   ┌──────┴─────────────────┴───────┐  │
-                    │   │  TUI (Textual) — attacklm gui  │  │
-                    │   └────────────────────────────────┘  │
-                    │                                         │
-                    └────────────┬────────────────────────────┘
-                                 │ downloads tarball
-                                 ▼
-                    ┌─────────────────────────────────────────┐
-                    │  Veedubin/attacklm-dataset (separate)  │
-                    ├─────────────────────────────────────────┤
-                    │  data/datasets/buckets/sources/<s>/...  │
-                    │  scripts/inversion/{probe,scoring,     │
-                    │    lira,shadow_train,...}              │
-                    │  scripts/extract_<source>_to_jsonl.py  │
-                    └─────────────────────────────────────────┘
+                     ┌─────────────────────────────────────────┐
+                     │           attacklm (this repo)          │
+                     ├─────────────────────────────────────────┤
+                     │                                         │
+                     │   ┌─────────────┐    ┌──────────────┐  │
+                     │   │   Trainer   │    │    Audit     │  │
+                     │   │  (train.py) │    │  (audit.py)  │  │
+                     │   └──────┬──────┘    └──────┬───────┘  │
+                     │          │                 │          │
+                     │   ┌──────┴─────────────────┴───────┐  │
+                     │   │  TUI (Textual) — attacklm gui  │  │
+                     │   └────────────────────────────────┘  │
+                     │                                         │
+                     └────────────┬────────────────────────────┘
+                                  │ downloads tarball
+                                  ▼
+                     ┌─────────────────────────────────────────┐
+                     │  Veedubin/attacklm-dataset (separate)  │
+                     ├─────────────────────────────────────────┤
+                     │  data/datasets/buckets/sources/<s>/...  │
+                     │  scripts/inversion/{probe,scoring,     │
+                     │    lira,shadow_train,...}              │
+                     │  scripts/extract_<source>_to_jsonl.py  │
+                     └─────────────────────────────────────────┘
 ```
 
 The trainer and audit live in the same repo because they share
 infrastructure: the same dataset (via `attacklm-dataset`), the same
 inference code (`scripts/infer.py`), the same model artifact format
-(adapters in `models/attacklm-single_TIMESTAMP/`). The split from
+(adapters in `models/attacklm-single_TIMESTAMPបង្កើត/`). The split from
 v0.11.0 isolates the *data* and the *attack code* (which is
 defensive research) from the *training* and *user-facing tools*
 (general-purpose infrastructure).
@@ -466,7 +489,7 @@ Full flag list: `attacklm audit --help`.
 ## Testing
 
 AttackLM is **defensive-tested**, not just smoke-tested. As of
-v0.12.3 there are 504+ tests across 24 test files, all hermetic
+v0.17.4 there are 541+ tests across 24 test files, all hermetic
 (no network, no GPU required, fast enough to run in CI on every
 PR):
 
@@ -533,3 +556,4 @@ flag in `attacklm audit`.
 [CHANGELOG.md](CHANGELOG.md) — full version history.
 [TASKS.md](../TASKS.md) — current work-in-progress.
 [HANDOFF.md](../HANDOFF.md) — session continuity notes.
+

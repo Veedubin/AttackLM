@@ -1,0 +1,83 @@
+docs_dir: docs
+site_name: AttackLM Documentation
+site_description: Documentation for the AttackLM red-team LLM training toolkit and dataset
+site_author: Veedubin
+repo_url: https://github.com/Veedubin/AttackLM
+repo_name: Veedubin/AttackLM
+edit_uri: ""
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to light mode
+    - scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to dark mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+  - footnotes
+  - attr_list
+  - md_in_html
+
+plugins:
+  - search
+  - monorepo
+
+nav:
+  - Home: attacklm-readme.md
+  - AttackLM (Training Tool):
+      - Overview: attacklm-readme.md
+      - Changelog: attacklm-changelog.md
+      - RL Recipe: attacklm-rl-recipe.md
+      - Evaluation: attacklm-evaluation.md
+      - Contributing: attacklm-contributing.md
+      - Attribution: attacklm-attribution.md
+  - attacklm-dataset:
+      - Overview: attacklm-dataset-readme.md
+      - Changelog: attacklm-dataset-changelog.md
+      - Methodology:
+          - Attack Taxonomy: attacklm-dataset-docs/ATTACK_TAXONOMY.md
+          - Audit Runner: attacklm-dataset-docs/AUDIT_RUNNER.md
+          - MIA Threshold Calibration: attacklm-dataset-docs/MIA_THRESHOLD_CALIBRATION.md
+          - LiRA: attacklm-dataset-docs/LIRA.md
+          - Decontamination: attacklm-dataset-docs/DECONTAM.md
+          - Memorization: attacklm-dataset-docs/MEMORIZATION.md
+          - Held-out NLL: attacklm-dataset-docs/HELD_OUT_NLL.md
+          - Closed-loop Audit: attacklm-dataset-docs/AUDIT_ITER.md
+          - Probe Token Budget: attacklm-dataset-docs/PROBE_TOKEN_BUDGET.md
+      - Legal:
+          - Provenance: attacklm-dataset-provenance.md
+          - Rights: attacklm-dataset-rights.md
+          - Security: attacklm-dataset-security.md
+          - Attribution: attacklm-dataset-attribution.md

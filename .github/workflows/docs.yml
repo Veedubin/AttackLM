@@ -1,0 +1,77 @@
+name: Deploy Docs
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - main
+    paths:
+      - "docs-site/**"
+      - "docs/**"
+      - "README.md"
+      - "CHANGELOG.md"
+      - "ATTRIBUTION.md"
+      - "CONTRIBUTING.md"
+      - "EVALUATION.md"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout attacklm-dataset
+        uses: actions/checkout@v4
+        with:
+          repository: Veedubin/attacklm-dataset
+          path: _dataset
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install mkdocs mkdocs-material
+
+      - name: Copy dataset docs
+        run: |
+          cp -r _dataset/docs docs-site/docs/attacklm-dataset-docs/
+          cp _dataset/README.md docs-site/docs/attacklm-dataset-readme.md
+          cp _dataset/CHANGELOG.md docs-site/docs/attacklm-dataset-changelog.md
+          cp _dataset/ATTRIBUTION.md docs-site/docs/attacklm-dataset-attribution.md
+          cp _dataset/PROVENANCE.md docs-site/docs/attacklm-dataset-provenance.md
+          cp _dataset/RIGHTS.md docs-site/docs/attacklm-dataset-rights.md
+          cp _dataset/SECURITY.md docs-site/docs/attacklm-dataset-security.md
+
+      - name: Build site
+        run: cd docs-site && mkdocs build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs-site/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
