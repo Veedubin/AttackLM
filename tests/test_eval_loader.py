@@ -141,11 +141,13 @@ class TestDetectComputeDtype(unittest.TestCase):
         """Dtype strings should be case-insensitive."""
         self.assertEqual(_eval_loader.detect_compute_dtype("BF16"), torch.bfloat16)
 
-    def test_user_specified_unknown_falls_back(self):
-        """Unknown dtype strings should fall back to fp32."""
+    @patch("_eval_loader.is_cuda", return_value=False)
+    def test_user_specified_unknown_falls_back(self, _mock_is_cuda):
+        """Unknown dtype strings should fall back to fp32 on CPU."""
         self.assertEqual(_eval_loader.detect_compute_dtype("fp8"), torch.float32)
 
-    def test_none_auto_detect_cpu(self):
+    @patch("_eval_loader.is_cuda", return_value=False)
+    def test_none_auto_detect_cpu(self, _mock_is_cuda):
         """None should auto-detect (fp32 on CPU)."""
         self.assertEqual(_eval_loader.detect_compute_dtype(None), torch.float32)
 

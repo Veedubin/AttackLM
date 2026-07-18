@@ -220,11 +220,10 @@ def evaluate_set(
             "selective": [],
         }
 
-    # Probabilities of correctness from NLL: use sigmoid(-NLL) as a
-    # rough proxy (lower NLL = more likely correct). This is a heuristic;
-    # in practice you would derive confidence from the model's own logprobs
-    # for the predicted token. The sweep is what matters.
-    prob_correct = [1.0 / (1.0 + math.exp(n)) for n in nlls]
+    # Probabilities of correctness from NLL: use exp(-NLL) as the
+    # probability proxy. NLL=0 (perfect prediction) -> p=1.0 (high confidence).
+    # This is the standard relationship: P(x) = exp(-NLL) = exp(log P(x)).
+    prob_correct = [math.exp(-n) for n in nlls]
     bs = brier_score(prob_correct, correct)
     ece = expected_calibration_error(prob_correct, correct)
     sel = selective_prediction_sweep(nlls, correct)

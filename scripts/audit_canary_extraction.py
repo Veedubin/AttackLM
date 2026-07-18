@@ -65,11 +65,18 @@ def hamming(a: str, b: str) -> int:
 
 
 def bleu4_simple(reference: str, candidate: str) -> float:
-    """Very small BLEU-4 implementation (no smoothing).
+    """Very small BLEU-4 implementation with epsilon smoothing.
 
     Returns the geometric mean of 1- to 4-gram precisions, with brevity
-    penalty. Good enough for canary near-verbatim detection.
+    penalty. Uses epsilon smoothing (p=0 -> epsilon) instead of returning
+    0 when any n-gram precision is zero, avoiding overly harsh scores for
+    short texts.
+
+    This is the canonical BLEU-4 implementation shared with
+    attacklm-dataset/scripts/inversion/probe.py:bleu4_score.
     """
+    import math
+
     ref_tokens = reference.split()
     cand_tokens = candidate.split()
     if not cand_tokens or not ref_tokens:
@@ -78,21 +85,18 @@ def bleu4_simple(reference: str, candidate: str) -> float:
     def ngram_counts(tokens: list[str], n: int) -> Counter:
         return Counter(tuple(tokens[i : i + n]) for i in range(len(tokens) - n + 1))
 
+    epsilon = 1e-7
     precisions: list[float] = []
     for n in (1, 2, 3, 4):
         ref_n = ngram_counts(ref_tokens, n)
         cand_n = ngram_counts(cand_tokens, n)
         if not cand_n:
-            precisions.append(0.0)
+            precisions.append(epsilon)
             continue
         # Clipped count
         clipped = sum(min(c, ref_n[g]) for g, c in cand_n.items())
         total = sum(cand_n.values())
-        precisions.append(clipped / total if total else 0.0)
-
-    if any(p == 0.0 for p in precisions):
-        return 0.0
-    import math
+        precisions.append(max(clipped / total, epsilon) if total else epsilon)
 
     log_geo = sum(math.log(p) for p in precisions) / 4.0
     # Brevity penalty
