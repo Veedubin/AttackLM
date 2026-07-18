@@ -1,8 +1,16 @@
-## [0.17.3] — 2026-07-16
+## [0.17.4] — 2026-07-16
 
-- Docs-only: add the missing v0.17.2 CHANGELOG entry (was omitted in the v0.17.2 release). No code changes. No PyPI publish.
+- **Calibration fix**: Replaced `sigmoid(-NLL)` heuristic with `exp(-NLL)` in `eval_calibration.py`. Previously NLL=0 (perfect prediction) gave `prob_correct=0.5`; now gives `1.0`. Brier and ECE metrics are now meaningful.
+- **BLEU-4 unification**: Added epsilon smoothing to `bleu4_simple` in `audit_canary_extraction.py`, matching the canonical implementation in `attacklm-dataset/scripts/inversion/probe.py`. Fixes latent `math.log(0)` crash when clipped n-gram count is zero.
+- **Dead code removal**: Removed unused `make_timestamped_output_dir` from `train_template.py` (27 lines). `train_all.py` has its own `_make_timestamped_output_dir` with a different signature.
+- **Test fix**: Mocked `is_cuda()` in `test_eval_loader.py` for CPU-path tests that were failing on GPU machines.
+- **Docs**: Updated README with docs index, refreshed audit command examples, updated version references.
+
+No new public-facing surface. No PyPI publish (bug fixes only).
 
 ---
+
+## [0.17.3] — 2026-07-16
 
 ## [0.17.2] — 2026-07-15
 
