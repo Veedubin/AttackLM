@@ -1173,33 +1173,6 @@ def has_incomplete_checkpoint(output_dir: str) -> bool:
     return False
 
 
-def make_timestamped_output_dir(parent: str, agent_name: str) -> str:
-    """Build a fresh output dir name with a UTC timestamp suffix.
-
-    Format: {parent}/{agent_name}_{YYYY-MM-DD}_{HH-MM}/
-    Example: models/agent_runs/attacklm-single_2026-06-10_01-12/
-
-    This is for new training runs. We use a counter suffix (in-memory,
-    within this process) to avoid returning the same path twice when
-    the caller invokes us rapidly (e.g. train_all.py calling this
-    in a tight loop). The counter resets per-process, so re-running
-    train_all.py later still uses the wall-clock timestamp.
-    """
-    from datetime import datetime, timezone
-
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M")
-    base = Path(parent) / f"{agent_name}_{ts}"
-    # Use a counter to disambiguate in-process rapid calls. We pick
-    # the lowest N that doesn't exist on disk yet, so persisted
-    # numbering only collides on actual same-minute re-runs.
-    n = 1
-    candidate = base
-    while candidate.exists():
-        n += 1
-        candidate = Path(parent) / f"{agent_name}_{ts}_{n}"
-    return str(candidate)
-
-
 _TIMESTAMP_SUFFIX_RE = __import__("re").compile(
     r"_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}(_\d+)?$"
 )

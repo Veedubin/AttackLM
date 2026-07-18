@@ -1,3 +1,9 @@
+## [0.17.3] — 2026-07-16
+
+- Docs-only: add the missing v0.17.2 CHANGELOG entry (was omitted in the v0.17.2 release). No code changes. No PyPI publish.
+
+---
+
 ## [0.17.2] — 2026-07-15
 
 - **Gitignore-only fix**: added `CONTEXT.md` to `.gitignore` alongside `HANDOFF.md` and `TASKS.md`. `CONTEXT.md` is the architecture-context file (created in this session); follows the same local-only pattern. Not distributed via the public PyPI/GitHub release.
