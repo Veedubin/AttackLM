@@ -19,6 +19,16 @@ DEFAULT_QUEUE_DIR = Path("evals/queue")
 DEFAULT_DB_NAME = "queue.db"
 
 
+class _Connection(sqlite3.Connection):
+    """Plain sqlite3.Connection subclass.
+
+    The stock sqlite3.Connection has no per-instance __dict__, so tests
+    can't monkeypatch e.g. `conn.execute` on an instance returned by the
+    default factory. A trivial subclass gets one for free with no change
+    in behavior — used only as `_connect`'s connection factory.
+    """
+
+
 class Task:
     """Row proxy for a task in the queue."""
 
@@ -80,7 +90,7 @@ class QueueDB:
 
     def _connect(self) -> sqlite3.Connection:
         """Open a connection with WAL mode and busy timeout."""
-        conn = sqlite3.connect(str(self.db_path), timeout=30.0)
+        conn = sqlite3.connect(str(self.db_path), timeout=30.0, factory=_Connection)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA busy_timeout=30000")
@@ -273,53 +283,47 @@ class QueueDB:
     # Queue operations
     # ------------------------------------------------------------------
 
-    def pick_next_ready_task(self) -> Task | None:
-        """Atomically pick the next task whose deps are all completed.
+    def _ready_candidates(self, conn: sqlite3.Connection) -> list[Task]:
+        """Pending/ready tasks whose deps are all completed, in id order."""
+        rows = conn.execute(
+            "SELECT * FROM tasks WHERE status IN ('pending', 'ready') ORDER BY id"
+        ).fetchall()
+        ready: list[Task] = []
+        for row in rows:
+            task = Task(dict(row))
+            deps = task.depends_on_list
+            if all(
+                conn.execute(
+                    "SELECT 1 FROM tasks WHERE id = ? AND status = 'completed'",
+                    (dep_id,),
+                ).fetchone()
+                for dep_id in deps
+            ):
+                ready.append(task)
+        return ready
 
-        Sets status to 'running' and claims it. Returns None if no
-        eligible task exists.
+    def find_next_ready_task(self) -> Task | None:
+        """Read-only: the task the runner would pick next (does NOT claim it)."""
+        with self._conn() as conn:
+            ready = self._ready_candidates(conn)
+            return ready[0] if ready else None
+
+    def pick_next_ready_task(self) -> Task | None:
+        """Atomically claim the next eligible task (status → running).
+
+        The claim is verified by the UPDATE's rowcount, so two runners
+        racing for the same row cannot both win.
         """
         with self._conn() as conn:
-            # Find tasks that are pending/ready and whose deps are all completed.
-            rows = conn.execute(
-                "SELECT * FROM tasks WHERE status IN ('pending', 'ready') ORDER BY id"
-            ).fetchall()
-            for row in rows:
-                task = Task(dict(row))
-                deps = task.depends_on_list
-                if not deps:
-                    # No deps — eligible immediately.
-                    conn.execute(
-                        "UPDATE tasks SET status = 'running' WHERE id = ? AND status IN ('pending', 'ready')",
-                        (task.id,),
-                    )
-                    # Verify we claimed it (atomic check).
-                    check = conn.execute(
-                        "SELECT status FROM tasks WHERE id = ?", (task.id,)
-                    ).fetchone()
-                    if check and check["status"] == "running":
-                        conn.commit()
-                        return self.get_task(task.id)
-                    continue
-                # Check all deps are completed.
-                deps_completed = all(
-                    conn.execute(
-                        "SELECT 1 FROM tasks WHERE id = ? AND status = 'completed'",
-                        (dep_id,),
-                    ).fetchone()
-                    for dep_id in deps
+            for task in self._ready_candidates(conn):
+                cur = conn.execute(
+                    "UPDATE tasks SET status = 'running' "
+                    "WHERE id = ? AND status IN ('pending', 'ready')",
+                    (task.id,),
                 )
-                if deps_completed:
-                    conn.execute(
-                        "UPDATE tasks SET status = 'running' WHERE id = ? AND status IN ('pending', 'ready')",
-                        (task.id,),
-                    )
-                    check = conn.execute(
-                        "SELECT status FROM tasks WHERE id = ?", (task.id,)
-                    ).fetchone()
-                    if check and check["status"] == "running":
-                        conn.commit()
-                        return self.get_task(task.id)
+                if cur.rowcount == 1:
+                    conn.commit()
+                    return self.get_task(task.id)
             return None
 
     def recompute_blocked(self) -> list[int]:
@@ -359,9 +363,13 @@ class QueueDB:
 
     def remove_task(self, task_id: int, force: bool = False) -> bool:
         """Remove a task. Only allowed if status is pending/ready/blocked/interrupted,
-        unless force=True. Returns True if removed."""
+        unless force=True. Running tasks are never removable, even with force=True
+        — deleting the row out from under a live runner makes its next mark_task
+        hit the tasks/task_events foreign key. Returns True if removed."""
         task = self.get_task(task_id)
         if task is None:
+            return False
+        if task.status == "running":
             return False
         removable = {"pending", "ready", "blocked", "interrupted"}
         if not force and task.status not in removable:
@@ -377,7 +385,10 @@ class QueueDB:
         older_than_days: int | None = None,
         yes: bool = False,
     ) -> int:
-        """Delete tasks matching status/age criteria. Returns count deleted."""
+        """Delete tasks matching status/age criteria. Returns the number of tasks
+        that match (and, when a non-terminal task still depends on them, are
+        protected from deletion). Only deletes when yes=True — otherwise this
+        is a dry-run count."""
         with self._conn() as conn:
             clauses = []
             params: list[Any] = []
@@ -387,20 +398,27 @@ class QueueDB:
             if older_than_days is not None:
                 clauses.append("finished_at < datetime('now', ?)")
                 params.append(f"-{older_than_days} days")
-            where = " AND ".join(clauses) if clauses else "1=1"
-            count = conn.execute(
-                f"SELECT COUNT(*) FROM tasks WHERE {where}", params
-            ).fetchone()[0]
-            task_ids = [
+            clauses.append("status != 'running'")
+            where = " AND ".join(clauses)
+            candidates = [
                 r[0]
-                for r in conn.execute(
-                    f"SELECT id FROM tasks WHERE {where}", params
-                ).fetchall()
+                for r in conn.execute(f"SELECT id FROM tasks WHERE {where}", params).fetchall()
             ]
+            # Never delete a task that a non-terminal task still depends on.
+            active = conn.execute(
+                "SELECT depends_on FROM tasks WHERE status IN "
+                "('pending', 'ready', 'blocked', 'running', 'pending_unimplemented')"
+            ).fetchall()
+            protected: set[int] = set()
+            for (raw,) in active:
+                protected.update(json.loads(raw or "[]"))
+            task_ids = [tid for tid in candidates if tid not in protected]
+            if not yes:
+                return len(task_ids)
             for tid in task_ids:
                 conn.execute("DELETE FROM task_events WHERE task_id = ?", (tid,))
-            conn.execute(f"DELETE FROM tasks WHERE {where}", params)
-            return count
+                conn.execute("DELETE FROM tasks WHERE id = ?", (tid,))
+            return len(task_ids)
 
     def reset(self) -> None:
         """Drop and recreate all tables. DANGEROUS — only for `queue reset --yes`."""

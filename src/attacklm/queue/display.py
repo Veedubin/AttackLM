@@ -270,10 +270,8 @@ def status_summary(db: QueueDB) -> str:
     heartbeat = db.get_runner_state("heartbeat")
     current_task = db.get_runner_state("current_task")
 
-    # Find next task.
-    next_task = db.pick_next_ready_task()  # This claims it, so we'll just look.
-    # Actually, let's not claim it — just find the first pending/ready task.
-    pending_tasks = db.list_tasks(status="pending,ready", limit=1)
+    # Find next task (read-only — never claim from a status command).
+    next_task = db.find_next_ready_task()
 
     lines = [
         "AttackLM Queue — status",
@@ -294,10 +292,9 @@ def status_summary(db: QueueDB) -> str:
         ]
     )
 
-    if pending_tasks:
-        t = pending_tasks[0]
+    if next_task:
         lines.append(
-            f"  Next up:      #{t.id} {t.label} [waits on {_format_depends(t.depends_on)}]"
+            f"  Next up:      #{next_task.id} {next_task.label} [waits on {_format_depends(next_task.depends_on)}]"
         )
 
     lines.append(f"  DB:           {db.db_path}")

@@ -142,7 +142,7 @@ class TestQueueDB:
     def test_clean_tasks(self, db):
         id1 = db.add_task(type="train", label="T1", args={})
         db.mark_task(id1, status="completed")
-        count = db.clean_tasks(status="completed")
+        count = db.clean_tasks(status="completed", yes=True)
         assert count == 1
         assert db.get_task(id1) is None
 
@@ -842,3 +842,66 @@ class TestCanaryPipeline:
         assert _run_steps(steps, log, timeout_s=30, cwd=str(tmp_path), env=None) == 3
         text = log.read_text()
         assert "one" in text and "never" not in text
+
+
+# ---------------------------------------------------------------------------
+# Task 3 — DB correctness (R1, R7, R9, R8-db)
+# ---------------------------------------------------------------------------
+
+
+class TestDbFixes:
+    def test_status_does_not_claim(self, db):
+        """R1: status_summary must not flip a pending task to running."""
+        from attacklm.queue.display import status_summary
+        tid = db.add_task(type="gen_calibration_holdouts", label="h", args={})
+        status_summary(db)
+        assert db.get_task(tid).status == "pending"
+
+    def test_find_next_ready_is_read_only(self, db):
+        tid = db.add_task(type="gen_calibration_holdouts", label="h", args={})
+        assert db.find_next_ready_task().id == tid
+        assert db.get_task(tid).status == "pending"
+
+    def test_pick_uses_rowcount(self, db, monkeypatch):
+        """R7: if another runner claimed the row first, we must not return it."""
+        tid = db.add_task(type="gen_calibration_holdouts", label="h", args={})
+        real_connect = db._connect
+
+        def racy_connect():
+            conn = real_connect()
+            orig = conn.execute
+
+            def execute(sql, *p):
+                if sql.startswith("UPDATE tasks SET status = 'running'"):
+                    # Simulate the other runner winning the race.
+                    orig("UPDATE tasks SET status = 'running' WHERE id = ?", (tid,))
+                return orig(sql, *p)
+
+            conn.execute = execute
+            return conn
+
+        monkeypatch.setattr(db, "_connect", racy_connect)
+        assert db.pick_next_ready_task() is None
+
+    def test_clean_requires_yes(self, db):
+        tid = db.add_task(type="gen_calibration_holdouts", label="h", args={})
+        db.mark_task(tid, status="completed")
+        assert db.clean_tasks(status="completed", yes=False) == 1
+        assert db.get_task(tid) is not None
+        assert db.clean_tasks(status="completed", yes=True) == 1
+        assert db.get_task(tid) is None
+
+    def test_clean_keeps_deps_of_pending_tasks(self, db):
+        """R9: deleting a completed train task must not strand its pending audits."""
+        train = db.add_task(type="train", label="t", args={})
+        db.mark_task(train, status="completed")
+        db.add_task(type="audit_prompt_injection", label="a", args={}, depends_on=[train])
+        assert db.clean_tasks(status="completed", yes=True) == 0
+        assert db.get_task(train) is not None
+
+    def test_remove_refuses_running_even_with_force(self, db):
+        """R8: deleting a running row makes the runner's next mark_task raise."""
+        tid = db.add_task(type="gen_calibration_holdouts", label="h", args={})
+        db.mark_task(tid, status="running", pid=os.getpid())
+        assert db.remove_task(tid, force=True) is False
+        assert db.get_task(tid) is not None
