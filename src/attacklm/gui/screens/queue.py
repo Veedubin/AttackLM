@@ -25,7 +25,15 @@ _ATTACK_CHOICES = [
     ("Gauntlet: core (1,2,3,7)", "core"),
     ("Gauntlet: quick (1,2)", "quick"),
 ]
-_GAUNTLETS = {"core", "quick", "full", "memorization"}
+# Members of each gauntlet preset, by short attack id — kept as a local
+# dict (rather than importing attacklm.queue.gauntlet.GAUNTLET_PRESETS) so
+# this screen stays decoupled from the queue internals other agents are
+# editing in parallel. Must stay consistent with _ATTACK_CHOICES above.
+_GAUNTLET_MEMBERS: dict[str, list[str]] = {
+    "core": ["1", "2", "3", "7"],
+    "quick": ["1", "2"],
+}
+_GAUNTLETS = set(_GAUNTLET_MEMBERS)
 _COLUMNS = ("#", "Type", "Status", "Label", "Depends", "Artifact")
 
 
@@ -114,8 +122,31 @@ class QueueScreen(_BaseCommandScreen):
                 cmd += ["--adapter", adapter]
         return cmd
 
-    async def _run_then_refresh(self, cmd: list[str]) -> None:
-        await self._run_and_display(cmd)
+    def _enqueue_cmds(self, base_model: str, adapter: str, attack: str) -> list[list[str]]:
+        """Build the command(s) to run for the Enqueue button.
+
+        Gauntlets normally just enqueue `gauntlet <preset>`, which depends on
+        the latest train task and inherits its model/adapter. But if the user
+        explicitly filled in a base model or adapter, that selection must be
+        preserved — so expand the preset into one `add-audit` per member
+        instead of silently running `--attack all` (which would drop the
+        preset choice, e.g. 'quick' becoming every shipped attack).
+        """
+        if attack in _GAUNTLETS and (base_model or adapter):
+            cmds = []
+            for member in _GAUNTLET_MEMBERS[attack]:
+                cmd = self._base_cmd() + ["add-audit", "--attack", member]
+                if base_model:
+                    cmd += ["--base-model", base_model]
+                if adapter:
+                    cmd += ["--adapter", adapter]
+                cmds.append(cmd)
+            return cmds
+        return [self._enqueue_cmd(base_model, adapter, attack)]
+
+    async def _run_then_refresh(self, cmds: list[list[str]]) -> None:
+        for cmd in cmds:
+            await self._run_and_display(cmd)
         self._refresh()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -126,21 +157,18 @@ class QueueScreen(_BaseCommandScreen):
             self._refresh()
         elif bid == "btn-queue-enqueue":
             values = self._get_values()
-            attack = self.query_one("#queue_attack", Select).value or "core"
-            cmd = self._enqueue_cmd(values.get("queue_base_model", ""), values.get("queue_adapter", ""), str(attack))
-            if attack in _GAUNTLETS and (values.get("queue_base_model") or values.get("queue_adapter")):
-                # Gauntlets inherit from the train task; standalone runs need add-audit per attack.
-                cmd = self._base_cmd() + ["add-audit", "--attack", "all",
-                                          "--base-model", values.get("queue_base_model", ""),
-                                          "--adapter", values.get("queue_adapter", "")]
-            asyncio.create_task(self._run_then_refresh(cmd))
+            attack = str(self.query_one("#queue_attack", Select).value or "core")
+            cmds = self._enqueue_cmds(
+                values.get("queue_base_model", ""), values.get("queue_adapter", ""), attack
+            )
+            asyncio.create_task(self._run_then_refresh(cmds))
         elif bid == "btn-queue-start":
-            asyncio.create_task(self._run_then_refresh(self._base_cmd() + ["start", "--detach"]))
+            asyncio.create_task(self._run_then_refresh([self._base_cmd() + ["start", "--detach"]]))
         elif bid == "btn-queue-stop":
-            asyncio.create_task(self._run_then_refresh(self._base_cmd() + ["stop"]))
+            asyncio.create_task(self._run_then_refresh([self._base_cmd() + ["stop"]]))
         elif bid == "btn-queue-retry":
             tid = self._selected_task_id()
             if tid is None:
                 self.query_one("#cmd-output", RichLog).write("[yellow]Select a task first.[/]")
                 return
-            asyncio.create_task(self._run_then_refresh(self._base_cmd() + ["retry", str(tid)]))
+            asyncio.create_task(self._run_then_refresh([self._base_cmd() + ["retry", str(tid)]]))

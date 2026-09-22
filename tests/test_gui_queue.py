@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from textual.widgets import Button, Input, RichLog, Select
 
 from attacklm.gui.app import AttackLMApp
 from attacklm.gui.screens.queue import QueueScreen
@@ -66,3 +67,124 @@ class TestQueueScreen:
         cmd = screen._enqueue_cmd(base_model="b", adapter="/a", attack="1")
         assert "add-audit" in cmd and cmd[cmd.index("--attack") + 1] == "1"
         assert cmd[cmd.index("--adapter") + 1] == "/a" and cmd[cmd.index("--base-model") + 1] == "b"
+
+
+class TestQueueButtonPresses:
+    """Exercise on_button_pressed via real button presses (Button.press()
+    posts the Pressed event without needing screen coordinates), with
+    QueueScreen._run_then_refresh monkeypatched to capture the command
+    list(s) instead of spawning subprocesses."""
+
+    def _capture(self, monkeypatch):
+        captured: list[list[list[str]]] = []
+
+        async def fake_run_then_refresh(self, cmds):
+            captured.append(cmds)
+
+        monkeypatch.setattr(QueueScreen, "_run_then_refresh", fake_run_then_refresh)
+        return captured
+
+    @pytest.mark.asyncio
+    async def test_enqueue_numeric_attack_with_model_fields(self, tmp_path, monkeypatch):
+        _patch_presets(monkeypatch, tmp_path)
+        captured = self._capture(monkeypatch)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            app.screen.query_one("#queue_adapter", Input).value = "/a"
+            app.screen.query_one("#queue_attack", Select).value = "1"
+            app.screen.query_one("#btn-queue-enqueue", Button).press()
+            await pilot.pause()
+
+        assert len(captured) == 1
+        cmds = captured[0]
+        assert len(cmds) == 1
+        cmd = cmds[0]
+        assert "add-audit" in cmd
+        assert cmd[cmd.index("--attack") + 1] == "1"
+        assert cmd[cmd.index("--adapter") + 1] == "/a"
+
+    @pytest.mark.asyncio
+    async def test_enqueue_gauntlet_quick_no_model_fields(self, tmp_path, monkeypatch):
+        _patch_presets(monkeypatch, tmp_path)
+        captured = self._capture(monkeypatch)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            app.screen.query_one("#queue_attack", Select).value = "quick"
+            app.screen.query_one("#btn-queue-enqueue", Button).press()
+            await pilot.pause()
+
+        assert len(captured) == 1
+        cmds = captured[0]
+        assert len(cmds) == 1
+        assert cmds[0][-2:] == ["gauntlet", "quick"]
+
+    @pytest.mark.asyncio
+    async def test_enqueue_gauntlet_quick_with_adapter_expands(self, tmp_path, monkeypatch):
+        _patch_presets(monkeypatch, tmp_path)
+        captured = self._capture(monkeypatch)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            app.screen.query_one("#queue_adapter", Input).value = "/a"
+            app.screen.query_one("#queue_attack", Select).value = "quick"
+            app.screen.query_one("#btn-queue-enqueue", Button).press()
+            await pilot.pause()
+
+        assert len(captured) == 1
+        cmds = captured[0]
+        assert len(cmds) == 2
+        attacks = []
+        for cmd in cmds:
+            assert "add-audit" in cmd
+            assert cmd[cmd.index("--adapter") + 1] == "/a"
+            attacks.append(cmd[cmd.index("--attack") + 1])
+        assert attacks == ["1", "2"]
+
+    @pytest.mark.asyncio
+    async def test_start_runner_button(self, tmp_path, monkeypatch):
+        _patch_presets(monkeypatch, tmp_path)
+        captured = self._capture(monkeypatch)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            app.screen.query_one("#btn-queue-start", Button).press()
+            await pilot.pause()
+
+        db_path = tmp_path / "q.db"
+        assert captured == [[["attacklm", "queue", "--db-path", str(db_path), "start", "--detach"]]]
+
+    @pytest.mark.asyncio
+    async def test_stop_runner_button(self, tmp_path, monkeypatch):
+        _patch_presets(monkeypatch, tmp_path)
+        captured = self._capture(monkeypatch)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            app.screen.query_one("#btn-queue-stop", Button).press()
+            await pilot.pause()
+
+        db_path = tmp_path / "q.db"
+        assert captured == [[["attacklm", "queue", "--db-path", str(db_path), "stop"]]]
+
+    @pytest.mark.asyncio
+    async def test_retry_with_empty_table_shows_message(self, tmp_path, monkeypatch):
+        _patch_presets(monkeypatch, tmp_path)
+        captured = self._capture(monkeypatch)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            app.screen.query_one("#btn-queue-retry", Button).press()
+            await pilot.pause()
+            log = app.screen.query_one("#cmd-output", RichLog)
+            text = "\n".join(strip.text for strip in log.lines)
+
+        assert captured == []
+        assert "Select a task first" in text
