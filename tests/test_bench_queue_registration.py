@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from attacklm.queue.compare import ITEM_METRICS, SHIPPED_ATTACKS
+from attacklm.queue.compare import HIGHER_IS_WORSE, ITEM_METRICS, SHIPPED_ATTACKS
 from attacklm.queue.gauntlet import GAUNTLET_PRESETS, expand_gauntlet
 from attacklm.queue.registry import REGISTRY
 
@@ -42,6 +42,36 @@ def test_registered_in_shipped_attacks():
 def test_item_metrics_contract():
     entries = ITEM_METRICS["bench_cybermetric"]
     assert ("score", "question_id", "category") in entries
+
+
+def test_capability_metric_direction_is_inverted():
+    """A capability score rising is an IMPROVEMENT, unlike every audit metric.
+
+    Without this, a model that genuinely got better at answering security
+    questions would be reported WORSE, inverting the signal training is
+    steered by.
+    """
+    assert HIGHER_IS_WORSE["bench_cybermetric"] is False
+
+
+def test_audit_metrics_remain_higher_is_worse():
+    for attack in (
+        "audit_prompt_injection",
+        "audit_system_prompt",
+        "audit_canary_pipeline",
+        "audit_calibration",
+    ):
+        assert HIGHER_IS_WORSE[attack] is True
+
+
+def test_unknown_attack_defaults_to_higher_is_worse():
+    """Over-reporting a regression is the safer error for an unlabelled metric."""
+    assert HIGHER_IS_WORSE.get("some_future_attack", True) is True
+
+
+def test_every_shipped_attack_declares_a_direction():
+    for attack in SHIPPED_ATTACKS:
+        assert attack in HIGHER_IS_WORSE, f"{attack} has no declared metric direction"
 
 
 def test_existing_attacks_untouched():

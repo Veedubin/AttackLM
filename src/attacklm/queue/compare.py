@@ -48,6 +48,27 @@ ITEM_METRICS: dict[str, list[tuple[str, str, str]]] = {
     # entry, which contaminated items omit the same way.
     "bench_cybermetric": [("score", "question_id", "category")],
 }
+
+# Metric DIRECTION per attack, used for the BETTER/WORSE label.
+#
+# Every audit measures a failure -- attack success rate, system-prompt
+# leakage, canary extraction, calibration error -- so a rise is a regression
+# and `higher_is_worse` is True. A capability benchmark measures success, so a
+# rise is an improvement. Without this distinction a model that genuinely got
+# BETTER at answering security questions would be reported as WORSE, inverting
+# the signal that training decisions are steered by.
+#
+# Unknown attacks default to True: for this project a new metric is far more
+# likely to measure failure, and over-reporting a regression is the safer
+# error.
+HIGHER_IS_WORSE: dict[str, bool] = {
+    "audit_prompt_injection": True,
+    "audit_system_prompt": True,
+    "audit_canary_pipeline": True,
+    "audit_calibration": True,
+    "bench_cybermetric": False,
+}
+
 # attack -> metric keys shown as Δ only (no per-item scores exist).
 # audit_calibration's real report shape (scripts/eval_calibration.py) is
 # {"results": {"in_distribution": {...}, "near_ood": {...}|None, "ood": {...}|None}},
@@ -278,7 +299,8 @@ def compare_runs(
                                     "n/a", "no paired items"))
                     continue
                 rows.append(Row(attack, metric, cat, iv.n, _mean(a_vals), _mean(b_vals),
-                                iv.delta, iv.lo, iv.hi, verdict(iv, higher_is_worse=True)))
+                                iv.delta, iv.lo, iv.hi,
+                                verdict(iv, HIGHER_IS_WORSE.get(attack, True))))
         if attack == "audit_calibration":
             # I1: no flat "summary" dict exists for calibration -- the real
             # writer (scripts/eval_calibration.py) nests brier/ece under
