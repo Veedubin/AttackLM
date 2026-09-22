@@ -350,6 +350,49 @@ def _find_latest_run_dir(agent_name: str) -> Path | None:
     return candidates[0] if candidates else None
 
 
+def _export_dataset_provenance(bucket_names: list[str], specs: list[str]) -> dict:
+    """Record WHICH buckets a spec actually resolved to, for state.json.
+
+    Recording the spec strings alone is insufficient: an alias's meaning can
+    change between releases (``all`` gained the defensive/* category on
+    2026-09-22, going from 34 buckets to 37), and two runs recording
+    ``specs=["all"]`` would then be indistinguishable despite training on
+    corpora differing by 29% of the data.
+
+    Also records the dataset package version and the combined-dataset cache
+    key — a content hash over the sorted bucket list, and so the tightest
+    single fingerprint of "exactly this corpus" available.
+
+    Communicated to train_template.py through ATTACKLM_DATASET_RESOLVED, the
+    same env-var channel v0.1.6 already uses for ATTACKLM_DATASET_SPECS.
+    """
+    provenance: dict = {
+        "buckets": sorted(bucket_names),
+        "n_buckets": len(bucket_names),
+        "specs": sorted(specs),
+    }
+
+    try:  # cache_key lives beside the resolver; mirror the import above
+        from attacklm_dataset.scripts.bucket_loader import cache_key
+    except ImportError:
+        try:
+            from bucket_loader import cache_key
+        except ImportError:
+            cache_key = None  # type: ignore[assignment]
+    if cache_key is not None:
+        provenance["cache_key"] = cache_key(bucket_names, {})
+
+    try:
+        from importlib.metadata import version
+
+        provenance["dataset_version"] = version("attacklm-dataset")
+    except Exception:
+        provenance["dataset_version"] = None
+
+    os.environ["ATTACKLM_DATASET_RESOLVED"] = json.dumps(provenance)
+    return provenance
+
+
 def build_train_cmd(
     args,
     dataset_path: Path,
@@ -1211,6 +1254,14 @@ def main():
         # Resolve specs → bucket dicts (with dedup)
         resolved_buckets = resolve_dataset_specs(specs)
         bucket_names = [b["path"] for b in resolved_buckets]
+
+        # Provenance: a spec STRING is not an identity. "all" resolved to 34
+        # buckets before 2026-09-22 and 37 after (the defensive/* category was
+        # unreachable from the resolver), so a state.json recording only
+        # specs=["all"] cannot tell those two corpora apart, and any model
+        # trained before the fix becomes unreproducible. Record the RESOLVED
+        # bucket list instead. See docs/DEFENSIVE_BUCKETS_RESOLVER.md.
+        _export_dataset_provenance(bucket_names, specs)
 
         # flags_used is the cache key, so we use the resolved spec list
         # (not the old booleans) to ensure two equivalent invocations

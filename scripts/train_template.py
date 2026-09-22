@@ -2753,10 +2753,21 @@ def main() -> None:
     # Prefer the in-process composition (from direct --evolved-ratio invocation)
     # over the env var (from train_all.py delegation)
     final_evolved_composition = evolved_composition or evolved_composition_from_env
+    # Provenance: WHICH buckets the specs actually resolved to. A spec string
+    # is not an identity -- "all" meant 34 buckets before 2026-09-22 and 37
+    # after -- so `specs` alone cannot distinguish two materially different
+    # corpora, and a model trained under the old meaning is unreproducible.
+    # Set by train_all._export_dataset_provenance.
+    env_resolved = os.environ.get("ATTACKLM_DATASET_RESOLVED", "")
+    try:
+        dataset_resolved = json.loads(env_resolved) if env_resolved else None
+    except ValueError:
+        dataset_resolved = None
     dataset_info = {
         "source": getattr(args, "dataset_source", "file"),
         "path": args.dataset,
         "specs": specs_from_env or getattr(args, "dataset_specs", None),
+        "resolved": dataset_resolved,
         "buckets": getattr(args, "buckets", None),
         "include_tools": getattr(args, "include_tools", None),
         "include_ai": getattr(args, "include_ai", None),

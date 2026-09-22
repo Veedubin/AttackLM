@@ -52,6 +52,13 @@ REGISTRY: dict[str, TaskSpec] = {
         consumes_artifact=None,
         arg_schema={
             "base_model": {"type": "string", "required": False},
+            # Dataset composition. Without this the queue could not record
+            # WHICH corpus a run trained on, so a later change to an alias's
+            # meaning (e.g. `all` gaining the defensive/* category) silently
+            # orphaned every earlier run's baseline. train_all.py additionally
+            # records the RESOLVED bucket list into state.json, because the
+            # spec string alone is not an identity.
+            "dataset": {"type": "string", "required": False},
             "single_model": {"type": "boolean", "required": False},
             "single_model_name": {"type": "string", "required": False},
             "include_orchestrator": {"type": "boolean", "required": False},
