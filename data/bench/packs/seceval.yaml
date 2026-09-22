@@ -1,0 +1,31 @@
+# seceval
+#
+# mode: local_scored. inspect_evals does not implement this benchmark, so we
+# own the items and the scoring; the harness only generates completions.
+#
+# CC BY-NC-SA 4.0, so fetch-only and never committed.
+#
+# ~43% of its 2,189 items are multiple-SELECT (answers like "AC", "BD"), so
+# items carry ground_truth type mcq_multi and are graded on exact set match --
+# the convention its published numbers use.
+name: seceval
+harness_task: attacklm.bench.adapters.inspect_tasks@jsonl_task
+mode: local_scored
+
+source:
+  kind: huggingface
+  repo: XuanwuAI/SecEval
+  config: questions.json
+  revision: 205dab7b0888a06f4b53ca7d9c7093e1326683e1
+  sha256: null
+
+license: CC-BY-NC-SA-4.0
+redistributable: false
+
+metric: accuracy
+chance_level: 0.25
+
+reference_scores: {}
+
+ladder: [100, 200, 400, 800, null]
+categories_from: field:category

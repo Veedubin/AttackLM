@@ -34,6 +34,8 @@ SHIPPED_ATTACKS = [
     "bench_cybermetric",
     "bench_ctibench_mcq",
     "bench_ctibench_ate",
+    "bench_secbench_en",
+    "bench_seceval",
 ]
 
 # attack -> [(metric, id_key, category_key)]
@@ -64,6 +66,14 @@ ITEM_METRICS: dict[str, list[tuple[str, str, str]]] = {
         ("score", "question_id", "category"),
         ("score_clean", "question_id", "category"),
     ],
+    "bench_secbench_en": [
+        ("score", "question_id", "category"),
+        ("score_clean", "question_id", "category"),
+    ],
+    "bench_seceval": [
+        ("score", "question_id", "category"),
+        ("score_clean", "question_id", "category"),
+    ],
 }
 
 # Metric DIRECTION per attack, used for the BETTER/WORSE label.
@@ -86,6 +96,8 @@ HIGHER_IS_WORSE: dict[str, bool] = {
     "bench_cybermetric": False,
     "bench_ctibench_mcq": False,
     "bench_ctibench_ate": False,
+    "bench_secbench_en": False,
+    "bench_seceval": False,
 }
 
 # attack -> metric keys shown as Δ only (no per-item scores exist).

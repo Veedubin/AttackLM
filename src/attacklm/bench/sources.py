@@ -18,6 +18,7 @@ from documentation.
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 from typing import Any, Callable
 
@@ -25,8 +26,8 @@ from typing import Any, Callable
 CACHE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "bench" / "cache"
 
 _MCQ_SYSTEM = (
-    "You are a cyber threat intelligence analyst. Answer the multiple-choice "
-    "question with the single letter of the correct option."
+    "You are a security expert answering a multiple-choice question. "
+    "Reply with the letter(s) of every correct option."
 )
 _ATE_SYSTEM = (
     "You are a cyber threat intelligence analyst. Extract every MITRE ATT&CK "
@@ -105,10 +106,102 @@ def load_ctibench_ate(path: Path) -> list[dict[str, Any]]:
     return items
 
 
+_LETTERS = ("A", "B", "C", "D", "E", "F")
+
+
+def _gt_for_letters(label: str) -> dict[str, Any]:
+    """Single letter -> mcq_choice; several -> mcq_multi.
+
+    Choosing per item rather than per pack is not a nicety: SecEval is ~43%
+    multiple-SELECT ("AC", "BD"), and grading those with a single-letter
+    extractor would be flatly wrong rather than merely imprecise.
+    """
+    letters = [c for c in label.strip().upper() if c in _LETTERS]
+    if len(letters) == 1:
+        return {"type": "mcq_choice", "answer": letters[0]}
+    return {"type": "mcq_multi", "answer": letters}
+
+
+def load_secbench_mcq(path: Path, language: str = "English") -> list[dict[str, Any]]:
+    """SecBench MCQs_2730.jsonl -> items.
+
+    Columns: question, answers (list), label, language, ability, domain.
+
+    Filtered to English by default: 2,069 of the 2,730 public items are
+    Chinese, and mixing languages would confound a capability delta with a
+    multilingual one. Pass language=None to keep everything.
+    """
+    items: list[dict[str, Any]] = []
+    for idx, row in enumerate(
+        json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()
+    ):
+        if language and row.get("language") != language:
+            continue
+        options = "\n".join(
+            f"{letter}. {text}" for letter, text in zip(_LETTERS, row["answers"])
+        )
+        items.append(
+            {
+                "question_id": f"secbench_mcq_{idx:05d}",
+                "category": row.get("domain") or "uncategorised",
+                "tier": row.get("ability") or "mcq",
+                "messages": [
+                    {"role": "system", "content": _MCQ_SYSTEM},
+                    {"role": "user", "content": f"{row['question']}\n\n{options}"},
+                ],
+                "ground_truth": _gt_for_letters(row["label"]),
+                "metadata": {
+                    "pack": "secbench-en",
+                    "source_index": idx,
+                    "language": row.get("language"),
+                    "license": "MIT",
+                },
+            }
+        )
+    return items
+
+
+def load_seceval(path: Path) -> list[dict[str, Any]]:
+    """SecEval questions.json -> items.
+
+    Keys: id, source, question, choices (pre-lettered "A: ..."), answer,
+    keyword, topics. Roughly 43% of answers are multi-letter, so the item type
+    is chosen per item.
+    """
+    data = json.loads(Path(path).read_text())
+    items: list[dict[str, Any]] = []
+    for idx, row in enumerate(data):
+        topics = row.get("topics") or []
+        items.append(
+            {
+                "question_id": f"seceval_{idx:05d}",
+                "category": (topics[0] if topics else row.get("source")) or "uncategorised",
+                "tier": "mcq",
+                "messages": [
+                    {"role": "system", "content": _MCQ_SYSTEM},
+                    {
+                        "role": "user",
+                        "content": row["question"] + "\n\n" + "\n".join(row["choices"]),
+                    },
+                ],
+                "ground_truth": _gt_for_letters(row["answer"]),
+                "metadata": {
+                    "pack": "seceval",
+                    "source_index": idx,
+                    "upstream_id": row.get("id"),
+                    "license": "CC-BY-NC-SA-4.0",
+                },
+            }
+        )
+    return items
+
+
 # pack name -> (upstream filename, loader)
 SOURCE_LOADERS: dict[str, tuple[str, Callable[[Path], list[dict[str, Any]]]]] = {
     "ctibench-mcq": ("cti-mcq.tsv", load_ctibench_mcq),
     "ctibench-ate": ("cti-ate.tsv", load_ctibench_ate),
+    "secbench-en": ("data/MCQs_2730.jsonl", load_secbench_mcq),
+    "seceval": ("questions.json", load_seceval),
 }
 
 

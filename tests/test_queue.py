@@ -190,6 +190,8 @@ class TestRegistry:
             "bench_cybermetric",
             "bench_ctibench_mcq",
             "bench_ctibench_ate",
+            "bench_secbench_en",
+            "bench_seceval",
         }
 
     def test_train_spec(self):

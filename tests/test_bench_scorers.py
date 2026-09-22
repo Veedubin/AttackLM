@@ -345,3 +345,73 @@ def test_key_precedence_matches_mcq_across_both_scorers():
     )
     assert score_item(tech, "T1059", ScoreConfig()).score == 1.0
     assert score_item(tech, "T1001", ScoreConfig()).score == 0.0
+
+
+# --------------------------------------------------------------------------
+# multiple-SELECT (SecEval is ~43% of these; SecBench has 9 in its EN subset)
+# --------------------------------------------------------------------------
+
+
+def _multi(answer=("A", "C")):
+    return BenchItem(
+        "q1", "net", "mcq", [{"role": "user", "content": "?"}],
+        {"type": "mcq_multi", "answer": list(answer)}, {},
+    )
+
+
+def test_multi_exact_set_match_scores_one():
+    assert score_item(_multi(), "Answer: AC", ScoreConfig()).score == 1.0
+
+
+def test_multi_order_does_not_matter():
+    assert score_item(_multi(), "Answer: CA", ScoreConfig()).score == 1.0
+
+
+def test_multi_adjacent_letters_are_all_extracted():
+    """"ABC" must not truncate to "A" -- that scored a correct answer 0.0."""
+    s = score_item(_multi(("A", "B", "C")), "Answer: ABC", ScoreConfig())
+    assert s.score == 1.0 and s.extracted == "ABC"
+
+
+def test_multi_connector_word_and_is_not_read_as_option_d():
+    """The "d" in "and" is itself a valid option letter."""
+    s = score_item(_multi(("A", "C")), "Answer: A, B and C", ScoreConfig())
+    assert s.extracted == "ABC"          # B included, D NOT invented
+    assert "D" not in s.extracted
+
+
+def test_multi_partial_overlap_is_zero_under_exact():
+    assert score_item(_multi(("A", "C")), "Answer: A", ScoreConfig()).score == 0.0
+
+
+def test_multi_partial_mode_gives_jaccard():
+    cfg = ScoreConfig(multi_select="partial")
+    # predicted {A}, gold {A,C} -> 1/2
+    assert score_item(_multi(("A", "C")), "Answer: A", cfg).score == 0.5
+
+
+def test_multi_superset_is_wrong_under_exact():
+    assert score_item(_multi(("A", "C")), "Answer: ABC", ScoreConfig()).score == 0.0
+
+
+def test_multi_refusal_is_invalid():
+    s = score_item(_multi(), "I cannot help with that.", ScoreConfig())
+    assert s.valid is False
+
+
+def test_multi_answer_may_be_given_as_a_string_key():
+    item = BenchItem("q1", "n", "m", [{"role": "user", "content": "?"}],
+                     {"type": "mcq_multi", "answer": "AC"}, {})
+    assert score_item(item, "Answer: AC", ScoreConfig()).score == 1.0
+
+
+def test_multi_empty_key_raises():
+    item = BenchItem("q1", "n", "m", [{"role": "user", "content": "?"}],
+                     {"type": "mcq_multi", "answer": []}, {})
+    with pytest.raises(ValueError, match="empty answer key"):
+        score_item(item, "Answer: A", ScoreConfig())
+
+
+def test_multi_bad_mode_raises():
+    with pytest.raises(ValueError, match="nonsense"):
+        score_item(_multi(), "Answer: A", ScoreConfig(multi_select="nonsense"))

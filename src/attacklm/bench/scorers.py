@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from attacklm.bench.items import BenchItem
 
 INVALID_POLICIES = ("count_wrong", "exclude", "fail_run")
+MULTI_SELECT_MODES = ("exact", "partial")
 SUBTECHNIQUE_POLICIES = ("strip", "keep", "either")
 
 # Ordered most-explicit first: an <xml>D</xml> or "Answer: D" beats a stray
@@ -60,6 +61,7 @@ class ScoreConfig:
 
     answer_regex: str | None = None
     invalid_policy: str = "count_wrong"
+    multi_select: str = "exact"  # see _score_mcq_multi
     attack_id_subtechniques: str = "strip"
 
 
@@ -222,8 +224,83 @@ def _score_attack_technique_set(
     )
 
 
+
+
+_MULTI_MARKER = re.compile(
+    # The separator is OPTIONAL: models write "ABC" as often as "A, B and C",
+    # and requiring one silently truncated every adjacent-letter answer to its
+    # first letter -- scoring a correct multi-select answer 0.0.
+    r"(?:answer|answers|options|choices)\s*(?:are|is|:|=)\s*"
+    r"([A-Da-d](?:\s*(?:,|and|/|&)?\s*[A-Da-d])*)",
+    re.IGNORECASE,
+)
+
+
+def _extract_mcq_multi(completion: str, answer_regex: str | None) -> set[str]:
+    """Every option letter the answer selects.
+
+    Unlike the single-choice extractor, several letters are the EXPECTED shape
+    here, so a set of them is a valid answer rather than an ambiguity.
+    """
+    if answer_regex:
+        m = re.search(answer_regex, completion)
+        return set(re.findall(r"[A-Da-d]", m.group(1).upper())) if m else set()
+
+    m = _MULTI_MARKER.search(completion)
+    if m:
+        # Strip connector WORDS before pulling letters out: the "d" in "and"
+        # is itself a valid option letter, so "A, B and C" would otherwise
+        # yield a spurious D.
+        span = re.sub(r"\b(?:and|or)\b", " ", m.group(1), flags=re.IGNORECASE)
+        return set(re.findall(r"[A-D]", span.upper()))
+
+    return {m.group(1) for m in re.finditer(_ANY_LETTER, completion.upper())}
+
+
+def _score_mcq_multi(item: BenchItem, completion: str, cfg: ScoreConfig) -> ItemScore:
+    """Multiple-SELECT question: the answer key is a set of letters.
+
+    SecEval and part of SecBench are multiple-select -- roughly 43% of
+    SecEval's items have answers like "AC" or "BD". Grading those with the
+    single-choice extractor would be flatly wrong, not merely imprecise.
+
+    ``multi_select="exact"`` (the default) scores 1.0 only for an exact set
+    match, which is the convention these benchmarks' published numbers use.
+    ``"partial"`` scores Jaccard over the two sets, which is more forgiving and
+    therefore NOT comparable to published figures -- hence not the default.
+    """
+    if cfg.multi_select not in MULTI_SELECT_MODES:
+        raise ValueError(
+            f"unknown multi_select {cfg.multi_select!r}; expected one of {MULTI_SELECT_MODES}"
+        )
+
+    raw = item.ground_truth.get("acceptable")
+    if raw is None:
+        raw = item.ground_truth.get("answer")
+    if isinstance(raw, str):
+        raw = list(raw)
+    gold = {str(x).strip().upper() for x in (raw or []) if str(x).strip()}
+    if not gold:
+        raise ValueError(f"{item.question_id}: empty answer key for mcq_multi")
+
+    predicted = _extract_mcq_multi(completion, cfg.answer_regex)
+    if not predicted:
+        return _invalid(item, cfg)
+
+    if cfg.multi_select == "exact":
+        score = 1.0 if predicted == gold else 0.0
+    else:
+        union = predicted | gold
+        score = len(predicted & gold) / len(union) if union else 0.0
+
+    return ItemScore(
+        item.question_id, item.category, score, "".join(sorted(predicted)), True
+    )
+
+
 _SCORERS = {
     "mcq_choice": _score_mcq_choice,
+    "mcq_multi": _score_mcq_multi,
     "attack_technique_set": _score_attack_technique_set,
 }
 

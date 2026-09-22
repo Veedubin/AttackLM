@@ -46,6 +46,8 @@ GAUNTLET_PRESETS: dict[str, list[dict[str, Any]]] = {
         {"type": "bench_ctibench_mcq", "args": {"pack": "ctibench-mcq"}},
         {"type": "bench_ctibench_ate", "args": {"pack": "ctibench-ate"}},
         {"type": "bench_cybermetric", "args": {"pack": "cybermetric-500"}},
+        {"type": "bench_secbench_en", "args": {"pack": "secbench-en"}},
+        {"type": "bench_seceval", "args": {"pack": "seceval"}},
     ],
 }
 

@@ -1,0 +1,30 @@
+# secbench-en
+#
+# mode: local_scored. inspect_evals does not implement this benchmark, so we
+# own the items and the scoring; the harness only generates completions.
+#
+# MIT licensed -- the only one of the four we could legally vendor. Fetched
+# anyway for consistency. Filtered to English: 2,069 of the 2,730 public items
+# are Chinese, and mixing languages would confound a capability delta with a
+# multilingual one.
+name: secbench-en
+harness_task: attacklm.bench.adapters.inspect_tasks@jsonl_task
+mode: local_scored
+
+source:
+  kind: huggingface
+  repo: secbench-hf/SecBench
+  config: data/MCQs_2730.jsonl
+  revision: 7ed8fa844f15ba10762b8b676b4616749f42f29a
+  sha256: null
+
+license: MIT
+redistributable: true
+
+metric: accuracy
+chance_level: 0.25
+
+reference_scores: {}
+
+ladder: [100, 200, 400, null]
+categories_from: field:category
