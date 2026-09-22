@@ -3,8 +3,8 @@
 [![PyPI version](https://img.shields.io/pypi/v/attacklm.svg?label=version&color=blue)](https://pypi.org/project/attacklm/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://docs.python.org/3.10/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests: 541+](https://img.shields.io/badge/tests-541%2B-brightgreen.svg)](#testing)
-[![GH release: v0.17.4](https://img.shields.io/badge/release-v0.17.4-blue.svg)](https://github.com/Veedubin/AttackLM/releases)
+[![Tests: 652+](https://img.shields.io/badge/tests-652%2B-brightgreen.svg)](#testing)
+[![GH release: v0.19.0](https://img.shields.io/badge/release-v0.19.0-blue.svg)](https://github.com/Veedubin/AttackLM/releases)
 
 **A security-AI fine-tuning platform and research toolkit.**
 
@@ -39,6 +39,7 @@ or guides you to install it.
 - [What you can do](#what-you-can-do)
   - [Train a security LLM](#train-a-security-llm)
   - [Audit a model for memorized data](#audit-a-model-for-memorized-data)
+  - [Queue & gauntlets](#queue--gauntlets)
   - [Run the TUI](#run-the-tui)
 - [Training methods](#training-methods)
 - [Dataset & provenance](#dataset--provenance)
@@ -120,9 +121,9 @@ pip install -e ".[all]"
 ### Verify
 
 ```bash
-attacklm --version       # 0.17.4
+attacklm --version       # 0.19.0
 attacklm --help
-pytest tests/ -q         # 541+ passed
+pytest tests/ -q         # 652+ passed
 ```
 
 **Note on the audit harness**: AttackLM wraps
@@ -190,6 +191,36 @@ network, does not require GPU, runs on a CPU laptop in minutes.
 Mocked model loaders mean you can test the audit pipeline in CI
 without owning a real model.
 
+### Queue & gauntlets
+
+`attacklm queue` chains a training run to a gauntlet of audits so
+you can walk away and come back to reports. The headline flow:
+
+```bash
+attacklm queue chain --single-model --then gauntlet core
+attacklm queue start --follow
+```
+
+Prefer to run it in the background and check in later:
+
+```bash
+attacklm queue start --detach            # forks a runner, prints its PID
+attacklm queue status                    # or: attacklm queue list
+```
+
+Audit an already-trained model directly (no training task needed)
+with `add-audit`:
+
+```bash
+attacklm queue add-audit --attack 1 --base-model models/merged/attacklm-3b-16g
+attacklm queue start --exit-when-idle
+```
+
+`--base-model` may point at a merged model **or** at a PEFT adapter
+directory — in the latter case the base model is auto-resolved from
+the adapter's `adapter_config.json`. Reports land in
+`evals/queue/artifacts/<task-id>/` (gitignored, local-only).
+
 ### Run the TUI
 
 ```bash
@@ -208,6 +239,8 @@ servers (no X11, no browser, no GPU required). Features:
 - **Audit screen** — 2 tabs (Extraction / MIA), each form
   constructs the `attacklm audit` CLI command with hover
   tooltips on every field
+- **Queue screen** — enqueue audits/gauntlets, start/stop the
+  background runner, retry
 - **Pause/Resume** — SIGSTOP/SIGCONT the training process without
   losing progress
 - **One-click commands** — Init, Balance, Infer, Build, Eval,
@@ -478,12 +511,31 @@ attribution comments.
 
 Full flag list: `attacklm audit --help`.
 
+### `attacklm queue` subcommands
+
+| Subcommand | Purpose |
+| :--- | :--- |
+| `add-train` | Add a training task |
+| `add-audit` | Add an audit task (`--attack 1-7`, `--base-model`, `--adapter`) |
+| `add-holdouts` | Add a calibration-holdout generation task |
+| `chain` | Chain a train task followed by a gauntlet or audit |
+| `gauntlet` | Add a gauntlet of audit tasks (`core`/`full`/`quick`/`memorization`) |
+| `list` / `status` | List tasks / show queue or single-task status |
+| `start` | Start the runner (`--follow`, `--detach`, `--exit-when-idle`) |
+| `stop` | Stop the runner after the current task |
+| `remove` | Remove a task (refuses tasks in `running` status) |
+| `retry` | Retry a failed/interrupted task |
+| `clean` | Delete completed/failed tasks (`--yes` to confirm) |
+| `reset` | DANGER: drop and recreate the queue database |
+
+Full flag list per subcommand: `attacklm queue <subcommand> --help`.
+
 ---
 
 ## Testing
 
 AttackLM is **defensive-tested**, not just smoke-tested. As of
-v0.17.4 there are 541+ tests across 24 test files, all hermetic
+v0.19.0 there are 652+ tests across 26+ test files, all hermetic
 (no network, no GPU required, fast enough to run in CI on every
 PR):
 

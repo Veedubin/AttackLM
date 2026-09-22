@@ -1,3 +1,46 @@
+## [0.19.0] — 2026-09-22
+
+The v0.18.0 queue had never been run end-to-end (a 2026-09-22 code review found 13 findings + 7 secondary issues; see `docs/superpowers/plans/2026-09-22-queue-fix-campaign.md`). This release fixes all of them, adds a Queue screen to the TUI, and ships the first real audit results in the project's history.
+
+**Fixed** (13 findings from the review, one line each; file paths are under `src/attacklm/`):
+- **R1** `queue/display.py` — `queue status` claimed (and discarded) the next-ready task via `pick_next_ready_task()` just to display it. Now uses the read-only `find_next_ready_task()`.
+- **R2** `queue/runner.py` — `mark_task(finished_at=...)` raised `TypeError` on a timeout instead of marking the task failed.
+- **R3** `queue/runner.py` — the artifact-collection regex `^Final adapter:` never matched `train_all.py`'s actual indented `  Adapter:` output, so every train task failed to collect its adapter path.
+- **R4** `queue/runner.py` + `queue/argv.py` — the default `--output` path was never persisted back to the task, so successful audits were marked failed after the fact.
+- **R5** `queue/registry.py` — the canary task spec sent flags `audit_canary_extraction.py` rejects, omitted the required `--canaries`, and left `runner_mode="pipeline"` unhandled. Now a real two-step generate-canaries → probe pipeline (§14 of `docs/QUEUE_DESIGN.md`).
+- **R6** `queue/argv.py` — an empty inherited `base_model` string silently dropped `--base-model` from the audit argv.
+- **R7** `queue/db.py` — the atomic task-claim check compared status instead of the `UPDATE` rowcount, so two runners racing for the same row could both believe they'd won.
+- **R8** `queue/cli.py` — `remove --force` on a `running` task hit a foreign-key `IntegrityError` and killed the runner mid-task. Running tasks now refuse removal outright.
+- **R9** `queue/db.py` — `clean` deleted tasks even without `--yes` and could strand dependents of a removed task.
+- **R10** `queue/cli.py` — `--detach` and `--follow` on `queue start` were silent no-ops. Both now work (see Added).
+- **R11** `queue/cli.py` — `gauntlet --after a,b` silently dropped every id but the first.
+- **R12** `queue/cli.py` — `add-audit --label <text>` was accepted but never stored.
+- **R13** `queue/cli.py` — `retry` left the previous run's stale `result`/`artifact_path` on the task instead of clearing them.
+- **S1/S2** `queue/cli.py` (hidden `import os` at module bottom, folded into the lint pass) and the smoke-test-only finding that `--base-model <adapter dir>` was accepted by argparse but failed at model load instead of resolving the adapter + its base from `adapter_config.json`.
+- **Post-plan fix, found by the GPU smoke test**: `queue/argv.py` `_resolve_argv` required an adapter whenever a task's `consumes_artifact == "adapter"`, but every audit script's `--adapter` is genuinely optional (merged models need none). Audits now fail only when neither `--base-model` nor `--adapter` can be resolved.
+
+**Added**:
+- **Queue TUI screen** (`gui/screens/queue.py`, reachable from the main menu's "📋 Queue" button): task table, enqueue attacks 1/2/3/7 or gauntlet `core`/`quick` with an explicit base model/adapter — a gauntlet with explicit model fields expands into one `add-audit` per gauntlet member so the preset is preserved, not collapsed into `--attack all` — start the runner detached, stop it, retry the selected task, refresh.
+- `queue start --follow` tails the running task's log file live; `--detach` forks a background runner (writes `evals/queue/runner.log`, prints the child PID) instead of no-oping.
+- `queue start --exit-when-idle` — returns as soon as no task is eligible instead of polling forever; used by the new integration test and for scripted runs.
+- `python -m attacklm` entry point (`src/attacklm/__main__.py`) — used internally by `--detach`'s child process, also usable directly.
+- `ATTACKLM_SCRIPTS_DIR` environment variable — overrides where the queue looks for its scripts, so a detached runner subprocess (spawned with a different cwd) still finds them.
+- `--base-model <adapter dir>` auto-resolves to the adapter + its base model via `adapter_config.json`.
+- `tests/test_queue_integration.py` — an unmocked, real-subprocess integration test (stub scripts, ~2s) exercising add → start → detach → stop end-to-end.
+
+**Changed**:
+- Canary task schema: `canaries`/`num_canaries` replace the old `canary_format`/`inject_split` args, matching the real generate → probe pipeline.
+- `queue clean` now requires `--yes` to delete; without it, prints `Would remove N task(s). Pass --yes to delete.`
+- `queue remove` refuses tasks in `running` status (previously bypassable with `--force`, which could corrupt the runner).
+- CI lint step is now blocking (`continue-on-error` removed) — required fixing 148 pre-existing ruff errors first.
+- `cli.py`'s `init`/`balance`/`audit` delegate-to-`attacklm-dataset` logic folded into one `_delegate_to_dataset` helper (was duplicated 3×).
+
+**Tests**: 600 → 652 passed (+52: 28 queue regression tests, 6+1 integration tests, 11 GUI queue tests, 4 CLI delegate tests, 2 clean-message tests), 2 skipped. `ruff check src/ scripts/ tests/` — 148 errors → 0.
+
+**First real audit results in the project's history**, via `attacklm queue` on `models/merged/attacklm-3b-16g` (no adapter — merged model), RTX 4080 SUPER, 2026-09-22: Attack 1 (prompt-injection) ASR 47.62% (direct 25.0% n=10, indirect 70.0% n=5, crescendo 66.67% n=6), 15s. Attack 2 (system-prompt leakage) 58.16% (extraction 58.3% n=30, roleplay 70% n=5, indirect 100% n=2, translation 50% n=3, escalation 44.4% n=9), 33s. Attack 3 (canary extraction, 20 generated canaries) 0% exact / 0% loose / 0% near-verbatim, 12s — the two-step generate → probe pipeline ran end to end. Reports in `evals/queue/artifacts/{1,2,3}/` (gitignored, local-only). Attack 7 (calibration) was **not** run: `data/bench/questions.jsonl` does not exist locally (`gen_calibration_holdouts.py` needs instruction/prompt/question/text records; only chat-format `hf/data/*.jsonl` exists) — see HANDOFF.md.
+
+No PyPI publish (GitHub Actions skipped for this release — run the Release workflow manually when needed).
+
 ## [0.18.2] — 2026-09-21
 
 - **Docs-site rebuilt properly**: the 19 tracked files under `docs-site/docs/` were **broken symlinks** pointing at a sibling-checkout layout that exists neither in CI nor for cloners — the GitHub Pages build could never have worked. Replaced with build-time generation: `docs-site/sync-docs.sh` (local dev) and the "Generate docs-site content" step in `.github/workflows/docs.yml` (CI) copy the real docs into place; generated files are gitignored. Removed the `monorepo` mkdocs plugin (was declared but never installed in CI — another guaranteed build failure).
