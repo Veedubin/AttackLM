@@ -14,7 +14,7 @@ from typing import Any
 from attacklm.queue.db import QueueDB, DEFAULT_QUEUE_DIR
 from attacklm.queue.registry import REGISTRY, resolve_attack
 from attacklm.queue.gauntlet import expand_gauntlet
-from attacklm.queue.baseline import DEFAULT_BASE_MODEL, baseline_exists, baseline_task_defs, ensure_baseline
+from attacklm.queue.baseline import baseline_exists, baseline_task_defs, ensure_baseline
 from attacklm.queue.compare import SHIPPED_ATTACKS, compare_runs, latest_subject, render_table, select_run, to_json
 from attacklm.queue.history import append_jsonl, history_rows, render_history
 from attacklm.queue.display import list_tasks, status_summary, task_detail
@@ -113,7 +113,9 @@ def _queue_baseline(db: QueueDB, base_model: str | None, preset: str, args: argp
         return
     ids = ensure_baseline(db, base_model, preset, _insert_task_defs)
     if ids:
-        print(f"Baseline for {base_model} ({preset}) queued: tasks {', '.join('#' + str(i) for i in ids)}")
+        print(f"Baseline for {base_model} ({preset}) queued: tasks "
+              f"{', '.join('#' + str(i) for i in ids)} "
+              f"(~doubles this run's GPU time; --no-baseline to skip)")
     else:
         print(f"Baseline for {base_model} ({preset}) already queued/completed.")
 
@@ -271,7 +273,12 @@ def _cmd_chain(args: argparse.Namespace) -> int:
         except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
-        _queue_baseline(db, args.base_model or DEFAULT_BASE_MODEL, preset, args)
+        # I3: do NOT fall back to baseline.DEFAULT_BASE_MODEL here -- that
+        # model no longer exists on HF, so falling back to it queued GPU
+        # work guaranteed to fail (and ensure_baseline would re-queue it
+        # forever, since "failed" isn't a _LIVE status). With no explicit
+        # --base-model, take the "base model unknown" branch instead.
+        _queue_baseline(db, args.base_model, preset, args)
     elif then == "audit":
         try:
             attack_keys = resolve_attack(
@@ -330,8 +337,11 @@ def _cmd_gauntlet(args: argparse.Namespace) -> int:
     if not base:
         for dep in depends_on:
             dep_task = db.get_task(dep)
+            # I3: no DEFAULT_BASE_MODEL fallback -- an empty base_model on
+            # the train dep means "base model unknown", not "assume the
+            # (removed-from-HF) default".
             if dep_task is not None and dep_task.type == "train":
-                base = dep_task.args_dict.get("base_model") or DEFAULT_BASE_MODEL
+                base = dep_task.args_dict.get("base_model")
                 break
     _queue_baseline(db, base, preset, args)
 
@@ -357,15 +367,26 @@ def _cmd_baseline(args: argparse.Namespace) -> int:
 def _preset_attacks_for_compare(preset: str) -> list[str]:
     from attacklm.queue.gauntlet import GAUNTLET_PRESETS
 
-    defs = GAUNTLET_PRESETS.get(preset, [])
-    keys = [d["type"] for d in defs if d["type"] in SHIPPED_ATTACKS]
+    if preset not in GAUNTLET_PRESETS:
+        # Minor (final review): an unknown preset used to silently fall
+        # back to every shipped attack -- error like expand_gauntlet does
+        # instead of comparing against attacks the caller never asked for.
+        raise ValueError(
+            f"Unknown gauntlet preset: {preset!r}. Available: {', '.join(GAUNTLET_PRESETS)}"
+        )
+    keys = [d["type"] for d in GAUNTLET_PRESETS[preset] if d["type"] in SHIPPED_ATTACKS]
     return keys or SHIPPED_ATTACKS
 
 
 def _cmd_compare(args: argparse.Namespace) -> int:
     """Handle `attacklm queue compare [A] [B]`."""
     db = _get_db(args)
-    attacks = _preset_attacks_for_compare(args.preset or "core")
+    preset = args.preset or "core"
+    try:
+        attacks = _preset_attacks_for_compare(preset)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
     if args.a and args.b:
         run_a = select_run(db, subject=args.a, attacks=attacks)
@@ -383,15 +404,44 @@ def _cmd_compare(args: argparse.Namespace) -> int:
                 return 1
             base = run_b.base_model
         else:
-            latest = latest_subject(db)
+            # I2: pass the SAME preset-filtered attacks into latest_subject
+            # that select_run below will use -- an unfiltered scan could
+            # name a subject whose only completed work is outside this
+            # preset, and select_run(attacks=attacks) would then find
+            # nothing for it (previously an unguarded AttributeError on
+            # run_b.base_model; --preset memorization was a real repro).
+            latest = latest_subject(db, attacks=attacks)
             if latest is None:
                 print("No completed gauntlet with an adapter yet.", file=sys.stderr)
                 return 1
             subject, base = latest
             run_b = select_run(db, subject=subject, attacks=attacks)
-        run_a = select_run(db, base_model=base, attacks=attacks) if base else None
+            if run_b is None:
+                print(f"No completed gauntlet for {subject}", file=sys.stderr)
+                return 1
+        if base is None:
+            # I4: don't try (and fail) to look up a baseline for an
+            # unknown base -- tell the caller to disambiguate explicitly.
+            print(
+                f"Could not determine the base model for {subject}; pass both sides "
+                f"explicitly: attacklm queue compare <A> <B>",
+                file=sys.stderr,
+            )
+            return 1
+        run_a = select_run(db, base_model=base, attacks=attacks)
         if run_a is None:
-            print(f"No baseline for {base}. Run: attacklm queue baseline {base}", file=sys.stderr)
+            # I4: a baseline that's queued but not finished isn't the same
+            # as "no baseline" -- "run `queue baseline`" is useless advice
+            # when one is already in the queue.
+            queued = baseline_exists(db, base, preset)
+            if queued:
+                print(
+                    f"Baseline for {base} is queued but not finished yet: tasks "
+                    f"{', '.join('#' + str(i) for i in queued)} — run `attacklm queue start`",
+                    file=sys.stderr,
+                )
+            else:
+                print(f"No baseline for {base}. Run: attacklm queue baseline {base}", file=sys.stderr)
             return 1
 
     rows, unpaired = compare_runs(run_a, run_b, attacks, resamples=args.resamples or 2000, seed=args.seed or 42)
@@ -405,7 +455,10 @@ def _cmd_compare(args: argparse.Namespace) -> int:
 def _cmd_history(args: argparse.Namespace) -> int:
     """Handle `attacklm queue history`."""
     db = _get_db(args)
-    rows = history_rows(db, adapter=args.adapter, limit=args.limit or 100)
+    # I5: --subject is the preferred flag (matches `compare`'s vocabulary);
+    # --adapter is kept as an alias for compatibility.
+    subject = getattr(args, "subject", None) or getattr(args, "adapter", None)
+    rows = history_rows(db, subject=subject, limit=args.limit or 100)
     if args.jsonl:
         n = append_jsonl(rows, Path(args.jsonl))
         print(f"Appended {n} new row(s) to {args.jsonl}")
@@ -702,7 +755,7 @@ def build_queue_parser(subparsers: argparse._SubParsersAction) -> None:
             "  attacklm queue baseline <base-model>\n"
             "  attacklm queue start --follow\n"
             "  attacklm queue list\n"
-            "  attacklm queue compare --adapter <path>\n"
+            "  attacklm queue compare [<subject>]\n"
             "  attacklm queue history\n\n"
             "`chain`/`gauntlet` auto-queue a base-model baseline (--no-baseline to skip); "
             "`compare`/`history` are separate reporting subcommands."
@@ -983,7 +1036,11 @@ def build_queue_parser(subparsers: argparse._SubParsersAction) -> None:
     # ---- history ----
     history_p = queue_sub.add_parser("history", help="List completed audits, newest first")
     history_p.add_argument(
-        "--adapter", type=str, default=None, help="Filter to one adapter (or subject) path"
+        "--subject", type=str, default=None,
+        help="Filter to one subject: an adapter path, or a merged model's base_model",
+    )
+    history_p.add_argument(
+        "--adapter", type=str, default=None, help="Alias for --subject (kept for compatibility)"
     )
     history_p.add_argument(
         "--limit", type=int, default=100, help="Max rows to show (default: 100)"

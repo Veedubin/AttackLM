@@ -186,6 +186,54 @@ class TestQueueButtonPresses:
         assert attacks == ["1", "2"]
 
     @pytest.mark.asyncio
+    async def test_gauntlet_quick_with_base_model_expands_and_prepends_baseline(self, tmp_path, monkeypatch):
+        """I8 (final review): the fields-filled path expands into
+        add-audit calls, which never auto-queue a baseline on their own --
+        the checked Baseline checkbox must still queue one explicitly when
+        a base model is filled in."""
+        _patch_presets(monkeypatch, tmp_path)
+        captured = self._capture(monkeypatch)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            app.screen.query_one("#queue_base_model", Input).value = "b"
+            app.screen.query_one("#queue_adapter", Input).value = "/a"
+            app.screen.query_one("#queue_attack", Select).value = "quick"
+            app.screen.query_one("#btn-queue-enqueue", Button).press()
+            await pilot.pause()
+
+        assert len(captured) == 1
+        cmds = captured[0]
+        assert len(cmds) == 3
+        db_path = tmp_path / "q.db"
+        assert cmds[0] == ["attacklm", "queue", "--db-path", str(db_path),
+                            "baseline", "b", "--preset", "quick"]
+        for cmd in cmds[1:]:
+            assert "add-audit" in cmd
+            assert cmd[cmd.index("--base-model") + 1] == "b"
+            assert cmd[cmd.index("--adapter") + 1] == "/a"
+
+    @pytest.mark.asyncio
+    async def test_gauntlet_quick_with_base_model_skips_baseline_when_unchecked(self, tmp_path, monkeypatch):
+        _patch_presets(monkeypatch, tmp_path)
+        captured = self._capture(monkeypatch)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            app.screen.query_one("#queue_base_model", Input).value = "b"
+            app.screen.query_one("#queue_attack", Select).value = "quick"
+            app.screen.query_one("#queue_baseline", Checkbox).value = False
+            app.screen.query_one("#btn-queue-enqueue", Button).press()
+            await pilot.pause()
+
+        assert len(captured) == 1
+        cmds = captured[0]
+        assert len(cmds) == 2  # just the two add-audit calls, no baseline
+        assert all("baseline" not in cmd for cmd in cmds)
+
+    @pytest.mark.asyncio
     async def test_gauntlet_enqueue_includes_baseline_by_default(self, tmp_path, monkeypatch):
         _patch_presets(monkeypatch, tmp_path)
         captured = self._capture(monkeypatch)

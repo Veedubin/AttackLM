@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from attacklm.queue.stats import Interval, paired_bootstrap, verdict
+from attacklm.queue.stats import MIN_PAIRED_N, Interval, paired_bootstrap, verdict
 
 
 class TestPairedBootstrap:
@@ -73,9 +73,32 @@ class TestVerdict:
     def test_flipped_direction(self):
         assert verdict(Interval(0.3, 0.1, 0.5, 20), higher_is_worse=False) == "BETTER"
 
-    def test_same_when_n_below_two(self):
+    def test_n_zero_is_na(self):
+        assert verdict(Interval(0.0, 0.0, 0.0, 0)) == "n/a"
+
+    def test_n_one_is_same_degenerate_interval(self):
         assert verdict(Interval(1.0, 1.0, 1.0, 1)) == "SAME"
-        assert verdict(Interval(0.0, 0.0, 0.0, 0)) == "SAME"
 
     def test_boundary_zero_is_same(self):
         assert verdict(Interval(0.2, 0.0, 0.4, 20)) == "SAME"
+
+    def test_below_min_paired_n_returns_n_lt_5(self):
+        # A real (non-degenerate) CI that excludes zero from just 3 or 4
+        # items isn't enough evidence for a directional verdict.
+        assert verdict(Interval(0.4, 0.1, 0.7, 3)) == "n<5"
+        assert verdict(Interval(0.4, 0.1, 0.7, MIN_PAIRED_N - 1)) == "n<5"
+
+    def test_n_at_min_threshold_uses_normal_rule(self):
+        assert verdict(Interval(0.3, 0.1, 0.5, MIN_PAIRED_N)) == "WORSE"
+
+    def test_degenerate_interval_is_same_regardless_of_n(self):
+        # C2: paired_bootstrap([0,0,0],[1,1,1]) collapses to lo==hi==1.0 --
+        # a confident-looking WORSE from a zero-width CI is exactly the bug
+        # this guards against, at any n (not just below MIN_PAIRED_N).
+        assert verdict(Interval(1.0, 1.0, 1.0, 3)) == "SAME"
+        assert verdict(Interval(1.0, 1.0, 1.0, 20)) == "SAME"
+
+    def test_zero_width_ci_from_constant_diffs_is_same_not_worse(self):
+        iv = paired_bootstrap([0.0, 0.0, 0.0], [1.0, 1.0, 1.0])
+        assert iv.lo == iv.hi == 1.0
+        assert verdict(iv) == "SAME"

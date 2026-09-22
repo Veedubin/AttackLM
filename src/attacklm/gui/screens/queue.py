@@ -159,14 +159,22 @@ class QueueScreen(_BaseCommandScreen):
         instead of silently running `--attack all` (which would drop the
         preset choice, e.g. 'quick' becoming every shipped attack).
 
-        `baseline` (the queue_baseline checkbox) only affects the plain
-        `gauntlet <preset>` command: `--no-baseline` disables the auto-queued
-        base-model baseline run added by `attacklm queue gauntlet` (see
-        commit 99cb095). The expanded add-audit path below never auto-queues
-        a baseline, so `baseline` doesn't apply there.
+        `baseline` (the queue_baseline checkbox): on the plain
+        `gauntlet <preset>` command, `--no-baseline` disables the
+        auto-queued base-model baseline run added by `attacklm queue
+        gauntlet` (see commit 99cb095). The expanded add-audit path never
+        auto-queues a baseline on its own (`add-audit` has no such
+        behavior) -- so when `baseline` is checked here AND a base model
+        is filled in, an explicit `attacklm queue baseline <base>` command
+        is prepended (I8, final-review wave) so the checkbox does the same
+        thing on both paths. With only an adapter filled in (no base
+        model), there is no base to queue a baseline against, so it's
+        skipped -- the tooltip says so.
         """
         if attack in _GAUNTLETS and (base_model or adapter):
             cmds = []
+            if baseline and base_model:
+                cmds.append(self._base_cmd() + ["baseline", base_model, "--preset", attack])
             for member in _GAUNTLET_MEMBERS[attack]:
                 cmd = self._base_cmd() + ["add-audit", "--attack", member]
                 if base_model:

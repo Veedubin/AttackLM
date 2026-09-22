@@ -108,9 +108,13 @@ TOOLTIPS: dict[str, str] = {
     "btn-queue-compare": "Compare the latest adapter gauntlet against its base-model baseline "
     "(attacklm queue compare): Δ per attack and category with a 95% CI and a "
     "WORSE/BETTER/SAME verdict.",
-    "queue_baseline": "On (default): a gauntlet also queues a one-off baseline run of the "
-    "untuned base model, so `queue compare` can show Δ vs base. Off: skip it "
-    "(faster, no comparison baseline).",
+    "queue_baseline": "On (default): also queues a one-off baseline run of the untuned "
+    "base model, so `queue compare` can show Δ vs base -- works whether the base "
+    "model / adapter fields are empty (plain `gauntlet`) or filled in (expands to "
+    "per-attack `add-audit`, e.g. so a custom preset+model still gets a matching "
+    "`queue baseline`). Only fires when the base model field is filled in (with "
+    "only an adapter filled, there's no base to compare against, so it's skipped). "
+    "Off: skip it (faster, no comparison baseline).",
 }
 
 

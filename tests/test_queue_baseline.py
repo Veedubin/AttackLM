@@ -57,26 +57,32 @@ class TestEnsureBaseline:
 
 
 class TestChainAndGauntletAutoBaseline:
-    def test_chain_queues_baseline_with_default_base(self, db):
+    def test_chain_without_base_model_skips_baseline_with_notice(self, db, capsys):
+        """I3: DEFAULT_BASE_MODEL was removed from Hugging Face -- queueing
+        a baseline against it guarantees 4 failed GPU tasks that
+        ensure_baseline would then re-queue forever (failed isn't _LIVE).
+        With no explicit --base-model, take the "unknown base" branch."""
         assert qcli._cmd_chain(_chain_ns(db)) == 0
         tasks = db.list_tasks()
         bases = [t for t in tasks if t.gauntlet == "baseline"]
-        assert len(bases) == 2 and all(t.args_dict["base_model"] == bl.DEFAULT_BASE_MODEL for t in bases)
-        assert all(t.depends_on_list == [] for t in bases)
+        assert not bases
         real = [t for t in tasks if t.gauntlet == "quick"]
         assert len(real) == 2 and all(t.depends_on_list == [1] for t in real)
+        assert "no baseline queued" in capsys.readouterr().out.lower()
 
     def test_chain_uses_explicit_base(self, db):
         assert qcli._cmd_chain(_chain_ns(db, base_model="my/base")) == 0
-        assert {t.args_dict["base_model"] for t in db.list_tasks() if t.gauntlet == "baseline"} == {"my/base"}
+        bases = [t for t in db.list_tasks() if t.gauntlet == "baseline"]
+        assert {t.args_dict["base_model"] for t in bases} == {"my/base"}
+        assert all(t.depends_on_list == [] for t in bases)
 
     def test_no_baseline_flag(self, db):
-        assert qcli._cmd_chain(_chain_ns(db, no_baseline=True)) == 0
+        assert qcli._cmd_chain(_chain_ns(db, base_model="my/base", no_baseline=True)) == 0
         assert not [t for t in db.list_tasks() if t.gauntlet == "baseline"]
 
     def test_second_chain_does_not_duplicate(self, db):
-        qcli._cmd_chain(_chain_ns(db))
-        qcli._cmd_chain(_chain_ns(db))
+        qcli._cmd_chain(_chain_ns(db, base_model="my/base"))
+        qcli._cmd_chain(_chain_ns(db, base_model="my/base"))
         assert len([t for t in db.list_tasks() if t.gauntlet == "baseline"]) == 2
 
     def test_gauntlet_after_train_queues_baseline_from_train_args(self, db):
@@ -88,6 +94,17 @@ class TestChainAndGauntletAutoBaseline:
 
     def test_gauntlet_without_train_and_without_base_skips_baseline_with_notice(self, db, capsys):
         ns = argparse.Namespace(db_path=str(db.db_path), preset="quick", after=None, recipe=None,
+                                no_baseline=False, base_model=None)
+        assert qcli._cmd_gauntlet(ns) == 0
+        assert not [t for t in db.list_tasks() if t.gauntlet == "baseline"]
+        assert "no baseline queued" in capsys.readouterr().out.lower()
+
+    def test_gauntlet_after_train_with_empty_base_skips_baseline(self, db, capsys):
+        """I3: a train dep with no resolvable base_model must NOT fall
+        back to DEFAULT_BASE_MODEL (removed from Hugging Face) -- it's
+        "unknown", not "assume the default"."""
+        train = db.add_task(type="train", label="t", args={"base_model": ""})
+        ns = argparse.Namespace(db_path=str(db.db_path), preset="quick", after=str(train), recipe=None,
                                 no_baseline=False, base_model=None)
         assert qcli._cmd_gauntlet(ns) == 0
         assert not [t for t in db.list_tasks() if t.gauntlet == "baseline"]
