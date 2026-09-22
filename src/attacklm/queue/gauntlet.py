@@ -51,14 +51,17 @@ def expand_gauntlet(
     after_task_id: int | None = None,
     recipe_path: str | None = None,
     extra_args: dict[str, Any] | None = None,
+    after_task_ids: list[int] | None = None,
 ) -> list[dict[str, Any]]:
     """Expand a gauntlet preset into a list of task specs with dependencies.
 
     Args:
         preset_name: One of 'core', 'full', 'quick', 'memorization', or a custom name.
-        after_task_id: The train task id to set as depends_on for all audit tasks.
+        after_task_id: A single task id to depend on (kept for compatibility).
         recipe_path: Optional YAML recipe file path for custom gauntlets.
         extra_args: Optional dict of extra args to merge into each task.
+        after_task_ids: every audit task depends on all of these. Takes
+            precedence over after_task_id when given.
 
     Returns:
         List of dicts suitable for db.add_task(), each with:
@@ -73,6 +76,9 @@ def expand_gauntlet(
             f"Unknown gauntlet preset: {preset_name!r}. "
             f"Available: {', '.join(GAUNTLET_PRESETS.keys())}"
         )
+
+    if after_task_ids is None:
+        after_task_ids = [after_task_id] if after_task_id is not None else []
 
     needs_calibration_holdout = False
     result: list[dict[str, Any]] = []
@@ -92,9 +98,7 @@ def expand_gauntlet(
             needs_calibration_holdout = True
 
         # Set up depends_on.
-        depends_on: list[int] = []
-        if after_task_id is not None:
-            depends_on.append(after_task_id)
+        depends_on: list[int] = list(after_task_ids)
 
         result.append(
             {

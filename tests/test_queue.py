@@ -905,3 +905,105 @@ class TestDbFixes:
         db.mark_task(tid, status="running", pid=os.getpid())
         assert db.remove_task(tid, force=True) is False
         assert db.get_task(tid) is not None
+
+
+# ---------------------------------------------------------------------------
+# Task 4 — queue CLI fixes + dedupe (R8-cli, R11, R12, R13, S1, S4)
+# ---------------------------------------------------------------------------
+
+
+class TestCliFixes:
+    def _ns(self, **kw):
+        import argparse
+        return argparse.Namespace(**kw)
+
+    def test_gauntlet_after_keeps_all_ids(self, db, tmp_path, monkeypatch):
+        """R11: --after 1,2 must make every audit depend on both."""
+        from attacklm.queue import cli as qcli
+        from attacklm.queue import gauntlet as g
+        monkeypatch.setattr(g, "_calibration_holdouts_missing", lambda: False)
+        t1 = db.add_task(type="train", label="t1", args={})
+        t2 = db.add_task(type="train", label="t2", args={})
+        args = self._ns(db_path=str(db.db_path), preset="quick", after=f"{t1},{t2}", recipe=None)
+        assert qcli._cmd_gauntlet(args) == 0
+        audits = db.list_tasks(type="audit_prompt_injection")
+        assert audits and sorted(audits[0].depends_on_list) == [t1, t2]
+
+    def test_add_audit_label_is_used(self, db, monkeypatch):
+        """R12"""
+        from attacklm.queue import cli as qcli
+        args = self._ns(db_path=str(db.db_path), attack="1", include_unshipped=False,
+                        depends_on=None, adapter="/a", base_model="b", label="my run", timeout=None)
+        assert qcli._cmd_add_audit(args) == 0
+        assert db.list_tasks()[0].label == "my run"
+
+    def test_retry_clears_stale_result(self, db):
+        """R13"""
+        from attacklm.queue import cli as qcli
+        tid = db.add_task(type="gen_calibration_holdouts", label="h", args={})
+        db.mark_task(tid, status="failed", error="x", artifact_path="/old", artifact_kind="data", result="{}")
+        assert qcli._cmd_retry(self._ns(db_path=str(db.db_path), task_id=tid)) == 0
+        t = db.get_task(tid)
+        assert t.status == "pending"
+        assert t.result is None and t.artifact_path is None and t.artifact_kind is None and t.error is None
+
+    def test_remove_running_is_refused(self, db, capsys):
+        """R8"""
+        from attacklm.queue import cli as qcli
+        tid = db.add_task(type="gen_calibration_holdouts", label="h", args={})
+        db.mark_task(tid, status="running", pid=os.getpid())
+        assert qcli._cmd_remove(self._ns(db_path=str(db.db_path), task_id=tid, force=True)) == 1
+        assert "running" in capsys.readouterr().err
+        assert db.get_task(tid) is not None
+
+    def test_os_imported_at_top(self):
+        """S1"""
+        import inspect
+        from attacklm.queue import cli as qcli
+        src = inspect.getsource(qcli)
+        assert src.index("import os") < src.index("def _get_db")
+
+    def test_chain_and_gauntlet_share_insert(self, db, monkeypatch):
+        """S4: both commands go through _insert_task_defs."""
+        from attacklm.queue import cli as qcli
+        calls = []
+        real = qcli._insert_task_defs
+
+        def spy(db_, tasks, default_deps):
+            calls.append(len(tasks))
+            return real(db_, tasks, default_deps)
+
+        monkeypatch.setattr(qcli, "_insert_task_defs", spy)
+        from attacklm.queue import gauntlet as g
+        monkeypatch.setattr(g, "_calibration_holdouts_missing", lambda: False)
+        chain_args = self._ns(db_path=str(db.db_path), base_model=None, single_model=True,
+                              single_model_name=None, include_orchestrator=False, model_attacks=False,
+                              include_tools=False, epochs=None, batch_size=None, train_extra=None,
+                              label=None, train_timeout=None, then="gauntlet", gauntlet_preset="quick",
+                              attack=None, include_unshipped=False)
+        assert qcli._cmd_chain(chain_args) == 0
+        assert qcli._cmd_gauntlet(self._ns(db_path=str(db.db_path), preset="quick", after=None, recipe=None)) == 0
+        assert calls == [2, 2]
+
+    def test_clean_dry_run_message(self, db, capsys):
+        """Controller addition: --yes-less clean must not claim it removed anything."""
+        from attacklm.queue import cli as qcli
+        tid = db.add_task(type="gen_calibration_holdouts", label="h", args={})
+        db.mark_task(tid, status="completed")
+        args = self._ns(db_path=str(db.db_path), status="completed", older_than=None, yes=False)
+        assert qcli._cmd_clean(args) == 0
+        out = capsys.readouterr().out
+        assert "Would remove 1 task(s)" in out
+        assert "Removed" not in out
+        assert db.get_task(tid) is not None
+
+    def test_clean_yes_removes_and_reports(self, db, capsys):
+        """Controller addition: --yes still deletes and reports 'Removed'."""
+        from attacklm.queue import cli as qcli
+        tid = db.add_task(type="gen_calibration_holdouts", label="h", args={})
+        db.mark_task(tid, status="completed")
+        args = self._ns(db_path=str(db.db_path), status="completed", older_than=None, yes=True)
+        assert qcli._cmd_clean(args) == 0
+        out = capsys.readouterr().out
+        assert "Removed 1 task(s)" in out
+        assert db.get_task(tid) is None

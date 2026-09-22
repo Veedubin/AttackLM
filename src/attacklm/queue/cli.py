@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Sequence
@@ -21,6 +21,81 @@ def _get_db(args: argparse.Namespace) -> QueueDB:
     if db_path:
         return QueueDB(db_path)
     return QueueDB()
+
+
+def _parse_dep_ids(db: QueueDB, raw: str | None, flag: str) -> list[int] | None:
+    """Parse 'latest' / '1,2' into task ids. Prints the error and returns None on failure."""
+    if not raw:
+        return []
+    ids: list[int] = []
+    for dep in raw.split(","):
+        dep = dep.strip()
+        if dep == "latest":
+            all_train = db.list_tasks(type="train", limit=10000)
+            if not all_train:
+                print("Error: no train tasks found; cannot use 'latest'", file=sys.stderr)
+                return None
+            ids.append(all_train[-1].id)
+        else:
+            try:
+                ids.append(int(dep))
+            except ValueError:
+                print(f"Error: invalid {flag} id: {dep!r}", file=sys.stderr)
+                return None
+    return ids
+
+
+def _insert_task_defs(db: QueueDB, tasks: list[dict[str, Any]], default_deps: list[int]) -> list[int]:
+    """Insert expanded task defs in two passes (holdout generator first).
+
+    Shared by `chain` and `gauntlet` — the duplicate-holdout bug of v0.18.0
+    lived in two copies of this loop.
+    """
+    created: list[int] = []
+    holdout_id: int | None = None
+    holdout_spec = REGISTRY["gen_calibration_holdouts"]
+
+    for task_def in tasks:
+        if task_def["type"] == "gen_calibration_holdouts":
+            holdout_id = db.add_task(
+                type="gen_calibration_holdouts",
+                label=holdout_spec.label,
+                args=task_def.get("args", {}),
+                depends_on=task_def.get("depends_on", []),
+                timeout_seconds=holdout_spec.default_timeout_s,
+                gauntlet=task_def.get("gauntlet"),
+            )
+            created.append(holdout_id)
+            print(f"Task #{holdout_id} created: {holdout_spec.label!r} [pending] (auto-inserted)")
+            break
+
+    for task_def in tasks:
+        if task_def["type"] == "gen_calibration_holdouts" and holdout_id is not None:
+            continue
+        # Respect explicit depends_on (even []); default only when the key is absent.
+        deps = list(task_def.get("depends_on", default_deps))
+        if task_def.pop("_needs_holdout_dep", False):
+            if holdout_id is None:
+                holdout_id = db.add_task(
+                    type="gen_calibration_holdouts",
+                    label=holdout_spec.label,
+                    args={},
+                    timeout_seconds=holdout_spec.default_timeout_s,
+                )
+                created.append(holdout_id)
+                print(f"Task #{holdout_id} created: {holdout_spec.label!r} [pending] (auto-inserted)")
+            deps.append(holdout_id)
+        tid = db.add_task(
+            type=task_def["type"],
+            label=task_def["label"],
+            args=task_def.get("args", {}),
+            depends_on=deps,
+            timeout_seconds=task_def.get("timeout_seconds"),
+            gauntlet=task_def.get("gauntlet"),
+        )
+        created.append(tid)
+        print(f"Task #{tid} created: {task_def['label']!r} [pending, depends_on={deps}]")
+    return created
 
 
 def _cmd_add_train(args: argparse.Namespace) -> int:
@@ -75,28 +150,9 @@ def _cmd_add_audit(args: argparse.Namespace) -> int:
         return 1
 
     # Resolve depends_on.
-    depends_on: list[int] = []
-    if args.depends_on:
-        for dep in args.depends_on.split(","):
-            dep = dep.strip()
-            if dep == "latest":
-                # Find the most recently added train task.
-                train_tasks = db.list_tasks(type="train", limit=1)
-                # Get the last train task (highest id).
-                all_train = db.list_tasks(type="train", limit=10000)
-                if not all_train:
-                    print(
-                        "Error: no train tasks found; cannot use 'latest'",
-                        file=sys.stderr,
-                    )
-                    return 1
-                depends_on.append(all_train[-1].id)
-            else:
-                try:
-                    depends_on.append(int(dep))
-                except ValueError:
-                    print(f"Error: invalid depends_on id: {dep!r}", file=sys.stderr)
-                    return 1
+    depends_on = _parse_dep_ids(db, args.depends_on, "--depends-on")
+    if depends_on is None:
+        return 1
 
     # Build and add each audit task.
     task_ids = []
@@ -108,7 +164,10 @@ def _cmd_add_audit(args: argparse.Namespace) -> int:
         if args.base_model:
             task_args["base_model"] = args.base_model
 
-        label = spec.label
+        if args.label:
+            label = f"{args.label} — {spec.label}" if len(attack_keys) > 1 else args.label
+        else:
+            label = spec.label
         timeout = args.timeout or spec.default_timeout_s
 
         tid = db.add_task(
@@ -221,63 +280,7 @@ def _cmd_chain(args: argparse.Namespace) -> int:
         )
         return 1
 
-    # Insert gauntlet tasks.
-    holdout_id = None
-    # First pass: insert any gen_calibration_holdouts tasks to get their IDs.
-    for task_def in tasks:
-        if task_def["type"] == "gen_calibration_holdouts":
-            spec = REGISTRY["gen_calibration_holdouts"]
-            holdout_id = db.add_task(
-                type="gen_calibration_holdouts",
-                label=spec.label,
-                args=task_def.get("args", {}),
-                timeout_seconds=spec.default_timeout_s,
-            )
-            print(
-                f"Task #{holdout_id} created: {spec.label!r} [pending] (auto-inserted)"
-            )
-            break
-
-    # Second pass: insert all tasks, using holdout_id for calibration deps.
-    for task_def in tasks:
-        # Respect explicit depends_on (even if empty []); only default to
-        # [train_id] when the key is absent (e.g. audit tasks from --then audit).
-        depends_on = task_def.get("depends_on", [train_id])
-        # If this is the holdout task, we already inserted it — skip.
-        if task_def["type"] == "gen_calibration_holdouts" and holdout_id is not None:
-            # Already inserted — skip adding it again.
-            # But update its depends_on if needed.
-            if depends_on:
-                db.update_task(holdout_id, depends_on=json.dumps(depends_on))
-            continue
-        # Auto-insert calibration holdout dep if needed.
-        if task_def.pop("_needs_holdout_dep", False):
-            if holdout_id is None:
-                holdout_spec = REGISTRY["gen_calibration_holdouts"]
-                holdout_id = db.add_task(
-                    type="gen_calibration_holdouts",
-                    label=holdout_spec.label,
-                    args={},
-                    timeout_seconds=holdout_spec.default_timeout_s,
-                )
-                print(
-                    f"Task #{holdout_id} created: {holdout_spec.label!r} [pending] (auto-inserted)"
-                )
-            depends_on.append(holdout_id)
-
-        tid = db.add_task(
-            type=task_def["type"],
-            label=task_def["label"],
-            args=task_def.get("args", {}),
-            depends_on=depends_on,
-            timeout_seconds=task_def.get("timeout_seconds"),
-            gauntlet=task_def.get("gauntlet"),
-        )
-        print(
-            f"Task #{tid} created: {task_def['label']!r} [pending, depends_on={depends_on}]"
-        )
-
-    print(f"\nChain ready. Run `attacklm queue start` to begin.")
+    _insert_task_defs(db, tasks, [train_id])
     return 0
 
 
@@ -287,89 +290,21 @@ def _cmd_gauntlet(args: argparse.Namespace) -> int:
     preset = args.preset
 
     # Resolve --after (depends_on).
-    depends_on: list[int] = []
-    if args.after:
-        for dep in args.after.split(","):
-            dep = dep.strip()
-            if dep == "latest":
-                all_train = db.list_tasks(type="train", limit=10000)
-                if not all_train:
-                    print(
-                        "Error: no train tasks found; cannot use 'latest'",
-                        file=sys.stderr,
-                    )
-                    return 1
-                depends_on.append(all_train[-1].id)
-            else:
-                try:
-                    depends_on.append(int(dep))
-                except ValueError:
-                    print(f"Error: invalid --after id: {dep!r}", file=sys.stderr)
-                    return 1
+    depends_on = _parse_dep_ids(db, args.after, "--after")
+    if depends_on is None:
+        return 1
 
     try:
         tasks = expand_gauntlet(
             preset,
-            after_task_id=depends_on[0] if depends_on else None,
+            after_task_ids=depends_on,
             recipe_path=args.recipe,
         )
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    # Insert tasks.
-    # First pass: insert any gen_calibration_holdouts tasks to get their IDs.
-    holdout_id = None
-    for task_def in tasks:
-        if task_def["type"] == "gen_calibration_holdouts":
-            spec = REGISTRY["gen_calibration_holdouts"]
-            holdout_id = db.add_task(
-                type="gen_calibration_holdouts",
-                label=spec.label,
-                args=task_def.get("args", {}),
-                depends_on=task_def.get("depends_on", []),
-                timeout_seconds=spec.default_timeout_s,
-                gauntlet=task_def.get("gauntlet"),
-            )
-            print(
-                f"Task #{holdout_id} created: {spec.label!r} [pending, depends_on={task_def.get('depends_on', [])}]"
-            )
-            break
-
-    # Second pass: insert all other tasks, using holdout_id for calibration deps.
-    for task_def in tasks:
-        if task_def["type"] == "gen_calibration_holdouts" and holdout_id is not None:
-            continue  # already inserted in first pass
-        # Respect explicit depends_on (even if empty []); only default to
-        # the user's --after when the key is absent.
-        deps = task_def.get("depends_on", list(depends_on))
-        # Auto-insert calibration holdout dep if needed (holdout not in list).
-        if task_def.pop("_needs_holdout_dep", False):
-            if holdout_id is None:
-                holdout_spec = REGISTRY["gen_calibration_holdouts"]
-                holdout_id = db.add_task(
-                    type="gen_calibration_holdouts",
-                    label=holdout_spec.label,
-                    args={},
-                    timeout_seconds=holdout_spec.default_timeout_s,
-                )
-                print(
-                    f"Task #{holdout_id} created: {holdout_spec.label!r} [pending] (auto-inserted)"
-                )
-            deps.append(holdout_id)
-
-        tid = db.add_task(
-            type=task_def["type"],
-            label=task_def["label"],
-            args=task_def.get("args", {}),
-            depends_on=deps,
-            timeout_seconds=task_def.get("timeout_seconds"),
-            gauntlet=task_def.get("gauntlet"),
-        )
-        print(
-            f"Task #{tid} created: {task_def['label']!r} [pending, depends_on={deps}]"
-        )
-
+    _insert_task_defs(db, tasks, list(depends_on))
     return 0
 
 
@@ -467,6 +402,17 @@ def _cmd_remove(args: argparse.Namespace) -> int:
     db = _get_db(args)
     task_id = args.task_id
 
+    task = db.get_task(task_id)
+    if task is None:
+        print(f"Task #{task_id} not found.", file=sys.stderr)
+        return 1
+    if task.status == "running":
+        print(
+            f"Error: task #{task_id} is running. Stop the runner first ('attacklm queue stop').",
+            file=sys.stderr,
+        )
+        return 1
+
     # Check for dependents.
     all_tasks = db.list_tasks(limit=10000)
     dependents = [t for t in all_tasks if task_id in t.depends_on_list]
@@ -515,7 +461,7 @@ def _cmd_retry(args: argparse.Namespace) -> int:
         )
         return 1
 
-    # Reset to pending, clear error.
+    # Reset to pending, clear error and any stale artifact from the failed run.
     db.update_task(
         args.task_id,
         status="pending",
@@ -523,6 +469,9 @@ def _cmd_retry(args: argparse.Namespace) -> int:
         started_at=None,
         finished_at=None,
         pid=None,
+        result=None,
+        artifact_path=None,
+        artifact_kind=None,
     )
     db.add_event(args.task_id, "retry", {"from_status": task.status})
     print(f"Task #{args.task_id} reset to pending (was {task.status}).")
@@ -555,6 +504,9 @@ def _cmd_clean(args: argparse.Namespace) -> int:
         older_than_days=args.older_than,
         yes=args.yes,
     )
+    if not args.yes:
+        print(f"Would remove {count} task(s). Pass --yes to delete.")
+        return 0
     print(f"Removed {count} task(s).")
     return 0
 
@@ -891,7 +843,3 @@ def build_queue_parser(subparsers: argparse._SubParsersAction) -> None:
         "--yes", action="store_true", default=False, help="Confirm reset"
     )
     reset_p.set_defaults(func=_cmd_reset)
-
-
-# Need to import os for PID checks in _cmd_start and _cmd_clean.
-import os
