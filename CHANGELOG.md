@@ -1,6 +1,6 @@
 ## [0.19.0] — 2026-09-22
 
-The v0.18.0 queue had never been run end-to-end (a 2026-09-22 code review found 13 findings + 7 secondary issues; see `docs/superpowers/plans/2026-09-22-queue-fix-campaign.md`). This release fixes all of them, adds a Queue screen to the TUI, and ships the first real audit results in the project's history.
+The v0.18.0 queue had never been run end-to-end (a 2026-09-22 code review found 13 findings + 7 secondary issues). This release fixes all of them, adds a Queue screen to the TUI, and ships the first real audit results in the project's history.
 
 **Fixed** (13 findings from the review, one line each; file paths are under `src/attacklm/`):
 - **R1** `queue/display.py` — `queue status` claimed (and discarded) the next-ready task via `pick_next_ready_task()` just to display it. Now uses the read-only `find_next_ready_task()`.
@@ -17,6 +17,7 @@ The v0.18.0 queue had never been run end-to-end (a 2026-09-22 code review found 
 - **R12** `queue/cli.py` — `add-audit --label <text>` was accepted but never stored.
 - **R13** `queue/cli.py` — `retry` left the previous run's stale `result`/`artifact_path` on the task instead of clearing them.
 - **S1/S2** `queue/cli.py` (hidden `import os` at module bottom, folded into the lint pass) and the smoke-test-only finding that `--base-model <adapter dir>` was accepted by argparse but failed at model load instead of resolving the adapter + its base from `adapter_config.json`.
+- **Final-review fixes** (cross-task interactions found by the whole-branch review): the TUI's default Enqueue now chains to the latest train task (`--after latest` / `--depends-on latest`) instead of creating tasks that could never resolve a model; a retried canary task regenerates its canaries instead of probing a missing file; `clean` also protects deps of `failed`/`interrupted` (retryable) tasks and `recompute_blocked` marks tasks whose dependency row was deleted as `blocked`; `start --detach --force` forwards `--force` to the child; `remove --force` only cascades to non-terminal dependents; `run_loop` restores the previous SIGINT handler.
 - **Post-plan fix, found by the GPU smoke test**: `queue/argv.py` `_resolve_argv` required an adapter whenever a task's `consumes_artifact == "adapter"`, but every audit script's `--adapter` is genuinely optional (merged models need none). Audits now fail only when neither `--base-model` nor `--adapter` can be resolved.
 
 **Added**:
@@ -35,7 +36,7 @@ The v0.18.0 queue had never been run end-to-end (a 2026-09-22 code review found 
 - CI lint step is now blocking (`continue-on-error` removed) — required fixing 148 pre-existing ruff errors first.
 - `cli.py`'s `init`/`balance`/`audit` delegate-to-`attacklm-dataset` logic folded into one `_delegate_to_dataset` helper (was duplicated 3×).
 
-**Tests**: 600 → 652 passed (+52: 28 queue regression tests, 6+1 integration tests, 11 GUI queue tests, 4 CLI delegate tests, 2 clean-message tests), 2 skipped. `ruff check src/ scripts/ tests/` — 148 errors → 0.
+**Tests**: 600 → 660 passed (+60: queue regression, real-subprocess integration, GUI queue, CLI delegate, clean-message, final-review regression tests), 2 skipped. `ruff check src/ scripts/ tests/` — 148 errors → 0.
 
 **First real audit results in the project's history**, via `attacklm queue` on `models/merged/attacklm-3b-16g` (no adapter — merged model), RTX 4080 SUPER, 2026-09-22: Attack 1 (prompt-injection) ASR 47.62% (direct 25.0% n=10, indirect 70.0% n=5, crescendo 66.67% n=6), 15s. Attack 2 (system-prompt leakage) 58.16% (extraction 58.3% n=30, roleplay 70% n=5, indirect 100% n=2, translation 50% n=3, escalation 44.4% n=9), 33s. Attack 3 (canary extraction, 20 generated canaries) 0% exact / 0% loose / 0% near-verbatim, 12s — the two-step generate → probe pipeline ran end to end. Reports in `evals/queue/artifacts/{1,2,3}/` (gitignored, local-only). Attack 7 (calibration) was **not** run: `data/bench/questions.jsonl` does not exist locally (`gen_calibration_holdouts.py` needs instruction/prompt/question/text records; only chat-format `hf/data/*.jsonl` exists) — see HANDOFF.md.
 

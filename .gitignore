@@ -139,6 +139,7 @@ notes/
 
 # ----- Queue state (local-only: DB, logs, artifacts) -----
 evals/queue/
+evals/queue.failed-*/
 
 # ----- Internal docs (per-source methodology, attack surveys, audit reports) -----
 # These are local-only — kept out of the public PyPI/GitHub distribution.

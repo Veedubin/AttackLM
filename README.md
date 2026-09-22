@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/attacklm.svg?label=version&color=blue)](https://pypi.org/project/attacklm/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://docs.python.org/3.10/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests: 652+](https://img.shields.io/badge/tests-652%2B-brightgreen.svg)](#testing)
+[![Tests: 660+](https://img.shields.io/badge/tests-660%2B-brightgreen.svg)](#testing)
 [![GH release: v0.19.0](https://img.shields.io/badge/release-v0.19.0-blue.svg)](https://github.com/Veedubin/AttackLM/releases)
 
 **A security-AI fine-tuning platform and research toolkit.**
