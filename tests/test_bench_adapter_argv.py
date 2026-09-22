@@ -116,3 +116,9 @@ def test_extra_model_args_are_passed_through():
 def test_unknown_backend_raises():
     with pytest.raises(ValueError, match="nonsense"):
         _argv(backend="nonsense")
+
+
+def test_mock_backend_needs_no_gpu():
+    """Inspect's stub provider, so the whole pipeline is smoke-testable anywhere."""
+    argv = _argv(backend="mock")
+    assert argv[argv.index("--model") + 1] == "mockllm/models/merged/attacklm-3b-16g"

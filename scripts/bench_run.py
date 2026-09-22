@@ -69,7 +69,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--adapter", help="LoRA adapter path")
 
     gen = p.add_argument_group("inference")
-    gen.add_argument("--backend", default="vllm", choices=["vllm", "hf", "openai-api"])
+    gen.add_argument("--backend", default="vllm",
+                 choices=["vllm", "hf", "openai-api", "mock"],
+                 help="mock = Inspect's stub provider; no GPU, for smoke-testing the pipeline")
     gen.add_argument("--base-url", help="for --backend openai-api")
     gen.add_argument("--max-tokens", type=int, default=512)
     gen.add_argument("--temperature", type=float, default=0.0)

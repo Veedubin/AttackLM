@@ -24,10 +24,16 @@ from attacklm.bench.adapters import HarnessInfo
 from attacklm.bench.packs import Pack
 
 # backend -> Inspect model-provider prefix
+#
+# `mock` is Inspect's built-in stub provider. It needs no GPU, no network and
+# no API key, so the entire pipeline -- argv, subprocess, log parse, scoring,
+# report, `queue compare` -- can be smoke-tested on any machine. Scores from it
+# are meaningless by construction; it exercises the plumbing, not the model.
 _BACKENDS = {
     "vllm": "vllm",
     "hf": "hugging_face",
     "openai-api": "openai-api",
+    "mock": "mockllm",
 }
 
 # Inspect's scorer value constants (inspect_ai.scorer), verified:
