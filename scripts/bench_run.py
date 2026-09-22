@@ -145,6 +145,26 @@ def _score_local_mode(
     return [score_item(item, completions.get(item.question_id, ""), cfg) for item in items]
 
 
+def _write_items(items: list[BenchItem], out_dir: Path) -> Path:
+    """Serialise the sampled items for the harness to read.
+
+    Written per-run beside the harness log, so the file the harness actually
+    saw matches the rung that was sampled.
+    """
+    path = out_dir / "items.jsonl"
+    path.write_text(
+        "\n".join(
+            json.dumps({
+                "question_id": i.question_id, "category": i.category, "tier": i.tier,
+                "messages": i.messages, "ground_truth": i.ground_truth,
+                "metadata": i.metadata,
+            })
+            for i in items
+        )
+    )
+    return path
+
+
 def _load_training_records(path: str | None) -> list[dict] | None:
     """Records to check benchmark items against, or None when unavailable.
 
@@ -186,6 +206,7 @@ def main(argv: list[str] | None = None) -> int:
             seed=args.seed, stop=list(args.stop), base_url=args.base_url,
             num_shots=args.num_shots, max_connections=args.max_connections,
             log_dir=log_dir, limit=args.rung, model_args=list(args.model_args),
+            items_path=_write_items(items, log_dir) if items else None,
         )
         samples = _run_harness(pack, cfg, adapter)
 

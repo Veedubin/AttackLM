@@ -51,11 +51,15 @@ def _item(qid: str, text: str, category: str = "cat") -> BenchItem:
 
 
 def _record(text: str, source: str) -> dict:
+    """A training record as one really looks.
+
+    Deliberately carries no system prompt: a training pair does not share the
+    benchmark's instruction boilerplate, and _item_text now excludes system
+    messages on the item side for the same reason (see the dilution tests at
+    the bottom of this file).
+    """
     return {
-        "messages": [
-            {"role": "system", "content": "You are a SOC analyst."},
-            {"role": "user", "content": text},
-        ],
+        "messages": [{"role": "user", "content": text}],
         "source": source,
     }
 
@@ -171,7 +175,9 @@ def test_a_raising_seam_degrades_to_unchecked(monkeypatch):
 
 def test_item_text_concatenates_message_contents():
     item = _item("q0", "second line")
-    assert contam._item_text(item) == "You are a SOC analyst.\nsecond line"
+    # The system message is excluded on purpose: shared boilerplate inflates
+    # the Jaccard denominator and buries real overlaps (see the dilution tests).
+    assert contam._item_text(item) == "second line"
 
 
 def test_no_overlap_gives_zero_jaccard(exact):
@@ -339,3 +345,69 @@ def test_real_decontam_finds_an_exact_duplicate():
     assert result.overlaps["dup"].matched_source == "sigma-hq"
     assert result.overlaps["clean"].max_jaccard < DEFAULT_THRESHOLD
     assert result.contaminated_items == 1
+
+
+# --------------------------------------------------------------------------
+# boilerplate dilution -- the bug that made the correction silently useless
+# --------------------------------------------------------------------------
+
+
+def test_shared_system_prompt_is_excluded_from_comparison():
+    """A long pack-wide instruction must not dilute a real overlap.
+
+    Jaccard is a ratio over the union, so boilerplate shared by every item
+    inflates the denominator for every pair. Measured on real CTI-Bench ATE:
+    the item text was 8,157 chars of which the substantive description was 611
+    (7.5%), and a VERBATIM copy of that description in the training set scored
+    jaccard 0.0 -- entirely unflagged.
+    """
+    from attacklm.bench.contamination import _item_text
+    from attacklm.bench.items import BenchItem
+
+    boilerplate = "You are a CTI analyst. Follow these instructions. " * 40
+    substance = "3PARA RAT communicates over HTTP and encrypts its traffic with a custom cipher."
+
+    item = BenchItem(
+        "q0", "cti", "ate",
+        [{"role": "system", "content": boilerplate},
+         {"role": "user", "content": substance}],
+        {"type": "attack_technique_set", "answer": ["T1071"]}, {},
+    )
+    text = _item_text(item)
+    assert substance in text
+    assert boilerplate not in text, "system boilerplate must not be compared"
+
+
+def test_verbatim_overlap_under_heavy_boilerplate_is_still_caught():
+    from attacklm.bench.items import BenchItem
+
+    boilerplate = "You are a CTI analyst. Follow these instructions. " * 40
+    substance = "3PARA RAT communicates over HTTP and encrypts its traffic with a custom cipher."
+
+    items = [
+        BenchItem("q0", "cti", "ate",
+                  [{"role": "system", "content": boilerplate},
+                   {"role": "user", "content": substance}],
+                  {"type": "attack_technique_set", "answer": ["T1071"]}, {}),
+        BenchItem("q1", "cti", "ate",
+                  [{"role": "system", "content": boilerplate},
+                   {"role": "user", "content": "Something entirely unrelated to that."}],
+                  {"type": "attack_technique_set", "answer": ["T1059"]}, {}),
+    ]
+    records = [{"messages": [{"role": "assistant", "content": substance}],
+                "source": "sigma-hq"}]
+
+    result = check_contamination(items, records)
+    if not result.checked:
+        pytest.skip("decontam/datasketch unavailable")
+    assert result.overlaps["q0"].contaminated is True
+    assert result.overlaps["q0"].max_jaccard > 0.9
+    assert result.overlaps["q1"].contaminated is False
+
+
+def test_system_only_item_falls_back_rather_than_comparing_nothing():
+    from attacklm.bench.contamination import _item_text
+    from attacklm.bench.items import BenchItem
+
+    item = BenchItem("q0", "c", "t", [{"role": "system", "content": "only this"}], {}, {})
+    assert _item_text(item) == "only this"

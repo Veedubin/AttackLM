@@ -98,18 +98,38 @@ class ContaminationResult:
 # ---------------------------------------------------------------------------
 
 
-def _item_text(item: BenchItem) -> str:
-    """Concatenate a benchmark item's message contents.
+# A system message is a pack-wide instruction, identical across every item, so
+# it carries no information about whether THIS item overlaps the training set.
+# Including it is not merely useless, it is actively harmful: Jaccard is a
+# ratio over the union, so shared boilerplate inflates the denominator for
+# every pair and drives real overlaps below the gate.
+#
+# Measured on CTI-Bench ATE: the item text is 8,157 chars of which the
+# substantive description is 611 (7.5%). A VERBATIM copy of that description in
+# the training set scored jaccard 0.0 and went unflagged -- the correction
+# would have silently missed genuine train-on-test contamination on both
+# flagship packs. Comparing user/assistant content only fixes it.
+_COMPARED_ROLES = ("user", "assistant")
 
-    Matches ``decontam._record_text``'s treatment of a training record
-    (non-empty contents joined by newline) so the two sides of a Jaccard
-    comparison are built the same way.
+
+def _item_text(item: BenchItem) -> str:
+    """The substantive text of an item, for overlap comparison.
+
+    System messages are excluded (see above). Otherwise matches
+    ``decontam._record_text``'s treatment of a training record -- non-empty
+    contents joined by newline -- so both sides of a Jaccard are built the same
+    way.
     """
-    return "\n".join(
+    parts = [
         str(msg.get("content", ""))
         for msg in item.messages
-        if msg.get("content")
-    )
+        if msg.get("content") and msg.get("role") in _COMPARED_ROLES
+    ]
+    if not parts:
+        # An item with only a system message: fall back rather than compare
+        # nothing at all, which would silently report "no overlap".
+        parts = [str(m.get("content", "")) for m in item.messages if m.get("content")]
+    return "\n".join(parts)
 
 
 def _group_by_source(records: list[dict]) -> dict[str, list[dict]]:

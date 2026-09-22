@@ -46,6 +46,12 @@ _NOANSWER = "N"
 # Inspect sets this on a sample whose output could not be parsed as a choice.
 _INVALID_REASON = "invalid_response_format"
 
+# Our own Inspect task, used for local_scored packs. Inspect resolves tasks by
+# FILE PATH, not by dotted module ("Invalid extension for task file"), so this
+# is an absolute path. inspect_tasks.py deliberately imports nothing from
+# attacklm, so the harness venv needs only inspect_ai -- not this package.
+_TASKS_FILE = Path(__file__).resolve().parent / "inspect_tasks.py"
+
 
 @dataclass(frozen=True)
 class RunConfig:
@@ -63,6 +69,7 @@ class RunConfig:
     log_dir: Path | None = None
     limit: int | None = None
     model_args: list[str] = field(default_factory=list)
+    items_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -158,9 +165,20 @@ class InspectAdapter:
             )
         prefix = _BACKENDS[cfg.backend]
 
+        # A local_scored pack supplies its OWN items, so the harness is
+        # pointed at our shipped jsonl_task and told where they live. A
+        # harness_scored pack names a task that owns its dataset already.
+        task_ref = pack.harness_task
+        if pack.mode == "local_scored":
+            if cfg.items_path is None:
+                raise ValueError(
+                    f"pack {pack.name!r} is local_scored; RunConfig.items_path is required"
+                )
+            task_ref = f"{_TASKS_FILE}@jsonl_task"
+
         argv: list[str] = [
             resolve_bench_python(), "-m", "inspect_ai", "eval",
-            pack.harness_task,
+            task_ref,
             "--model", f"{prefix}/{cfg.model}",
             # Each of these is stated explicitly rather than inherited. The
             # QCRI pipeline audit found unstated defaults swinging scores by
@@ -188,6 +206,8 @@ class InspectAdapter:
         # confirmed against a live vLLM run (that needs a GPU). It is exposed
         # as an ordinary model arg so `--model-arg` can override it without a
         # code change if the provider expects a different spelling.
+        if pack.mode == "local_scored" and cfg.items_path is not None:
+            argv += ["-T", f"items={cfg.items_path}"]
         if cfg.adapter:
             argv += ["-M", f"lora_modules={cfg.adapter}"]
         for arg in cfg.model_args:
