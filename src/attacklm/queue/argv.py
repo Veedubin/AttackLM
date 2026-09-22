@@ -126,7 +126,11 @@ def _find_base_model_in_deps(depends_on: list[int], db: QueueDB) -> str | None:
 def _resolve_argv(task: Task, spec: TaskSpec, db: QueueDB) -> list[str] | None:
     """Build the full argv for executing a task, resolving deps at runtime.
 
-    Returns None if required dependencies can't be resolved.
+    For adapter-consuming (audit) tasks, --adapter is optional — the audit
+    scripts run fine against a merged/base model with no adapter — but
+    --base-model must be resolvable one way or another. Returns None only
+    when base_model truly can't be resolved (from args, a train dep, or the
+    adapter's own adapter_config.json when an adapter is present).
     """
     import sys
 
@@ -136,7 +140,10 @@ def _resolve_argv(task: Task, spec: TaskSpec, db: QueueDB) -> list[str] | None:
     # Start with the Python interpreter and script path.
     argv = [sys.executable, str(spec.script_path)]
 
-    # Resolve adapter and base_model from dependencies if needed.
+    # Resolve adapter and base_model from dependencies if needed. The adapter
+    # is OPTIONAL — every audit script declares --adapter optional and only
+    # --base-model required, so a merged model with no adapter is the normal
+    # no-adapter case (2026-09 GPU smoke test regression).
     if spec.consumes_artifact == "adapter":
         depends_on = task.depends_on_list
         # S2: a --base-model that is really an adapter dir (adapter_config.json)
@@ -146,15 +153,18 @@ def _resolve_argv(task: Task, spec: TaskSpec, db: QueueDB) -> list[str] | None:
             args["base_model"] = None
         if not args.get("adapter"):
             adapter_path = _find_adapter_in_deps(depends_on, db)
-            if adapter_path is None:
-                return None
-            args["adapter"] = adapter_path
+            if adapter_path is not None:
+                args["adapter"] = adapter_path
+            # else: no adapter found in deps — proceed without one; the
+            # audit runs against the base/merged model directly.
         if not args.get("base_model"):
             base_model = _find_base_model_in_deps(depends_on, db)
-            if not base_model:
-                # R6: train task may have stored '' — fall back to the adapter's config.
+            if not base_model and args.get("adapter"):
+                # R6: train task may have stored '' — fall back to the
+                # adapter's config. Only meaningful when an adapter exists.
                 base_model = read_adapter_base(args["adapter"])
             if not base_model:
+                # base_model is the one truly required piece — fail here.
                 return None
             args["base_model"] = base_model
 

@@ -143,6 +143,24 @@ def test_adapter_dir_given_as_base_model(sandbox):
     assert report == {"base_model": "real/base", "adapter": str(adapter), "canaries": None}
 
 
+def test_audit_on_merged_model_without_adapter(sandbox):
+    """Task 10 GPU smoke test regression: a merged model has no adapter at
+    all. Every audit script declares --adapter optional — only --base-model
+    is required — so this must succeed with no --adapter on the argv."""
+    from attacklm.queue.cli import _cmd_add_audit
+    import argparse
+    db = sandbox
+    ns = argparse.Namespace(db_path=str(db.db_path), attack="1", include_unshipped=False, depends_on=None,
+                            adapter=None, base_model="stub/merged", label=None, timeout=None)
+    assert _cmd_add_audit(ns) == 0
+    _drain(db)
+    t = db.list_tasks()[0]
+    assert t.status == "completed", t.error
+    report = json.loads(Path(t.artifact_path).read_text())
+    assert report["base_model"] == "stub/merged"
+    assert report["adapter"] is None
+
+
 def test_failed_script_blocks_dependents(sandbox):
     db = sandbox
     (Path("scripts") / "train_all.py").write_text("import sys; print('boom'); sys.exit(2)\n")

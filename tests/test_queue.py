@@ -736,6 +736,16 @@ class TestAdapterConfigResolution:
         argv = _resolve_argv(db.get_task(aid), REGISTRY["audit_prompt_injection"], db)
         assert argv[argv.index("--base-model") + 1] == "qwen-from-config"
 
+    def test_adapter_is_optional_for_merged_model(self, db):
+        """Task 10 GPU smoke test: a merged model has no adapter at all —
+        every audit script declares --adapter optional, only --base-model
+        is required. No deps, no --adapter given: must not fail."""
+        tid = db.add_task(type="audit_prompt_injection", label="a", args={"base_model": "b"})
+        argv = _resolve_argv(db.get_task(tid), REGISTRY["audit_prompt_injection"], db)
+        assert argv is not None
+        assert argv[argv.index("--base-model") + 1] == "b"
+        assert "--adapter" not in argv
+
 
 class TestResolvedArgsPersist:
     def test_default_output_is_persisted(self, db, tmp_path):
