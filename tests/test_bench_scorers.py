@@ -8,6 +8,7 @@ import pytest
 from attacklm.bench.items import BenchItem
 from attacklm.bench.scorers import (
     INVALID_POLICIES,
+    SUBTECHNIQUE_POLICIES,
     InvalidResponseError,
     ItemScore,
     ScoreConfig,
@@ -129,3 +130,218 @@ def test_count_wrong_is_the_default_policy():
     """`exclude` produced the 100%-accuracy artefact in the QCRI audit."""
     assert ScoreConfig().invalid_policy == "count_wrong"
     assert set(INVALID_POLICIES) == {"count_wrong", "exclude", "fail_run"}
+
+
+# --- attack_technique_set (CTI-Bench ATE) -----------------------------------
+#
+# Absolute scores here are low by nature: the published CTI-ATE reference has
+# GPT-4 at 0.639 micro-F1 and LLAMA3-8B at 0.156.
+
+
+def _ate(answer=None, acceptable=None):
+    gt = {"type": "attack_technique_set"}
+    if answer is not None:
+        gt["answer"] = answer
+    if acceptable is not None:
+        gt["acceptable"] = acceptable
+    return BenchItem(
+        question_id="a1",
+        category="ate",
+        tier="ate",
+        messages=[{"role": "user", "content": "threat report"}],
+        ground_truth=gt,
+        metadata={},
+    )
+
+
+def test_attack_perfect_match_scores_one():
+    s = score_item(_ate(["T1059", "T1566"]), "We saw T1059 and T1566.", ScoreConfig())
+    assert s.score == 1.0 and s.valid
+
+
+def test_attack_complete_miss_scores_zero():
+    s = score_item(_ate(["T1059", "T1566"]), "We saw T1003 and T1190.", ScoreConfig())
+    assert s.score == 0.0 and s.valid
+
+
+def test_attack_partial_overlap_gives_hand_computed_f1():
+    """P={T1059,T1566}, G={T1566,T1003}: tp=1, p=0.5, r=0.5, f1=0.5."""
+    s = score_item(_ate(["T1566", "T1003"]), "T1059 and T1566 were used.", ScoreConfig())
+    assert s.score == pytest.approx(0.5)
+
+
+def test_attack_ids_in_prose_markdown_and_parentheses():
+    completion = "The actor used **T1059** (specifically T1059.001) and then T1566."
+    s = score_item(_ate(["T1059", "T1566"]), completion, ScoreConfig())
+    assert s.score == 1.0
+
+
+def test_attack_ids_comma_separated():
+    s = score_item(_ate(["T1059", "T1566", "T1003"]), "T1059, T1566.001, T1003", ScoreConfig())
+    assert s.score == 1.0
+
+
+def test_attack_id_lowercase_is_normalised():
+    s = score_item(_ate(["T1059"]), "the technique is t1059", ScoreConfig())
+    assert s.score == 1.0 and s.extracted == "T1059"
+
+
+def test_attack_duplicate_ids_do_not_inflate_the_score():
+    """Set semantics: repeating an id cannot buy recall it did not earn."""
+    gold = ["T1059", "T1566"]
+    once = score_item(_ate(gold), "T1059 was used.", ScoreConfig())
+    many = score_item(_ate(gold), "T1059. Again T1059, and once more T1059.", ScoreConfig())
+    # p=1.0, r=0.5 -> f1 = 2/3, identically for both completions.
+    assert once.score == pytest.approx(2 / 3)
+    assert many.score == pytest.approx(2 / 3)
+
+
+def test_attack_three_digit_near_miss_does_not_extract():
+    s = score_item(_ate(["T1059"]), "see T105 in the appendix", ScoreConfig())
+    assert s.valid is False and s.extracted is None
+
+
+def test_attack_five_digit_near_miss_does_not_extract():
+    """T10593 must not be truncated into a spurious T1059."""
+    s = score_item(_ate(["T1059"]), "ticket T10593 tracks this", ScoreConfig())
+    assert s.valid is False and s.extracted is None
+
+
+def test_attack_near_misses_do_not_pollute_a_real_id():
+    s = score_item(_ate(["T1059"]), "T105, T10593 and T1059 appear.", ScoreConfig())
+    assert s.score == 1.0 and s.extracted == "T1059"
+
+
+def test_strip_collapses_parent_and_subtechnique_without_double_counting():
+    gold = ["T1059"]
+    both = score_item(_ate(gold), "T1059 and its child T1059.003", ScoreConfig())
+    bare = score_item(_ate(gold), "T1059", ScoreConfig())
+    assert both.extracted == "T1059"
+    assert both.score == 1.0 and both.score == bare.score
+
+
+def test_strip_normalises_the_answer_key_too():
+    s = score_item(_ate(["T1566.001"]), "phishing, i.e. T1566", ScoreConfig())
+    assert s.score == 1.0
+
+
+def test_keep_policy_distinguishes_subtechnique_from_parent():
+    cfg = ScoreConfig(attack_id_subtechniques="keep")
+    s = score_item(_ate(["T1059"]), "T1059.003 was used", cfg)
+    assert s.score == 0.0 and s.extracted == "T1059.003"
+
+
+def test_either_policy_matches_parent_and_child_in_both_directions():
+    cfg = ScoreConfig(attack_id_subtechniques="either")
+    child_pred = score_item(_ate(["T1059"]), "T1059.003", cfg)
+    parent_pred = score_item(_ate(["T1059.003"]), "T1059", cfg)
+    assert child_pred.score == 1.0 and parent_pred.score == 1.0
+
+
+def test_either_policy_does_not_match_siblings():
+    cfg = ScoreConfig(attack_id_subtechniques="either")
+    s = score_item(_ate(["T1059.003"]), "T1059.001", cfg)
+    assert s.score == 0.0
+
+
+def test_either_policy_many_to_one_counts_each_side_once():
+    """Two children hitting one gold parent: p=2/2, r=1/1 -> f1=1.0.
+
+    Counting matched pairs instead would give tp=2 against |G|=1.
+    """
+    cfg = ScoreConfig(attack_id_subtechniques="either")
+    s = score_item(_ate(["T1059"]), "T1059.001 and T1059.003", cfg)
+    assert s.score == pytest.approx(1.0)
+
+
+def test_three_policies_give_different_hand_computed_scores():
+    """Same input, three answers.
+
+    completion -> {T1059.003, T1059, T1190}; key -> {T1059, T1566.001}.
+    strip:  P={T1059,T1190}, G={T1059,T1566} -> tp=1, p=1/2, r=1/2 -> 0.5
+    keep:   tp={T1059} -> p=1/3, r=1/2 -> 0.4
+    either: p=2/3 (T1059.003 and T1059 hit), r=1/2 -> 4/7
+    """
+    gold = ["T1059", "T1566.001"]
+    completion = "T1059.003, T1059 and T1190 were observed."
+    strip = score_item(_ate(gold), completion, ScoreConfig(attack_id_subtechniques="strip"))
+    keep = score_item(_ate(gold), completion, ScoreConfig(attack_id_subtechniques="keep"))
+    either = score_item(_ate(gold), completion, ScoreConfig(attack_id_subtechniques="either"))
+    assert strip.score == pytest.approx(0.5)
+    assert keep.score == pytest.approx(0.4)
+    assert either.score == pytest.approx(4 / 7)
+
+
+def test_attack_no_ids_is_invalid_and_counts_wrong_by_default():
+    s = score_item(_ate(["T1059"]), "I cannot help with that.", ScoreConfig())
+    assert s.valid is False and s.score == 0.0 and s.extracted is None
+
+
+def test_attack_no_ids_honours_exclude_policy():
+    s = score_item(_ate(["T1059"]), "no ids here", ScoreConfig(invalid_policy="exclude"))
+    assert s.valid is False and s.score is None
+
+
+def test_attack_no_ids_honours_fail_run_policy():
+    with pytest.raises(InvalidResponseError):
+        score_item(_ate(["T1059"]), "no ids here", ScoreConfig(invalid_policy="fail_run"))
+
+
+def test_attack_empty_answer_key_raises():
+    """No correct answer is a broken item, not a zero score."""
+    with pytest.raises(ValueError, match="empty"):
+        score_item(_ate([]), "T1059", ScoreConfig())
+
+
+def test_attack_missing_answer_key_raises():
+    with pytest.raises(ValueError, match="empty"):
+        score_item(_ate(), "T1059", ScoreConfig())
+
+
+def test_attack_acceptable_is_used_when_answer_is_absent():
+    s = score_item(_ate(acceptable=["T1059"]), "T1059", ScoreConfig())
+    assert s.score == 1.0
+
+
+def test_attack_malformed_answer_key_entry_raises():
+    with pytest.raises(ValueError, match="T105"):
+        score_item(_ate(["T105"]), "T1059", ScoreConfig())
+
+
+def test_unknown_subtechnique_policy_raises():
+    cfg = ScoreConfig(attack_id_subtechniques="nonsense")
+    with pytest.raises(ValueError, match="nonsense"):
+        score_item(_ate(["T1059"]), "T1059", cfg)
+
+
+def test_subtechnique_policy_default_and_constant():
+    """CTI-ATE tells the model to exclude sub-technique ids, hence `strip`."""
+    assert ScoreConfig().attack_id_subtechniques == "strip"
+    assert SUBTECHNIQUE_POLICIES == ("strip", "keep", "either")
+
+
+def test_attack_extracted_field_reports_normalised_ids():
+    s = score_item(_ate(["T1059"]), "t1566.001, T1059.003 and T1059", ScoreConfig())
+    assert s.extracted == "T1059,T1566"
+
+
+def test_key_precedence_matches_mcq_across_both_scorers():
+    """`acceptable` wins over `answer` in BOTH scorers.
+
+    The two scorers previously disagreed, which is a trap for whoever writes
+    the next answer key: the same ground_truth dict would grade differently
+    depending on its type.
+    """
+    mcq = BenchItem(
+        "q1", "net", "mcq", [{"role": "user", "content": "?"}],
+        {"type": "mcq_choice", "answer": "A", "acceptable": ["C"]}, {},
+    )
+    assert score_item(mcq, "C", ScoreConfig()).score == 1.0
+    assert score_item(mcq, "A", ScoreConfig()).score == 0.0
+
+    tech = BenchItem(
+        "q2", "cti", "ate", [{"role": "user", "content": "?"}],
+        {"type": "attack_technique_set", "answer": ["T1001"], "acceptable": ["T1059"]}, {},
+    )
+    assert score_item(tech, "T1059", ScoreConfig()).score == 1.0
+    assert score_item(tech, "T1001", ScoreConfig()).score == 0.0
