@@ -101,7 +101,7 @@ def test_train_then_core_gauntlet_end_to_end(sandbox):
                             single_model_name=None, include_orchestrator=False, model_attacks=False,
                             include_tools=False, epochs=None, batch_size=None, train_extra=None,
                             label=None, train_timeout=None, then="gauntlet", gauntlet_preset="core",
-                            attack=None, include_unshipped=False)
+                            attack=None, include_unshipped=False, no_baseline=True)
     assert _cmd_chain(ns) == 0
     _drain(db)
 

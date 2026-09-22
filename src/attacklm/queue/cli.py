@@ -12,6 +12,7 @@ from typing import Any
 from attacklm.queue.db import QueueDB, DEFAULT_QUEUE_DIR
 from attacklm.queue.registry import REGISTRY, resolve_attack
 from attacklm.queue.gauntlet import expand_gauntlet
+from attacklm.queue.baseline import DEFAULT_BASE_MODEL, baseline_exists, baseline_task_defs, ensure_baseline
 from attacklm.queue.display import list_tasks, status_summary, task_detail
 from attacklm.queue.runner import run_loop
 
@@ -97,6 +98,20 @@ def _insert_task_defs(db: QueueDB, tasks: list[dict[str, Any]], default_deps: li
         created.append(tid)
         print(f"Task #{tid} created: {task_def['label']!r} [pending, depends_on={deps}]")
     return created
+
+
+def _queue_baseline(db: QueueDB, base_model: str | None, preset: str, args: argparse.Namespace) -> None:
+    """Auto-queue a baseline gauntlet unless --no-baseline (or the base is unknown)."""
+    if getattr(args, "no_baseline", False):
+        return
+    if not base_model:
+        print("Note: no baseline queued (base model unknown — pass --base-model, or run `attacklm queue baseline <base>`).")
+        return
+    ids = ensure_baseline(db, base_model, preset, _insert_task_defs)
+    if ids:
+        print(f"Baseline for {base_model} ({preset}) queued: tasks {', '.join('#' + str(i) for i in ids)}")
+    else:
+        print(f"Baseline for {base_model} ({preset}) already queued/completed.")
 
 
 def _cmd_add_train(args: argparse.Namespace) -> int:
@@ -252,6 +267,7 @@ def _cmd_chain(args: argparse.Namespace) -> int:
         except ValueError as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
+        _queue_baseline(db, args.base_model or DEFAULT_BASE_MODEL, preset, args)
     elif then == "audit":
         try:
             attack_keys = resolve_attack(
@@ -306,7 +322,31 @@ def _cmd_gauntlet(args: argparse.Namespace) -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
+    base = getattr(args, "base_model", None)
+    if not base:
+        for dep in depends_on:
+            dep_task = db.get_task(dep)
+            if dep_task is not None and dep_task.type == "train":
+                base = dep_task.args_dict.get("base_model") or DEFAULT_BASE_MODEL
+                break
+    _queue_baseline(db, base, preset, args)
+
     _insert_task_defs(db, tasks, list(depends_on))
+    return 0
+
+
+def _cmd_baseline(args: argparse.Namespace) -> int:
+    """Handle `attacklm queue baseline <base-model>`."""
+    db = _get_db(args)
+    preset = args.preset or "core"
+    existing = baseline_exists(db, args.base_model, preset)
+    if existing and not args.force:
+        print(f"Baseline for {args.base_model} ({preset}) already exists: tasks "
+              f"{', '.join('#' + str(i) for i in existing)}. Use --force to queue a fresh one.")
+        return 0
+
+    ids = _insert_task_defs(db, baseline_task_defs(args.base_model, preset), [])
+    print(f"Baseline for {args.base_model} ({preset}) queued: tasks {', '.join('#' + str(i) for i in ids)}")
     return 0
 
 
@@ -596,8 +636,13 @@ def build_queue_parser(subparsers: argparse._SubParsersAction) -> None:
             "Usage:\n"
             "  attacklm queue add-train --single-model\n"
             "  attacklm queue chain --single-model --then gauntlet core\n"
+            "  attacklm queue baseline <base-model>\n"
             "  attacklm queue start --follow\n"
             "  attacklm queue list\n"
+            "  attacklm queue compare --adapter <path>\n"
+            "  attacklm queue history\n\n"
+            "`chain`/`gauntlet` auto-queue a base-model baseline (--no-baseline to skip); "
+            "`compare`/`history` are separate reporting subcommands."
         ),
     )
     queue_p.set_defaults(func=_cmd_queue_default)
@@ -778,6 +823,12 @@ def build_queue_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Include unimplemented attacks",
     )
     chain_p.add_argument(
+        "--no-baseline",
+        action="store_true",
+        default=False,
+        help="Skip the automatic base-model baseline gauntlet",
+    )
+    chain_p.add_argument(
         "train_extra", nargs=argparse.REMAINDER, help="Extra args for train_all.py"
     )
     chain_p.set_defaults(func=_cmd_chain)
@@ -801,7 +852,35 @@ def build_queue_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         help="Path to a YAML recipe file",
     )
+    gauntlet_p.add_argument(
+        "--no-baseline",
+        action="store_true",
+        default=False,
+        help="Skip the automatic base-model baseline gauntlet",
+    )
+    gauntlet_p.add_argument(
+        "--base-model",
+        type=str,
+        default=None,
+        help="Base model for the automatic baseline (default: from the --after train task, else the abliterated Qwen 3B)",
+    )
     gauntlet_p.set_defaults(func=_cmd_gauntlet)
+
+    # ---- baseline ----
+    baseline_p = queue_sub.add_parser(
+        "baseline", help="Queue a base-model baseline gauntlet (no adapter)"
+    )
+    baseline_p.add_argument("base_model", type=str, help="Base model to baseline")
+    baseline_p.add_argument(
+        "--preset", type=str, default="core", help="Gauntlet preset (default: core)"
+    )
+    baseline_p.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="Queue a fresh baseline even if one already exists",
+    )
+    baseline_p.set_defaults(func=_cmd_baseline)
 
     # ---- list ----
     list_p = queue_sub.add_parser("list", help="List tasks in the queue")

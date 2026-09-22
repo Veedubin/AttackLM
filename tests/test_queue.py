@@ -984,7 +984,8 @@ class TestCliFixes:
         monkeypatch.setattr(g, "_calibration_holdouts_missing", lambda: False)
         t1 = db.add_task(type="train", label="t1", args={})
         t2 = db.add_task(type="train", label="t2", args={})
-        args = self._ns(db_path=str(db.db_path), preset="quick", after=f"{t1},{t2}", recipe=None)
+        args = self._ns(db_path=str(db.db_path), preset="quick", after=f"{t1},{t2}", recipe=None,
+                        no_baseline=True)
         assert qcli._cmd_gauntlet(args) == 0
         audits = db.list_tasks(type="audit_prompt_injection")
         assert audits and sorted(audits[0].depends_on_list) == [t1, t2]
@@ -1055,9 +1056,10 @@ class TestCliFixes:
                               single_model_name=None, include_orchestrator=False, model_attacks=False,
                               include_tools=False, epochs=None, batch_size=None, train_extra=None,
                               label=None, train_timeout=None, then="gauntlet", gauntlet_preset="quick",
-                              attack=None, include_unshipped=False)
+                              attack=None, include_unshipped=False, no_baseline=True)
         assert qcli._cmd_chain(chain_args) == 0
-        assert qcli._cmd_gauntlet(self._ns(db_path=str(db.db_path), preset="quick", after=None, recipe=None)) == 0
+        assert qcli._cmd_gauntlet(self._ns(db_path=str(db.db_path), preset="quick", after=None, recipe=None,
+                                           no_baseline=True)) == 0
         assert calls == [2, 2]
 
     def test_clean_dry_run_message(self, db, capsys):
