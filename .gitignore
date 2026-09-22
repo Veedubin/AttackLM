@@ -250,3 +250,9 @@ data/NYU_CTF_Bench/
 # `attacklm-gui/` directory in the repo root is residue from the
 # pre-v0.12.0 layout and is NOT a separate PyPI package anymore.
 attacklm-gui/
+
+# Benchmark data fetched at eval time, never committed. CTI-Bench is
+# CC BY-NC-SA 4.0 (NonCommercial + ShareAlike) and CyberMetric ships no
+# LICENSE at all, so neither may be redistributed from this MIT repo.
+# Packs declare this as `redistributable: false` and a test enforces it.
+data/bench/cache/

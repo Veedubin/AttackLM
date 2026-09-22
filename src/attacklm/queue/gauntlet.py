@@ -39,6 +39,14 @@ GAUNTLET_PRESETS: dict[str, list[dict[str, Any]]] = {
     "capability-quick": [
         {"type": "bench_cybermetric", "args": {"pack": "cybermetric-500"}},
     ],
+    # The flagship. CTI-Bench is the only public benchmark grounded in ATT&CK
+    # that also asks for technique EXTRACTION rather than recall, so ATE is
+    # the closest external analogue to what this model is actually for.
+    "capability": [
+        {"type": "bench_ctibench_mcq", "args": {"pack": "ctibench-mcq"}},
+        {"type": "bench_ctibench_ate", "args": {"pack": "ctibench-ate"}},
+        {"type": "bench_cybermetric", "args": {"pack": "cybermetric-500"}},
+    ],
 }
 
 

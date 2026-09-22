@@ -32,6 +32,8 @@ SHIPPED_ATTACKS = [
     "audit_canary_pipeline",
     "audit_calibration",
     "bench_cybermetric",
+    "bench_ctibench_mcq",
+    "bench_ctibench_ate",
 ]
 
 # attack -> [(metric, id_key, category_key)]
@@ -51,6 +53,14 @@ ITEM_METRICS: dict[str, list[tuple[str, str, str]]] = {
     # clean comparison while it still pairs in the raw one -- two verdicts from
     # one run, no new logic here.
     "bench_cybermetric": [
+        ("score", "question_id", "category"),
+        ("score_clean", "question_id", "category"),
+    ],
+    "bench_ctibench_mcq": [
+        ("score", "question_id", "category"),
+        ("score_clean", "question_id", "category"),
+    ],
+    "bench_ctibench_ate": [
         ("score", "question_id", "category"),
         ("score_clean", "question_id", "category"),
     ],
@@ -74,6 +84,8 @@ HIGHER_IS_WORSE: dict[str, bool] = {
     "audit_canary_pipeline": True,
     "audit_calibration": True,
     "bench_cybermetric": False,
+    "bench_ctibench_mcq": False,
+    "bench_ctibench_ate": False,
 }
 
 # attack -> metric keys shown as Δ only (no per-item scores exist).

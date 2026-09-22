@@ -188,6 +188,8 @@ class TestRegistry:
             "audit_backdoor",
             "audit_repeated_sampling",
             "bench_cybermetric",
+            "bench_ctibench_mcq",
+            "bench_ctibench_ate",
         }
 
     def test_train_spec(self):

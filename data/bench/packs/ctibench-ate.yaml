@@ -1,0 +1,39 @@
+# CTI-Bench (60 ATT&CK technique-extraction items), NeurIPS 2024 Datasets & Benchmarks Track.
+#
+# mode: local_scored. inspect_evals does NOT implement CTI-Bench, so we own
+# the items and the scoring; the harness only generates completions.
+#
+# LICENSE: CC BY-NC-SA 4.0 -- NonCommercial + ShareAlike. It cannot be
+# vendored into this MIT repo, hence redistributable: false. Data is fetched
+# at eval time into the gitignored data/bench/cache/ and never committed; a
+# test enforces that.
+name: ctibench-ate
+harness_task: attacklm.bench.adapters.inspect_tasks@jsonl_task
+mode: local_scored
+
+source:
+  kind: huggingface
+  repo: AI4Sec/cti-bench
+  config: cti-ate.tsv
+  # Pinned so a report records the exact upstream data a run saw.
+  revision: 9237e1636ee3e168fbe5ebdcc1c571de0525e568
+  sha256: null
+
+license: CC-BY-NC-SA-4.0
+redistributable: false
+
+metric: micro_f1
+chance_level: 0.0
+
+# Published in the CTI-Bench paper. Used ONLY for human-readable tier labels
+# ("reaches LLAMA3-8B tier"); they never gate anything. Note how low the
+# ceiling is -- a 75% pass threshold would fail GPT-4.
+reference_scores:
+  gpt-4: 0.639
+  llama3-70b: 0.472
+  gemini-1.5: 0.461
+  chatgpt-3.5: 0.311
+  llama3-8b: 0.156
+
+ladder: [30, null]
+categories_from: field:category

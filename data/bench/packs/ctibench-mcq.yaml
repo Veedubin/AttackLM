@@ -1,0 +1,39 @@
+# CTI-Bench (2,500 CTI knowledge MCQs), NeurIPS 2024 Datasets & Benchmarks Track.
+#
+# mode: local_scored. inspect_evals does NOT implement CTI-Bench, so we own
+# the items and the scoring; the harness only generates completions.
+#
+# LICENSE: CC BY-NC-SA 4.0 -- NonCommercial + ShareAlike. It cannot be
+# vendored into this MIT repo, hence redistributable: false. Data is fetched
+# at eval time into the gitignored data/bench/cache/ and never committed; a
+# test enforces that.
+name: ctibench-mcq
+harness_task: attacklm.bench.adapters.inspect_tasks@jsonl_task
+mode: local_scored
+
+source:
+  kind: huggingface
+  repo: AI4Sec/cti-bench
+  config: cti-mcq.tsv
+  # Pinned so a report records the exact upstream data a run saw.
+  revision: 9237e1636ee3e168fbe5ebdcc1c571de0525e568
+  sha256: null
+
+license: CC-BY-NC-SA-4.0
+redistributable: false
+
+metric: accuracy
+chance_level: 0.25
+
+# Published in the CTI-Bench paper. Used ONLY for human-readable tier labels
+# ("reaches LLAMA3-8B tier"); they never gate anything. Note how low the
+# ceiling is -- a 75% pass threshold would fail GPT-4.
+reference_scores:
+  gpt-4: 0.710
+  llama3-70b: 0.657
+  gemini-1.5: 0.654
+  llama3-8b: 0.613
+  chatgpt-3.5: 0.541
+
+ladder: [100, 200, 400, 800, null]
+categories_from: field:category

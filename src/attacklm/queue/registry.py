@@ -39,7 +39,11 @@ class TaskSpec:
 
 
 # ---------------------------------------------------------------------------
-# The 9 registered task types (v0.18.0 — Phase 1)
+# Registered task types.
+#
+# Two families: `audit_*` measures attack RESISTANCE (can this be abused?) and
+# `bench_*` measures CAPABILITY (is this a better security assistant?). They
+# read in opposite directions -- see compare.HIGHER_IS_WORSE.
 # ---------------------------------------------------------------------------
 
 REGISTRY: dict[str, TaskSpec] = {
@@ -94,6 +98,52 @@ REGISTRY: dict[str, TaskSpec] = {
         gauntlet_member=True,
         implemented=True,
         description="Capability — CyberMetric MCQ via Inspect AI",
+    ),
+    "bench_ctibench_mcq": TaskSpec(
+        type="bench_ctibench_mcq",
+        label="Bench: CTI-Bench MCQ (capability)",
+        script="bench_run.py",
+        runner_mode="subprocess",
+        produces_artifact="report",
+        consumes_artifact="adapter",
+        arg_schema={
+            "pack": {"type": "string", "required": False},
+            "questions": {"type": "string", "required": False},
+            "output": {"type": "string", "required": False},
+            "base_model": {"type": "string", "required": False},
+            "adapter": {"type": "string", "required": False},
+            "rung": {"type": "integer", "required": False},
+            "backend": {"type": "string", "required": False},
+            "max_tokens": {"type": "integer", "required": False},
+            "invalid_policy": {"type": "string", "required": False},
+        },
+        default_timeout_s=7200,
+        gauntlet_member=True,
+        implemented=True,
+        description="Capability - CTI-Bench knowledge MCQ (CC BY-NC-SA, fetched)",
+    ),
+    "bench_ctibench_ate": TaskSpec(
+        type="bench_ctibench_ate",
+        label="Bench: CTI-Bench ATE (capability)",
+        script="bench_run.py",
+        runner_mode="subprocess",
+        produces_artifact="report",
+        consumes_artifact="adapter",
+        arg_schema={
+            "pack": {"type": "string", "required": False},
+            "questions": {"type": "string", "required": False},
+            "output": {"type": "string", "required": False},
+            "base_model": {"type": "string", "required": False},
+            "adapter": {"type": "string", "required": False},
+            "rung": {"type": "integer", "required": False},
+            "backend": {"type": "string", "required": False},
+            "max_tokens": {"type": "integer", "required": False},
+            "invalid_policy": {"type": "string", "required": False},
+        },
+        default_timeout_s=3600,
+        gauntlet_member=True,
+        implemented=True,
+        description="Capability - ATT&CK technique extraction (CC BY-NC-SA, fetched)",
     ),
     "audit_prompt_injection": TaskSpec(
         type="audit_prompt_injection",
