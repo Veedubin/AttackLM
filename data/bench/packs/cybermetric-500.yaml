@@ -1,0 +1,43 @@
+# CyberMetric-500 — 500 multiple-choice questions across nine security domains.
+#
+# mode: harness_scored. inspect_evals implements this benchmark end to end:
+# it downloads the JSON from the upstream GitHub repo at a revision IT pins,
+# and grades with Inspect's choice() scorer. We normalise its per-sample scores
+# rather than re-deriving them, so we inherit the upstream's validated prompt
+# and answer extraction instead of inventing our own.
+#
+# The 80- and 500-item subsets are the human-expert-validated ones, which is
+# why 500 is the pack we ship rather than the 10k set.
+#
+# LICENSE: the upstream repo ships no LICENSE file, which defaults to all
+# rights reserved. Hence redistributable: false — data is never committed, and
+# a test enforces that.
+name: cybermetric-500
+harness_task: inspect_evals/cybermetric_500
+mode: harness_scored
+
+source:
+  kind: github_raw
+  repo: cybermetric/CyberMetric
+  config: CyberMetric-500-v1.json
+  # The revision inspect_evals itself pins. Kept here so our report records the
+  # exact upstream data a run saw, independent of the harness version.
+  revision: 205262cdf5022ba890e792efd176fb19d42913fa
+  # Not yet enforced: the fetch/checksum layer is Phase 2. Inspect performs the
+  # download in Phase 1, so nothing here is used to fetch.
+  sha256: null
+
+license: unknown
+redistributable: false
+
+metric: accuracy
+# Four options (A-D), so a guessing model lands here. Drives the ladder's
+# dead-horse floor rule.
+chance_level: 0.25
+
+# No published per-model numbers for the 500 subset that we have verified, so
+# none are claimed. Tier labels stay unavailable until we have a source.
+reference_scores: {}
+
+ladder: [100, 200, 400, null]
+categories_from: field:category
