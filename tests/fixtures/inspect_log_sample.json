@@ -1,0 +1,1373 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "eval_id": "6n7VC4tA39ZgYBHbxGEYTs",
+    "run_id": "HiGcuh5a4Vbgv2EifxoGmh",
+    "created": "2026-09-22T20:18:43+00:00",
+    "task": "fixture_mcq",
+    "task_id": "3kb862dh2hbCRvaZy8hyVJ",
+    "task_version": 0,
+    "task_file": "fixture_task.py",
+    "task_display_name": "fixture_mcq",
+    "task_registry_name": "fixture_mcq",
+    "task_attribs": {},
+    "task_args": {},
+    "task_args_passed": {},
+    "dataset": {
+      "samples": 3,
+      "sample_ids": [
+        "fx_000",
+        "fx_001",
+        "fx_002"
+      ],
+      "shuffled": false
+    },
+    "model": "mockllm/model",
+    "model_generate_config": {},
+    "model_args": {
+      "custom_outputs": [
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "dz8SeMgXWa8NtLT37yBsCN",
+                "content": "ANSWER: B",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              },
+              "stop_reason": "stop"
+            }
+          ],
+          "completion": "ANSWER: B",
+          "usage": {
+            "input_tokens": 82,
+            "output_tokens": 9,
+            "total_tokens": 91
+          },
+          "time": 0.1141209399793297
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "5WdwBxUEpyhjADVqjkDA9F",
+                "content": "ANSWER: C",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              },
+              "stop_reason": "stop"
+            }
+          ],
+          "completion": "ANSWER: C",
+          "usage": {
+            "input_tokens": 80,
+            "output_tokens": 9,
+            "total_tokens": 89
+          },
+          "time": 0.0001257590192835778
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "8hiVSAsCC7LYGH2iMA2Lox",
+                "content": "I cannot.",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              },
+              "stop_reason": "stop"
+            }
+          ],
+          "completion": "I cannot.",
+          "usage": {
+            "input_tokens": 79,
+            "output_tokens": 9,
+            "total_tokens": 88
+          },
+          "time": 0.00006362999556586146
+        }
+      ]
+    },
+    "config": {
+      "epochs": 1,
+      "fail_on_error": true,
+      "continue_on_fail": false,
+      "score_on_error": false,
+      "sandbox_cleanup": true,
+      "sandbox_prebuilt": false,
+      "log_samples": true,
+      "log_realtime": true,
+      "log_images": true,
+      "score_display": true
+    },
+    "packages": {
+      "inspect_ai": "0.3.266"
+    },
+    "scorers": [
+      {
+        "name": "choice",
+        "options": {},
+        "metrics": [
+          {
+            "name": "inspect_ai/accuracy",
+            "options": {}
+          },
+          {
+            "name": "inspect_ai/stderr",
+            "options": {}
+          }
+        ],
+        "metadata": {}
+      }
+    ]
+  },
+  "plan": {
+    "name": "plan",
+    "steps": [
+      {
+        "solver": "multiple_choice",
+        "params": {
+          "template": null,
+          "cot": false,
+          "multiple_correct": false,
+          "max_tokens": null
+        },
+        "params_passed": {}
+      }
+    ],
+    "config": {
+      "max_tokens": 512,
+      "temperature": 0.0,
+      "seed": 42
+    }
+  },
+  "results": {
+    "total_samples": 3,
+    "completed_samples": 3,
+    "scores": [
+      {
+        "name": "choice",
+        "scorer": "choice",
+        "scored_samples": 3,
+        "unscored_samples": 0,
+        "params": {},
+        "metrics": {
+          "accuracy": {
+            "name": "accuracy",
+            "value": 0.3333333333333333,
+            "params": {}
+          },
+          "stderr": {
+            "name": "stderr",
+            "value": 0.33333333333333337,
+            "params": {}
+          }
+        }
+      }
+    ],
+    "headline": {
+      "scorer": "choice",
+      "score": "choice",
+      "metric": "accuracy"
+    }
+  },
+  "stats": {
+    "started_at": "2026-09-22T20:18:43+00:00",
+    "completed_at": "2026-09-22T20:18:43+00:00",
+    "model_usage": {
+      "mockllm/model": {
+        "input_tokens": 241,
+        "output_tokens": 27,
+        "total_tokens": 268
+      }
+    },
+    "role_usage": {},
+    "connection_limit_history": []
+  },
+  "invalidated": false,
+  "tags": [],
+  "metadata": {},
+  "samples": [
+    {
+      "id": "fx_000",
+      "epoch": 1,
+      "input": "Which technique covers a web shell on a public-facing server?",
+      "choices": [
+        "Scheduled Task",
+        "Server Software Component: Web Shell",
+        "Process Injection",
+        "Valid Accounts"
+      ],
+      "target": "B",
+      "messages": [
+        {
+          "id": "kPQpDYTnFqRvuenyLyeYW4",
+          "content": "Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of A,B,C,D.\n\nWhich technique covers a web shell on a public-facing server?\n\nA) Scheduled Task\nB) Server Software Component: Web Shell\nC) Process Injection\nD) Valid Accounts",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "id": "dz8SeMgXWa8NtLT37yBsCN",
+          "content": "ANSWER: B",
+          "source": "generate",
+          "role": "assistant",
+          "model": "mockllm/model"
+        }
+      ],
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "id": "dz8SeMgXWa8NtLT37yBsCN",
+              "content": "ANSWER: B",
+              "source": "generate",
+              "role": "assistant",
+              "model": "mockllm/model"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "completion": "ANSWER: B",
+        "usage": {
+          "input_tokens": 82,
+          "output_tokens": 9,
+          "total_tokens": 91
+        },
+        "time": 0.1141209399793297
+      },
+      "scores": {
+        "choice": {
+          "value": "C",
+          "answer": "B",
+          "explanation": "ANSWER: B",
+          "history": []
+        }
+      },
+      "metadata": {
+        "category": "persistence"
+      },
+      "store": {},
+      "events": [
+        {
+          "uuid": "aWQQCLwHcTp4rcgvLu5GDg",
+          "span_id": "Zg8QpoANM4ALYxahwDnMou",
+          "timestamp": "2026-09-22T20:18:43.673307+00:00",
+          "working_start": 162282.592828543,
+          "event": "span_begin",
+          "id": "Zg8QpoANM4ALYxahwDnMou",
+          "type": "init",
+          "name": "init"
+        },
+        {
+          "uuid": "jH7M8rfPEuJku6w9aJbbEX",
+          "span_id": "Zg8QpoANM4ALYxahwDnMou",
+          "timestamp": "2026-09-22T20:18:43.673806+00:00",
+          "working_start": 162282.593328353,
+          "event": "sample_init",
+          "sample": {
+            "input": "Which technique covers a web shell on a public-facing server?",
+            "choices": [
+              "Scheduled Task",
+              "Server Software Component: Web Shell",
+              "Process Injection",
+              "Valid Accounts"
+            ],
+            "target": "B",
+            "id": "fx_000",
+            "metadata": {
+              "category": "persistence"
+            }
+          },
+          "state": {
+            "messages": [
+              {
+                "id": "kPQpDYTnFqRvuenyLyeYW4",
+                "content": "Which technique covers a web shell on a public-facing server?",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": null,
+            "store": {},
+            "output": {
+              "model": "mockllm/model",
+              "choices": [],
+              "completion": ""
+            },
+            "completed": false,
+            "metadata": {
+              "category": "persistence"
+            }
+          }
+        },
+        {
+          "uuid": "h8sEMnHfYV8biuYLhtgtsM",
+          "span_id": "Zg8QpoANM4ALYxahwDnMou",
+          "timestamp": "2026-09-22T20:18:43.673999+00:00",
+          "working_start": 162282.593520007,
+          "event": "span_end",
+          "id": "Zg8QpoANM4ALYxahwDnMou"
+        },
+        {
+          "uuid": "L8iZeF9DkDsVuLWKEKBs2d",
+          "span_id": "hFLXuXER8zLaP6LWDWUQLf",
+          "timestamp": "2026-09-22T20:18:43.675923+00:00",
+          "working_start": 0.0018251800211146474,
+          "event": "span_begin",
+          "id": "hFLXuXER8zLaP6LWDWUQLf",
+          "type": "solvers",
+          "name": "solvers"
+        },
+        {
+          "uuid": "FC6MZouWWkwhBhyoRgxHL8",
+          "span_id": "gh2ZxLwEdMK6a5TR9HkaWQ",
+          "timestamp": "2026-09-22T20:18:43.676130+00:00",
+          "working_start": 0.0020323540084064007,
+          "event": "span_begin",
+          "id": "gh2ZxLwEdMK6a5TR9HkaWQ",
+          "parent_id": "hFLXuXER8zLaP6LWDWUQLf",
+          "type": "solver",
+          "name": "multiple_choice"
+        },
+        {
+          "uuid": "jvEUxrqZSzRa7hR4rvP7zK",
+          "span_id": "gh2ZxLwEdMK6a5TR9HkaWQ",
+          "timestamp": "2026-09-22T20:18:43.676338+00:00",
+          "working_start": 0.002240119007183239,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [],
+          "input_refs": [
+            [
+              0,
+              1
+            ]
+          ],
+          "tools": [],
+          "tool_choice": "none",
+          "config": {
+            "max_tokens": 512,
+            "temperature": 0.0,
+            "seed": 42
+          },
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "dz8SeMgXWa8NtLT37yBsCN",
+                  "content": "ANSWER: B",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            ],
+            "completion": "ANSWER: B",
+            "usage": {
+              "input_tokens": 82,
+              "output_tokens": 9,
+              "total_tokens": 91
+            },
+            "time": 0.1141209399793297
+          },
+          "call": {
+            "request": {
+              "model": "model"
+            },
+            "response": {
+              "content": "ANSWER: B"
+            },
+            "call_refs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "call_key": "messages"
+          },
+          "completed": "2026-09-22T20:18:43.861525+00:00",
+          "working_time": 0.1141209399793297
+        },
+        {
+          "uuid": "fTjAu4tKuTiuVPRH9NaDZf",
+          "span_id": "gh2ZxLwEdMK6a5TR9HkaWQ",
+          "timestamp": "2026-09-22T20:18:43.862463+00:00",
+          "working_start": 0.11750620501697995,
+          "event": "state",
+          "changes": [
+            {
+              "op": "replace",
+              "path": "/messages/0/content",
+              "value": "attachment://eaf2687cf97e2a62d07bb10eb6a9166e",
+              "replaced": "Which technique covers a web shell on a public-facing server?"
+            },
+            {
+              "op": "add",
+              "path": "/messages/1",
+              "value": {
+                "id": "dz8SeMgXWa8NtLT37yBsCN",
+                "content": "ANSWER: B",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/usage",
+              "value": {
+                "input_tokens": 82,
+                "output_tokens": 9,
+                "total_tokens": 91
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/time",
+              "value": 0.1141209399793297
+            },
+            {
+              "op": "add",
+              "path": "/output/choices/0",
+              "value": {
+                "message": {
+                  "id": "dz8SeMgXWa8NtLT37yBsCN",
+                  "content": "ANSWER: B",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/output/completion",
+              "value": "ANSWER: B",
+              "replaced": ""
+            }
+          ]
+        },
+        {
+          "uuid": "fkJW4H9aznz2Ey274WYwQp",
+          "span_id": "gh2ZxLwEdMK6a5TR9HkaWQ",
+          "timestamp": "2026-09-22T20:18:43.862651+00:00",
+          "working_start": 0.11769262902089395,
+          "event": "span_end",
+          "id": "gh2ZxLwEdMK6a5TR9HkaWQ"
+        },
+        {
+          "uuid": "cqMmTexqAjJuoitiqnGc2p",
+          "span_id": "hFLXuXER8zLaP6LWDWUQLf",
+          "timestamp": "2026-09-22T20:18:43.862736+00:00",
+          "working_start": 0.11777670902665704,
+          "event": "span_end",
+          "id": "hFLXuXER8zLaP6LWDWUQLf"
+        },
+        {
+          "uuid": "CVBCjASGNaZ8AjoPSrTvLb",
+          "span_id": "C8o7JL6CRK7zKbe3DnmHDX",
+          "timestamp": "2026-09-22T20:18:43.865622+00:00",
+          "working_start": 0.12066327602951787,
+          "event": "span_begin",
+          "id": "C8o7JL6CRK7zKbe3DnmHDX",
+          "type": "scorers",
+          "name": "scorers"
+        },
+        {
+          "uuid": "QhvnKS79pDmNjEGY74eELy",
+          "span_id": "A3vtMNGhU2iV3ryzst3vES",
+          "timestamp": "2026-09-22T20:18:43.865694+00:00",
+          "working_start": 0.12073517302633263,
+          "event": "span_begin",
+          "id": "A3vtMNGhU2iV3ryzst3vES",
+          "parent_id": "C8o7JL6CRK7zKbe3DnmHDX",
+          "type": "scorer",
+          "name": "choice"
+        },
+        {
+          "uuid": "jdDoVNBmsZY8yrm2sKemXJ",
+          "span_id": "A3vtMNGhU2iV3ryzst3vES",
+          "timestamp": "2026-09-22T20:18:43.865771+00:00",
+          "working_start": 0.12081244902219623,
+          "event": "score",
+          "score": {
+            "value": "C",
+            "answer": "B",
+            "explanation": "ANSWER: B",
+            "history": []
+          },
+          "target": "B",
+          "intermediate": false,
+          "scorer": "choice",
+          "scorer_args": {},
+          "model_usage": {
+            "mockllm/model": {
+              "input_tokens": 82,
+              "output_tokens": 9,
+              "total_tokens": 91
+            }
+          }
+        },
+        {
+          "uuid": "BAbPDtT9wNBVduMfDuPnzi",
+          "span_id": "A3vtMNGhU2iV3ryzst3vES",
+          "timestamp": "2026-09-22T20:18:43.865874+00:00",
+          "working_start": 0.1209147040208336,
+          "event": "span_end",
+          "id": "A3vtMNGhU2iV3ryzst3vES"
+        },
+        {
+          "uuid": "bzks7V9nZoa9up8oEgsUWv",
+          "span_id": "C8o7JL6CRK7zKbe3DnmHDX",
+          "timestamp": "2026-09-22T20:18:43.865925+00:00",
+          "working_start": 0.12096621200907975,
+          "event": "span_end",
+          "id": "C8o7JL6CRK7zKbe3DnmHDX"
+        }
+      ],
+      "model_usage": {
+        "mockllm/model": {
+          "input_tokens": 82,
+          "output_tokens": 9,
+          "total_tokens": 91
+        }
+      },
+      "role_usage": {},
+      "started_at": "2026-09-22T20:18:43.674100+00:00",
+      "completed_at": "2026-09-22T20:18:43.866681+00:00",
+      "total_time": 0.193,
+      "working_time": 0.122,
+      "uuid": "gBKyKVE2Jfa6DEWxdNmEgb",
+      "error_retries": [],
+      "attachments": {
+        "eaf2687cf97e2a62d07bb10eb6a9166e": "Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of A,B,C,D.\n\nWhich technique covers a web shell on a public-facing server?\n\nA) Scheduled Task\nB) Server Software Component: Web Shell\nC) Process Injection\nD) Valid Accounts"
+      },
+      "events_data": {
+        "messages": [
+          {
+            "id": "kPQpDYTnFqRvuenyLyeYW4",
+            "content": "attachment://eaf2687cf97e2a62d07bb10eb6a9166e",
+            "source": "input",
+            "role": "user"
+          }
+        ],
+        "calls": [
+          {
+            "id": "kPQpDYTnFqRvuenyLyeYW4",
+            "content": "attachment://eaf2687cf97e2a62d07bb10eb6a9166e",
+            "source": "input",
+            "metadata": null,
+            "role": "user",
+            "tool_call_id": null
+          }
+        ]
+      },
+      "turn_count": 1
+    },
+    {
+      "id": "fx_001",
+      "epoch": 1,
+      "input": "Which log source best shows process creation on Windows?",
+      "choices": [
+        "Sysmon Event ID 1",
+        "DNS logs",
+        "NetFlow",
+        "DHCP leases"
+      ],
+      "target": "A",
+      "messages": [
+        {
+          "id": "MtYT9EkqGd5kP2tqzyDL84",
+          "content": "Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of A,B,C,D.\n\nWhich log source best shows process creation on Windows?\n\nA) Sysmon Event ID 1\nB) DNS logs\nC) NetFlow\nD) DHCP leases",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "id": "5WdwBxUEpyhjADVqjkDA9F",
+          "content": "ANSWER: C",
+          "source": "generate",
+          "role": "assistant",
+          "model": "mockllm/model"
+        }
+      ],
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "id": "5WdwBxUEpyhjADVqjkDA9F",
+              "content": "ANSWER: C",
+              "source": "generate",
+              "role": "assistant",
+              "model": "mockllm/model"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "completion": "ANSWER: C",
+        "usage": {
+          "input_tokens": 80,
+          "output_tokens": 9,
+          "total_tokens": 89
+        },
+        "time": 0.0001257590192835778
+      },
+      "scores": {
+        "choice": {
+          "value": "I",
+          "answer": "C",
+          "explanation": "ANSWER: C",
+          "history": []
+        }
+      },
+      "metadata": {
+        "category": "detection"
+      },
+      "store": {},
+      "events": [
+        {
+          "uuid": "kkbR6kkxMChHXiDkBJxW5c",
+          "span_id": "P8du8MAx6eSQwqczEqPFLS",
+          "timestamp": "2026-09-22T20:18:43.674496+00:00",
+          "working_start": 162282.594016912,
+          "event": "span_begin",
+          "id": "P8du8MAx6eSQwqczEqPFLS",
+          "type": "init",
+          "name": "init"
+        },
+        {
+          "uuid": "k7pdxm5skMkYDfcohoF8wd",
+          "span_id": "P8du8MAx6eSQwqczEqPFLS",
+          "timestamp": "2026-09-22T20:18:43.674741+00:00",
+          "working_start": 162282.594261707,
+          "event": "sample_init",
+          "sample": {
+            "input": "Which log source best shows process creation on Windows?",
+            "choices": [
+              "Sysmon Event ID 1",
+              "DNS logs",
+              "NetFlow",
+              "DHCP leases"
+            ],
+            "target": "A",
+            "id": "fx_001",
+            "metadata": {
+              "category": "detection"
+            }
+          },
+          "state": {
+            "messages": [
+              {
+                "id": "MtYT9EkqGd5kP2tqzyDL84",
+                "content": "Which log source best shows process creation on Windows?",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": null,
+            "store": {},
+            "output": {
+              "model": "mockllm/model",
+              "choices": [],
+              "completion": ""
+            },
+            "completed": false,
+            "metadata": {
+              "category": "detection"
+            }
+          }
+        },
+        {
+          "uuid": "6SzqMgACVLq8NopgtTMtLA",
+          "span_id": "P8du8MAx6eSQwqczEqPFLS",
+          "timestamp": "2026-09-22T20:18:43.674851+00:00",
+          "working_start": 162282.594371666,
+          "event": "span_end",
+          "id": "P8du8MAx6eSQwqczEqPFLS"
+        },
+        {
+          "uuid": "fLLAh76mqFHjKvGC7yX7pB",
+          "span_id": "CytbiQxLiHeU977zJgCa9V",
+          "timestamp": "2026-09-22T20:18:43.676434+00:00",
+          "working_start": 0.0015228150004986674,
+          "event": "span_begin",
+          "id": "CytbiQxLiHeU977zJgCa9V",
+          "type": "solvers",
+          "name": "solvers"
+        },
+        {
+          "uuid": "77ZHUAhwmqZim5bQ6bVP3r",
+          "span_id": "9zhRDxrQpBrdKQRe8nQub8",
+          "timestamp": "2026-09-22T20:18:43.676522+00:00",
+          "working_start": 0.001611793995834887,
+          "event": "span_begin",
+          "id": "9zhRDxrQpBrdKQRe8nQub8",
+          "parent_id": "CytbiQxLiHeU977zJgCa9V",
+          "type": "solver",
+          "name": "multiple_choice"
+        },
+        {
+          "uuid": "BeS4SUeoVLQakmVkXyjBbS",
+          "span_id": "9zhRDxrQpBrdKQRe8nQub8",
+          "timestamp": "2026-09-22T20:18:43.676664+00:00",
+          "working_start": 0.0017532630008645356,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [],
+          "input_refs": [
+            [
+              0,
+              1
+            ]
+          ],
+          "tools": [],
+          "tool_choice": "none",
+          "config": {
+            "max_tokens": 512,
+            "temperature": 0.0,
+            "seed": 42
+          },
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "5WdwBxUEpyhjADVqjkDA9F",
+                  "content": "ANSWER: C",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            ],
+            "completion": "ANSWER: C",
+            "usage": {
+              "input_tokens": 80,
+              "output_tokens": 9,
+              "total_tokens": 89
+            },
+            "time": 0.0001257590192835778
+          },
+          "call": {
+            "request": {
+              "model": "model"
+            },
+            "response": {
+              "content": "ANSWER: C"
+            },
+            "call_refs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "call_key": "messages"
+          },
+          "completed": "2026-09-22T20:18:43.863787+00:00",
+          "working_time": 0.0001257590192835778
+        },
+        {
+          "uuid": "DH96X7HAuV72VEongZvP3K",
+          "span_id": "9zhRDxrQpBrdKQRe8nQub8",
+          "timestamp": "2026-09-22T20:18:43.864036+00:00",
+          "working_start": 0.0022246070147957653,
+          "event": "state",
+          "changes": [
+            {
+              "op": "replace",
+              "path": "/messages/0/content",
+              "value": "attachment://ab2b0a78b1c63b43b0bccd23b4b16876",
+              "replaced": "Which log source best shows process creation on Windows?"
+            },
+            {
+              "op": "add",
+              "path": "/messages/1",
+              "value": {
+                "id": "5WdwBxUEpyhjADVqjkDA9F",
+                "content": "ANSWER: C",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/usage",
+              "value": {
+                "input_tokens": 80,
+                "output_tokens": 9,
+                "total_tokens": 89
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/time",
+              "value": 0.0001257590192835778
+            },
+            {
+              "op": "add",
+              "path": "/output/choices/0",
+              "value": {
+                "message": {
+                  "id": "5WdwBxUEpyhjADVqjkDA9F",
+                  "content": "ANSWER: C",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/output/completion",
+              "value": "ANSWER: C",
+              "replaced": ""
+            }
+          ]
+        },
+        {
+          "uuid": "X4CrMW454EyEDDKDzbHggM",
+          "span_id": "9zhRDxrQpBrdKQRe8nQub8",
+          "timestamp": "2026-09-22T20:18:43.864141+00:00",
+          "working_start": 0.002328635018784553,
+          "event": "span_end",
+          "id": "9zhRDxrQpBrdKQRe8nQub8"
+        },
+        {
+          "uuid": "T8GE7gRcCfQS4PQD5oAfE4",
+          "span_id": "CytbiQxLiHeU977zJgCa9V",
+          "timestamp": "2026-09-22T20:18:43.864201+00:00",
+          "working_start": 0.0023884990077931434,
+          "event": "span_end",
+          "id": "CytbiQxLiHeU977zJgCa9V"
+        },
+        {
+          "uuid": "oM5k7phZNhuutJBDcs5u6Y",
+          "span_id": "TsBNdwcvPGwepoEHNptGw4",
+          "timestamp": "2026-09-22T20:18:43.866046+00:00",
+          "working_start": 0.004233997024130076,
+          "event": "span_begin",
+          "id": "TsBNdwcvPGwepoEHNptGw4",
+          "type": "scorers",
+          "name": "scorers"
+        },
+        {
+          "uuid": "NQd9Qcjkm34jyyLZ2wtXct",
+          "span_id": "YfKcdBXyUj62K3YhvRENny",
+          "timestamp": "2026-09-22T20:18:43.866104+00:00",
+          "working_start": 0.004291466000722721,
+          "event": "span_begin",
+          "id": "YfKcdBXyUj62K3YhvRENny",
+          "parent_id": "TsBNdwcvPGwepoEHNptGw4",
+          "type": "scorer",
+          "name": "choice"
+        },
+        {
+          "uuid": "Nt5f93RZfEeHK9U377iiFQ",
+          "span_id": "YfKcdBXyUj62K3YhvRENny",
+          "timestamp": "2026-09-22T20:18:43.866160+00:00",
+          "working_start": 0.004347863025031984,
+          "event": "score",
+          "score": {
+            "value": "I",
+            "answer": "C",
+            "explanation": "ANSWER: C",
+            "history": []
+          },
+          "target": "A",
+          "intermediate": false,
+          "scorer": "choice",
+          "scorer_args": {},
+          "model_usage": {
+            "mockllm/model": {
+              "input_tokens": 80,
+              "output_tokens": 9,
+              "total_tokens": 89
+            }
+          }
+        },
+        {
+          "uuid": "Mm2SJkFwZMSvwg8fQJ8Q6M",
+          "span_id": "YfKcdBXyUj62K3YhvRENny",
+          "timestamp": "2026-09-22T20:18:43.866213+00:00",
+          "working_start": 0.004401054000481963,
+          "event": "span_end",
+          "id": "YfKcdBXyUj62K3YhvRENny"
+        },
+        {
+          "uuid": "Frwxyuv3PbCDcwRwyrSAYS",
+          "span_id": "TsBNdwcvPGwepoEHNptGw4",
+          "timestamp": "2026-09-22T20:18:43.866257+00:00",
+          "working_start": 0.004444517020601779,
+          "event": "span_end",
+          "id": "TsBNdwcvPGwepoEHNptGw4"
+        }
+      ],
+      "model_usage": {
+        "mockllm/model": {
+          "input_tokens": 80,
+          "output_tokens": 9,
+          "total_tokens": 89
+        }
+      },
+      "role_usage": {},
+      "started_at": "2026-09-22T20:18:43.674912+00:00",
+      "completed_at": "2026-09-22T20:18:43.867339+00:00",
+      "total_time": 0.192,
+      "working_time": 0.006,
+      "uuid": "XVE4wBsaKFHCkS8iDFS7rX",
+      "error_retries": [],
+      "attachments": {
+        "ab2b0a78b1c63b43b0bccd23b4b16876": "Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of A,B,C,D.\n\nWhich log source best shows process creation on Windows?\n\nA) Sysmon Event ID 1\nB) DNS logs\nC) NetFlow\nD) DHCP leases"
+      },
+      "events_data": {
+        "messages": [
+          {
+            "id": "MtYT9EkqGd5kP2tqzyDL84",
+            "content": "attachment://ab2b0a78b1c63b43b0bccd23b4b16876",
+            "source": "input",
+            "role": "user"
+          }
+        ],
+        "calls": [
+          {
+            "id": "MtYT9EkqGd5kP2tqzyDL84",
+            "content": "attachment://ab2b0a78b1c63b43b0bccd23b4b16876",
+            "source": "input",
+            "metadata": null,
+            "role": "user",
+            "tool_call_id": null
+          }
+        ]
+      },
+      "turn_count": 1
+    },
+    {
+      "id": "fx_002",
+      "epoch": 1,
+      "input": "What does T1059 describe?",
+      "choices": [
+        "Command and Scripting Interpreter",
+        "Phishing",
+        "Data Encrypted for Impact",
+        "Account Discovery"
+      ],
+      "target": "A",
+      "messages": [
+        {
+          "id": "nHgrVDXXZqEW3AJYFfQa8S",
+          "content": "Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of A,B,C,D.\n\nWhat does T1059 describe?\n\nA) Command and Scripting Interpreter\nB) Phishing\nC) Data Encrypted for Impact\nD) Account Discovery",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "id": "8hiVSAsCC7LYGH2iMA2Lox",
+          "content": "I cannot.",
+          "source": "generate",
+          "role": "assistant",
+          "model": "mockllm/model"
+        }
+      ],
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "id": "8hiVSAsCC7LYGH2iMA2Lox",
+              "content": "I cannot.",
+              "source": "generate",
+              "role": "assistant",
+              "model": "mockllm/model"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "completion": "I cannot.",
+        "usage": {
+          "input_tokens": 79,
+          "output_tokens": 9,
+          "total_tokens": 88
+        },
+        "time": 0.00006362999556586146
+      },
+      "scores": {
+        "choice": {
+          "value": "I",
+          "answer": "",
+          "explanation": "I cannot.",
+          "reason": "invalid_response_format",
+          "history": []
+        }
+      },
+      "metadata": {
+        "category": "execution"
+      },
+      "store": {},
+      "events": [
+        {
+          "uuid": "ftivDP6cNg62Vft4HXdLSM",
+          "span_id": "PX2iWVymS67KevWpx4qSpw",
+          "timestamp": "2026-09-22T20:18:43.675189+00:00",
+          "working_start": 162282.594709558,
+          "event": "span_begin",
+          "id": "PX2iWVymS67KevWpx4qSpw",
+          "type": "init",
+          "name": "init"
+        },
+        {
+          "uuid": "DQYQTRWjXfPyGz8m8ShRMM",
+          "span_id": "PX2iWVymS67KevWpx4qSpw",
+          "timestamp": "2026-09-22T20:18:43.675406+00:00",
+          "working_start": 162282.594926811,
+          "event": "sample_init",
+          "sample": {
+            "input": "What does T1059 describe?",
+            "choices": [
+              "Command and Scripting Interpreter",
+              "Phishing",
+              "Data Encrypted for Impact",
+              "Account Discovery"
+            ],
+            "target": "A",
+            "id": "fx_002",
+            "metadata": {
+              "category": "execution"
+            }
+          },
+          "state": {
+            "messages": [
+              {
+                "id": "nHgrVDXXZqEW3AJYFfQa8S",
+                "content": "What does T1059 describe?",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": null,
+            "store": {},
+            "output": {
+              "model": "mockllm/model",
+              "choices": [],
+              "completion": ""
+            },
+            "completed": false,
+            "metadata": {
+              "category": "execution"
+            }
+          }
+        },
+        {
+          "uuid": "ZpDri39wKWnP4PZ83tVkmx",
+          "span_id": "PX2iWVymS67KevWpx4qSpw",
+          "timestamp": "2026-09-22T20:18:43.675517+00:00",
+          "working_start": 162282.595038414,
+          "event": "span_end",
+          "id": "PX2iWVymS67KevWpx4qSpw"
+        },
+        {
+          "uuid": "Ro8xmhV8qQNPaYASwdo3jM",
+          "span_id": "6LHiZAds6frtyi7tkC6sWw",
+          "timestamp": "2026-09-22T20:18:43.676724+00:00",
+          "working_start": 0.0011488640157040209,
+          "event": "span_begin",
+          "id": "6LHiZAds6frtyi7tkC6sWw",
+          "type": "solvers",
+          "name": "solvers"
+        },
+        {
+          "uuid": "66c5EYaG2jrt5iMb6khCzB",
+          "span_id": "DRCBfGBGJboTe4ux5odFvx",
+          "timestamp": "2026-09-22T20:18:43.676797+00:00",
+          "working_start": 0.0012226339895278215,
+          "event": "span_begin",
+          "id": "DRCBfGBGJboTe4ux5odFvx",
+          "parent_id": "6LHiZAds6frtyi7tkC6sWw",
+          "type": "solver",
+          "name": "multiple_choice"
+        },
+        {
+          "uuid": "VPvJnoz6dfnFqELct35JCF",
+          "span_id": "DRCBfGBGJboTe4ux5odFvx",
+          "timestamp": "2026-09-22T20:18:43.676944+00:00",
+          "working_start": 0.0013692630163859576,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [],
+          "input_refs": [
+            [
+              0,
+              1
+            ]
+          ],
+          "tools": [],
+          "tool_choice": "none",
+          "config": {
+            "max_tokens": 512,
+            "temperature": 0.0,
+            "seed": 42
+          },
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "8hiVSAsCC7LYGH2iMA2Lox",
+                  "content": "I cannot.",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            ],
+            "completion": "I cannot.",
+            "usage": {
+              "input_tokens": 79,
+              "output_tokens": 9,
+              "total_tokens": 88
+            },
+            "time": 0.00006362999556586146
+          },
+          "call": {
+            "request": {
+              "model": "model"
+            },
+            "response": {
+              "content": "I cannot."
+            },
+            "call_refs": [
+              [
+                0,
+                1
+              ]
+            ],
+            "call_key": "messages"
+          },
+          "completed": "2026-09-22T20:18:43.864893+00:00",
+          "working_time": 0.00006362999556586146
+        },
+        {
+          "uuid": "hzcjEBoXkDXwatNcPz7T4L",
+          "span_id": "DRCBfGBGJboTe4ux5odFvx",
+          "timestamp": "2026-09-22T20:18:43.865232+00:00",
+          "working_start": 0.0018300169904250652,
+          "event": "state",
+          "changes": [
+            {
+              "op": "replace",
+              "path": "/messages/0/content",
+              "value": "attachment://b7202e37c979d586471225007e3d8d8e",
+              "replaced": "What does T1059 describe?"
+            },
+            {
+              "op": "add",
+              "path": "/messages/1",
+              "value": {
+                "id": "8hiVSAsCC7LYGH2iMA2Lox",
+                "content": "I cannot.",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/usage",
+              "value": {
+                "input_tokens": 79,
+                "output_tokens": 9,
+                "total_tokens": 88
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/time",
+              "value": 0.00006362999556586146
+            },
+            {
+              "op": "add",
+              "path": "/output/choices/0",
+              "value": {
+                "message": {
+                  "id": "8hiVSAsCC7LYGH2iMA2Lox",
+                  "content": "I cannot.",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/output/completion",
+              "value": "I cannot.",
+              "replaced": ""
+            }
+          ]
+        },
+        {
+          "uuid": "LuSBfEj3VpBGfkt9wvS6vj",
+          "span_id": "DRCBfGBGJboTe4ux5odFvx",
+          "timestamp": "2026-09-22T20:18:43.865330+00:00",
+          "working_start": 0.001927532983245328,
+          "event": "span_end",
+          "id": "DRCBfGBGJboTe4ux5odFvx"
+        },
+        {
+          "uuid": "XhxZzwLLQK5gXqDP2khUdC",
+          "span_id": "6LHiZAds6frtyi7tkC6sWw",
+          "timestamp": "2026-09-22T20:18:43.865389+00:00",
+          "working_start": 0.0019859439926221967,
+          "event": "span_end",
+          "id": "6LHiZAds6frtyi7tkC6sWw"
+        },
+        {
+          "uuid": "XRiXtGCbHGwYPcVYV22jCp",
+          "span_id": "kBGiUxmjJGisXcK6VD5n3x",
+          "timestamp": "2026-09-22T20:18:43.866350+00:00",
+          "working_start": 0.002947480999864638,
+          "event": "span_begin",
+          "id": "kBGiUxmjJGisXcK6VD5n3x",
+          "type": "scorers",
+          "name": "scorers"
+        },
+        {
+          "uuid": "4b8wXh5w4Epq2DgyskqsQT",
+          "span_id": "4QKJgR3c4TUNDWKftKd69S",
+          "timestamp": "2026-09-22T20:18:43.866402+00:00",
+          "working_start": 0.0029992199852131307,
+          "event": "span_begin",
+          "id": "4QKJgR3c4TUNDWKftKd69S",
+          "parent_id": "kBGiUxmjJGisXcK6VD5n3x",
+          "type": "scorer",
+          "name": "choice"
+        },
+        {
+          "uuid": "KAVTwJ9oH9YN4MuMy4c4S2",
+          "span_id": "4QKJgR3c4TUNDWKftKd69S",
+          "timestamp": "2026-09-22T20:18:43.866457+00:00",
+          "working_start": 0.0030545050103683025,
+          "event": "score",
+          "score": {
+            "value": "I",
+            "answer": "",
+            "explanation": "I cannot.",
+            "reason": "invalid_response_format",
+            "history": []
+          },
+          "target": "A",
+          "intermediate": false,
+          "scorer": "choice",
+          "scorer_args": {},
+          "model_usage": {
+            "mockllm/model": {
+              "input_tokens": 79,
+              "output_tokens": 9,
+              "total_tokens": 88
+            }
+          }
+        },
+        {
+          "uuid": "N9EhWTtmiVC47FLtvUCx9x",
+          "span_id": "4QKJgR3c4TUNDWKftKd69S",
+          "timestamp": "2026-09-22T20:18:43.866511+00:00",
+          "working_start": 0.0031081569904927164,
+          "event": "span_end",
+          "id": "4QKJgR3c4TUNDWKftKd69S"
+        },
+        {
+          "uuid": "WabXjuS988mGDNXJPCwvSn",
+          "span_id": "kBGiUxmjJGisXcK6VD5n3x",
+          "timestamp": "2026-09-22T20:18:43.866560+00:00",
+          "working_start": 0.003156878985464573,
+          "event": "span_end",
+          "id": "kBGiUxmjJGisXcK6VD5n3x"
+        }
+      ],
+      "model_usage": {
+        "mockllm/model": {
+          "input_tokens": 79,
+          "output_tokens": 9,
+          "total_tokens": 88
+        }
+      },
+      "role_usage": {},
+      "started_at": "2026-09-22T20:18:43.675575+00:00",
+      "completed_at": "2026-09-22T20:18:43.867763+00:00",
+      "total_time": 0.192,
+      "working_time": 0.004,
+      "uuid": "6mmapxUaLARW85LsQ3w69L",
+      "error_retries": [],
+      "attachments": {
+        "b7202e37c979d586471225007e3d8d8e": "Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of A,B,C,D.\n\nWhat does T1059 describe?\n\nA) Command and Scripting Interpreter\nB) Phishing\nC) Data Encrypted for Impact\nD) Account Discovery"
+      },
+      "events_data": {
+        "messages": [
+          {
+            "id": "nHgrVDXXZqEW3AJYFfQa8S",
+            "content": "attachment://b7202e37c979d586471225007e3d8d8e",
+            "source": "input",
+            "role": "user"
+          }
+        ],
+        "calls": [
+          {
+            "id": "nHgrVDXXZqEW3AJYFfQa8S",
+            "content": "attachment://b7202e37c979d586471225007e3d8d8e",
+            "source": "input",
+            "metadata": null,
+            "role": "user",
+            "tool_call_id": null
+          }
+        ]
+      },
+      "turn_count": 1
+    }
+  ],
+  "reductions": [
+    {
+      "scorer": "choice",
+      "samples": [
+        {
+          "value": 1.0,
+          "answer": "B",
+          "explanation": "ANSWER: B",
+          "history": [],
+          "sample_id": "fx_000"
+        },
+        {
+          "value": 0.0,
+          "answer": "C",
+          "explanation": "ANSWER: C",
+          "history": [],
+          "sample_id": "fx_001"
+        },
+        {
+          "value": 0.0,
+          "answer": "",
+          "explanation": "I cannot.",
+          "reason": "invalid_response_format",
+          "history": [],
+          "sample_id": "fx_002"
+        }
+      ]
+    }
+  ]
+}
