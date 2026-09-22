@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/attacklm.svg?label=version&color=blue)](https://pypi.org/project/attacklm/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://docs.python.org/3.10/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests: 660+](https://img.shields.io/badge/tests-660%2B-brightgreen.svg)](#testing)
+[![Tests: 737+](https://img.shields.io/badge/tests-737%2B-brightgreen.svg)](#testing)
 [![GH release: v0.19.0](https://img.shields.io/badge/release-v0.19.0-blue.svg)](https://github.com/Veedubin/AttackLM/releases)
 
 **A security-AI fine-tuning platform and research toolkit.**
@@ -221,6 +221,35 @@ directory — in the latter case the base model is auto-resolved from
 the adapter's `adapter_config.json`. Reports land in
 `evals/queue/artifacts/<task-id>/` (gitignored, local-only).
 
+A base-model **baseline** is queued automatically alongside `chain`/
+`gauntlet` (opt out with `--no-baseline`) so there's always something
+to compare against.
+
+#### Did it get worse?
+
+```bash
+attacklm queue chain --single-model --then gauntlet core
+attacklm queue start --exit-when-idle
+attacklm queue compare
+```
+
+`queue compare` pairs your latest run against its baseline item-by-item
+and reports Δ with a 95% bootstrap confidence interval and a verdict:
+
+| Category | n | A | B | Δ | 95% CI | Verdict |
+|---|---|---|---|---|---|---|
+| overall | 49 | 0.388 | 0.582 | +0.194 | [+0.071, +0.316] | **WORSE** |
+| translation | 3 | 0.667 | 0.500 | −0.167 | [−0.500, +0.000] | n<5 |
+
+`WORSE`/`BETTER` means the CI excludes zero on that side; `SAME` means
+it doesn't (or the interval is degenerate); `n<5` means too few paired
+items for a verdict at all; `n/a` means zero items paired (nothing to
+compare, e.g. disjoint ids). Address either side by adapter path, a
+merged model's path, or leave both blank to compare the newest run
+against its baseline: `attacklm queue compare <base-model> <adapter-or-merged-path>`.
+`attacklm queue history [--subject X] [--jsonl PATH]` lists every
+completed audit, newest first, with its headline metric.
+
 ### Run the TUI
 
 ```bash
@@ -240,7 +269,9 @@ servers (no X11, no browser, no GPU required). Features:
   constructs the `attacklm audit` CLI command with hover
   tooltips on every field
 - **Queue screen** — enqueue audits/gauntlets, start/stop the
-  background runner, retry
+  background runner, retry, a "Baseline" checkbox (default on;
+  unchecking appends `--no-baseline`), a "Compare latest" button
+  that streams `queue compare` into the log
 - **Pause/Resume** — SIGSTOP/SIGCONT the training process without
   losing progress
 - **One-click commands** — Init, Balance, Infer, Build, Eval,
@@ -520,6 +551,9 @@ Full flag list: `attacklm audit --help`.
 | `add-holdouts` | Add a calibration-holdout generation task |
 | `chain` | Chain a train task followed by a gauntlet or audit |
 | `gauntlet` | Add a gauntlet of audit tasks (`core`/`full`/`quick`/`memorization`) |
+| `baseline` | Queue a base-model baseline gauntlet (`--preset`, `--force`) |
+| `compare` | Compare a subject vs. its baseline or another subject (`--preset`, `--json`, `--resamples`, `--seed`) |
+| `history` | List completed audits, newest first (`--subject`, `--limit`, `--jsonl`) |
 | `list` / `status` | List tasks / show queue or single-task status |
 | `start` | Start the runner (`--follow`, `--detach`, `--exit-when-idle`) |
 | `stop` | Stop the runner after the current task |
