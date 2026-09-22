@@ -71,12 +71,27 @@ p.add_argument("--base-model", required=True); p.add_argument("--adapter")
 p.add_argument("--questions"); p.add_argument("--output", required=True)
 p.add_argument("--max-new-tokens", type=int, default=64)
 a = p.parse_args()
-# The adapter "learned" to comply: asr 1.0 with an adapter, 0.0 without.
-score = 1.0 if a.adapter else 0.0
-results = [{"question_id": f"q{i}", "tier": "direct" if i < 6 else "indirect", "asr": score} for i in range(10)]
+# Per-item asr that varies by id (not a flat 0.0/1.0 for every item): the
+# adapter is always exactly +0.1 over the baseline FOR THE SAME id. A flat
+# score can't prove id-based pairing, because mean(b) - mean(a) is the same
+# regardless of pairing order when every item on a side is identical --
+# only per-item variation makes a positional-pairing bug (join by list
+# index instead of question_id) produce a different, scrambled result.
+base = [round(i * 0.1, 2) for i in range(10)]
+results = [{
+    "question_id": f"q{i}",
+    "tier": "direct" if i < 6 else "indirect",
+    "asr": round(base[i] + 0.1, 2) if a.adapter else base[i],
+} for i in range(10)]
+# Different list order on each side (ids/tiers/per-id scores unchanged) so
+# the test can only pass if compare.pair_items joins by question_id, not
+# by list position -- a positional-pairing regression must fail this.
+if not a.adapter:
+    results.reverse()
 o = pathlib.Path(a.output); o.parent.mkdir(parents=True, exist_ok=True)
 o.write_text(json.dumps({"metadata": {"base_model": a.base_model, "adapter": a.adapter},
-                         "summary": {"overall_asr": score}, "results": results}))
+                         "summary": {"overall_asr": sum(r["asr"] for r in results) / len(results)},
+                         "results": results}))
 """
 
 
@@ -252,6 +267,11 @@ def test_chain_baseline_and_compare_end_to_end(sandbox, capsys):
     by_key = {(r["attack"], r["category"]): r for r in data["rows"]}
     for attack in ("audit_prompt_injection", "audit_system_prompt"):
         overall = by_key[(attack, "overall")]
-        assert overall["n"] == 10 and overall["a"] == 0.0 and overall["b"] == 1.0 and overall["verdict"] == "WORSE"
+        # baseline items are 0.0..0.9 (mean 0.45); the adapter is +0.1 per
+        # matching id (mean 0.55) -- id-correct pairing sees exactly +0.1
+        # on every single item, a tight CI, and a robust WORSE verdict.
+        assert overall["n"] == 10
+        assert overall["a"] == pytest.approx(0.45) and overall["b"] == pytest.approx(0.55)
+        assert overall["delta"] == pytest.approx(0.1) and overall["verdict"] == "WORSE"
         assert by_key[(attack, "direct")]["n"] == 6 and by_key[(attack, "indirect")]["n"] == 4
     assert data["unpaired"] == {"audit_prompt_injection": 0, "audit_system_prompt": 0}
