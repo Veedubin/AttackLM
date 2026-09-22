@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from textual.widgets import Button, Input, RichLog, Select
+from textual.widgets import Button, Checkbox, Input, RichLog, Select
 
 from attacklm.gui.app import AttackLMApp
 from attacklm.gui.screens.queue import QueueScreen
@@ -15,7 +15,7 @@ def _patch_presets(monkeypatch, tmp_path):
     monkeypatch.setattr("attacklm.gui.app.ensure_builtin_presets", lambda: None)
 
 
-WIDGET_IDS = ["queue-table", "queue_base_model", "queue_adapter", "queue_attack",
+WIDGET_IDS = ["queue-table", "queue_base_model", "queue_adapter", "queue_attack", "queue_baseline",
               "btn-queue-refresh", "btn-queue-enqueue", "btn-queue-start",
               "btn-queue-stop", "btn-queue-retry", "btn-queue-compare", "btn-back", "cmd-output"]
 
@@ -52,7 +52,7 @@ class TestQueueScreen:
         async with app.run_test() as pilot:
             app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
             await pilot.pause()
-            for wid in ("queue_base_model", "queue_adapter", "queue_attack",
+            for wid in ("queue_base_model", "queue_adapter", "queue_attack", "queue_baseline",
                         "btn-queue-enqueue", "btn-queue-start", "btn-queue-stop", "btn-queue-retry",
                         "btn-queue-compare"):
                 assert app.screen.query_one(f"#{wid}").tooltip, wid
@@ -184,6 +184,67 @@ class TestQueueButtonPresses:
             assert cmd[cmd.index("--adapter") + 1] == "/a"
             attacks.append(cmd[cmd.index("--attack") + 1])
         assert attacks == ["1", "2"]
+
+    @pytest.mark.asyncio
+    async def test_gauntlet_enqueue_includes_baseline_by_default(self, tmp_path, monkeypatch):
+        _patch_presets(monkeypatch, tmp_path)
+        captured = self._capture(monkeypatch)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            app.screen.query_one("#queue_attack", Select).value = "quick"
+            app.screen.query_one("#btn-queue-enqueue", Button).press()
+            await pilot.pause()
+
+        assert len(captured) == 1
+        cmds = captured[0]
+        assert len(cmds) == 1
+        cmd = cmds[0]
+        db_path = tmp_path / "q.db"
+        assert cmd == ["attacklm", "queue", "--db-path", str(db_path),
+                        "gauntlet", "quick", "--after", "latest"]
+        assert "--no-baseline" not in cmd
+
+    @pytest.mark.asyncio
+    async def test_gauntlet_enqueue_can_skip_baseline(self, tmp_path, monkeypatch):
+        _patch_presets(monkeypatch, tmp_path)
+        captured = self._capture(monkeypatch)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            app.screen.query_one("#queue_attack", Select).value = "quick"
+            app.screen.query_one("#queue_baseline", Checkbox).value = False
+            app.screen.query_one("#btn-queue-enqueue", Button).press()
+            await pilot.pause()
+
+        assert len(captured) == 1
+        cmds = captured[0]
+        assert len(cmds) == 1
+        cmd = cmds[0]
+        assert cmd[-1] == "--no-baseline"
+
+    @pytest.mark.asyncio
+    async def test_add_audit_never_gets_no_baseline(self, tmp_path, monkeypatch):
+        _patch_presets(monkeypatch, tmp_path)
+        captured = self._capture(monkeypatch)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            app.screen.query_one("#queue_adapter", Input).value = "/a"
+            app.screen.query_one("#queue_attack", Select).value = "1"
+            app.screen.query_one("#queue_baseline", Checkbox).value = False
+            app.screen.query_one("#btn-queue-enqueue", Button).press()
+            await pilot.pause()
+
+        assert len(captured) == 1
+        cmds = captured[0]
+        assert len(cmds) == 1
+        cmd = cmds[0]
+        assert "add-audit" in cmd
+        assert "--no-baseline" not in cmd
 
     @pytest.mark.asyncio
     async def test_start_runner_button(self, tmp_path, monkeypatch):

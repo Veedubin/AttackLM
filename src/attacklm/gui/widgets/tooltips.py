@@ -108,6 +108,9 @@ TOOLTIPS: dict[str, str] = {
     "btn-queue-compare": "Compare the latest adapter gauntlet against its base-model baseline "
     "(attacklm queue compare): Δ per attack and category with a 95% CI and a "
     "WORSE/BETTER/SAME verdict.",
+    "queue_baseline": "On (default): a gauntlet also queues a one-off baseline run of the "
+    "untuned base model, so `queue compare` can show Δ vs base. Off: skip it "
+    "(faster, no comparison baseline).",
 }
 
 

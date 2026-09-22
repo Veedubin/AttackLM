@@ -11,7 +11,7 @@ from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
-from textual.widgets import Button, DataTable, Label, RichLog, Select
+from textual.widgets import Button, Checkbox, DataTable, Label, RichLog, Select
 
 from attacklm.gui.screens.command_forms import _BaseCommandScreen
 from attacklm.gui.widgets import attach_tooltip
@@ -64,6 +64,14 @@ class QueueScreen(_BaseCommandScreen):
                 Select(_ATTACK_CHOICES, id="queue_attack", value="core", allow_blank=False),
                 classes="form-row",
             )
+            yield Horizontal(
+                Checkbox(
+                    "Baseline (compare against the untuned base model)",
+                    value=True,
+                    id="queue_baseline",
+                ),
+                classes="form-row",
+            )
             with Horizontal(id="cmd-button-row"):
                 yield Button("Enqueue", id="btn-queue-enqueue", variant="primary")
                 yield Button("Start runner", id="btn-queue-start", variant="success")
@@ -78,8 +86,9 @@ class QueueScreen(_BaseCommandScreen):
         super().on_mount()
         table = self.query_one("#queue-table", DataTable)
         table.add_columns(*_COLUMNS)
-        for wid in ("queue_base_model", "queue_adapter", "queue_attack", "btn-queue-enqueue",
-                    "btn-queue-start", "btn-queue-stop", "btn-queue-retry", "btn-queue-compare"):
+        for wid in ("queue_base_model", "queue_adapter", "queue_attack", "queue_baseline",
+                    "btn-queue-enqueue", "btn-queue-start", "btn-queue-stop", "btn-queue-retry",
+                    "btn-queue-compare"):
             try:
                 attach_tooltip(self.query_one(f"#{wid}"), wid)
             except Exception:
@@ -114,7 +123,7 @@ class QueueScreen(_BaseCommandScreen):
     def _base_cmd(self) -> list[str]:
         return ["attacklm", "queue", "--db-path", str(self._db_path)]
 
-    def _enqueue_cmd(self, base_model: str, adapter: str, attack: str) -> list[str]:
+    def _enqueue_cmd(self, base_model: str, adapter: str, attack: str, baseline: bool = True) -> list[str]:
         cmd = self._base_cmd()
         # With neither field filled, a gauntlet/audit has no adapter, no
         # base model, and no deps — the runner would mark it failed on the
@@ -126,6 +135,8 @@ class QueueScreen(_BaseCommandScreen):
             cmd += ["gauntlet", attack]
             if chain_to_latest:
                 cmd += ["--after", "latest"]
+            if not baseline:
+                cmd += ["--no-baseline"]
         else:
             cmd += ["add-audit", "--attack", attack]
             if base_model:
@@ -136,7 +147,9 @@ class QueueScreen(_BaseCommandScreen):
                 cmd += ["--depends-on", "latest"]
         return cmd
 
-    def _enqueue_cmds(self, base_model: str, adapter: str, attack: str) -> list[list[str]]:
+    def _enqueue_cmds(
+        self, base_model: str, adapter: str, attack: str, baseline: bool = True
+    ) -> list[list[str]]:
         """Build the command(s) to run for the Enqueue button.
 
         Gauntlets normally just enqueue `gauntlet <preset>`, which depends on
@@ -145,6 +158,12 @@ class QueueScreen(_BaseCommandScreen):
         preserved — so expand the preset into one `add-audit` per member
         instead of silently running `--attack all` (which would drop the
         preset choice, e.g. 'quick' becoming every shipped attack).
+
+        `baseline` (the queue_baseline checkbox) only affects the plain
+        `gauntlet <preset>` command: `--no-baseline` disables the auto-queued
+        base-model baseline run added by `attacklm queue gauntlet` (see
+        commit 99cb095). The expanded add-audit path below never auto-queues
+        a baseline, so `baseline` doesn't apply there.
         """
         if attack in _GAUNTLETS and (base_model or adapter):
             cmds = []
@@ -156,7 +175,7 @@ class QueueScreen(_BaseCommandScreen):
                     cmd += ["--adapter", adapter]
                 cmds.append(cmd)
             return cmds
-        return [self._enqueue_cmd(base_model, adapter, attack)]
+        return [self._enqueue_cmd(base_model, adapter, attack, baseline)]
 
     async def _run_then_refresh(self, cmds: list[list[str]]) -> None:
         for cmd in cmds:
@@ -172,8 +191,9 @@ class QueueScreen(_BaseCommandScreen):
         elif bid == "btn-queue-enqueue":
             values = self._get_values()
             attack = str(self.query_one("#queue_attack", Select).value or "core")
+            baseline = self.query_one("#queue_baseline", Checkbox).value
             cmds = self._enqueue_cmds(
-                values.get("queue_base_model", ""), values.get("queue_adapter", ""), attack
+                values.get("queue_base_model", ""), values.get("queue_adapter", ""), attack, baseline
             )
             asyncio.create_task(self._run_then_refresh(cmds))
         elif bid == "btn-queue-start":
