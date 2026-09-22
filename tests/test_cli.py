@@ -655,3 +655,61 @@ class TestGUISubcommand:
         args = parser.parse_args(["gui"])
         rc = args.func(args)
         assert rc == 0
+
+
+# ---------------------------------------------------------------------------
+# _delegate_to_dataset / _audit_forwarded_argv helper tests
+# ---------------------------------------------------------------------------
+
+
+class TestDelegateHelper:
+    """Test the shared ``_delegate_to_dataset`` / ``_audit_forwarded_argv`` helpers."""
+
+    def test_delegate_runs_package_cli(self, monkeypatch):
+        captured = _mock_attacklm_dataset_delegate(monkeypatch)
+        from attacklm import cli
+
+        assert cli._delegate_to_dataset("balance", ["--cap", "5"], "balance_buckets.py") == 0
+        cmd = captured["cmd"]
+        assert cmd[1:4] == ["-m", "attacklm_dataset.cli", "balance"]
+        assert cmd[-2:] == ["--cap", "5"]
+
+    def test_delegate_falls_back_to_local_script(self, monkeypatch, tmp_path):
+        monkeypatch.setitem(sys.modules, "attacklm_dataset", None)  # import → ImportError
+        from attacklm import cli
+
+        (tmp_path / "balance_buckets.py").write_text("import sys; sys.exit(7)\n")
+        monkeypatch.setattr(cli, "_SCRIPTS_DIR", tmp_path)
+        assert cli._delegate_to_dataset("balance", [], "balance_buckets.py") == 7
+
+    def test_delegate_prints_hint_when_nothing_available(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.setitem(sys.modules, "attacklm_dataset", None)
+        from attacklm import cli
+
+        monkeypatch.setattr(cli, "_SCRIPTS_DIR", tmp_path)
+        assert cli._delegate_to_dataset("balance", [], "balance_buckets.py") == 1
+        assert "pip install attacklm-dataset" in capsys.readouterr().err
+
+    def test_audit_argv_built_once(self):
+        import argparse
+
+        from attacklm import cli
+
+        ns = argparse.Namespace(
+            attack="extraction",
+            model="/m",
+            dataset_root="/d",
+            mia_method=None,
+            mia_threshold_mode=None,
+            mia_percentile=None,
+            source_filter=["a", "b"],
+            top_k=3,
+            max_new_tokens=None,
+            temperature=None,
+            max_records=None,
+            dry_run=True,
+        )
+        fwd = cli._audit_forwarded_argv(ns)
+        assert fwd[:6] == ["--attack", "extraction", "--model", "/m", "--dataset-root", "/d"]
+        assert fwd[fwd.index("--source-filter") + 1 : fwd.index("--source-filter") + 3] == ["a", "b"]
+        assert "--top-k" in fwd and fwd[-1] == "--dry-run"

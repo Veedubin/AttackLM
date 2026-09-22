@@ -102,6 +102,49 @@ def _run_shell_script(script_name: str, argv: Sequence[str]) -> int:
     return result.returncode
 
 
+_DATASET_INSTALL_HINT = (
+    "AttackLM dataset not found.\n"
+    "Install it with:  pip install attacklm-dataset\n"
+    "Or clone it from: https://github.com/Veedubin/attacklm-dataset"
+)
+
+
+def _delegate_to_dataset(subcommand: str, forwarded: Sequence[str], local_script: str) -> int:
+    """Run an attacklm-dataset subcommand: installed package first, local script second."""
+    try:
+        import attacklm_dataset  # noqa: F401  — presence probe only
+    except ImportError:
+        if (_SCRIPTS_DIR / local_script).exists():
+            return _run_python_script(local_script, forwarded)
+        print(_DATASET_INSTALL_HINT, file=sys.stderr)
+        return 1
+    result = subprocess.run(
+        [sys.executable, "-m", "attacklm_dataset.cli", subcommand, *forwarded],
+        cwd=Path.cwd(),
+    )
+    return result.returncode
+
+
+def _audit_forwarded_argv(args: argparse.Namespace) -> list[str]:
+    """Translate `attacklm audit` flags into inversion_audit.py argv."""
+    forwarded = ["--attack", args.attack, "--model", args.model, "--dataset-root", args.dataset_root]
+    scalar = [
+        ("mia_method", "--mia-method"), ("mia_threshold_mode", "--mia-threshold-mode"),
+        ("mia_percentile", "--mia-percentile"), ("top_k", "--top-k"),
+        ("max_new_tokens", "--max-new-tokens"), ("temperature", "--temperature"),
+        ("max_records", "--max-records"),
+    ]
+    for attr, flag in scalar:
+        value = getattr(args, attr, None)
+        if value:
+            forwarded.extend([flag, str(value)])
+    if args.source_filter:
+        forwarded.extend(["--source-filter", *args.source_filter])
+    if args.dry_run:
+        forwarded.append("--dry-run")
+    return forwarded
+
+
 # ---------------------------------------------------------------------------
 # Subcommand handlers
 # ---------------------------------------------------------------------------
@@ -138,59 +181,12 @@ def _cmd_init(args: argparse.Namespace) -> int:
     if getattr(args, "clone_only", False):
         forwarded.append("--clone-only")
 
-    # Try attacklm-dataset CLI first
-    try:
-        import attacklm_dataset  # noqa: F401  — presence probe only
-
-        # attacklm-dataset is installed — delegate to its CLI
-        result = subprocess.run(
-            [sys.executable, "-m", "attacklm_dataset.cli", "init", *forwarded],
-            cwd=Path.cwd(),
-        )
-        return result.returncode
-    except ImportError:
-        pass
-
-    # Fallback: try local init_pipeline.py if it exists
-    init_script = _SCRIPTS_DIR / "init_pipeline.py"
-    if init_script.exists():
-        return _run_python_script("init_pipeline.py", forwarded)
-
-    # Neither installed nor local — guide the user
-    print(
-        "AttackLM dataset not found.\n"
-        "Install it with:  pip install attacklm-dataset\n"
-        "Or clone it from: https://github.com/Veedubin/attacklm-dataset",
-        file=sys.stderr,
-    )
-    return 1
+    return _delegate_to_dataset("init", forwarded, "init_pipeline.py")
 
 
 def _cmd_balance(args: argparse.Namespace) -> int:
     """Handle ``attacklm balance`` — delegate to attacklm-dataset."""
-    try:
-        import attacklm_dataset  # noqa: F401  — presence probe only
-
-        result = subprocess.run(
-            [sys.executable, "-m", "attacklm_dataset.cli", "balance"] + list(args.argv),
-            cwd=Path.cwd(),
-        )
-        return result.returncode
-    except ImportError:
-        pass
-
-    # Fallback: try local balance_buckets.py
-    balance_script = _SCRIPTS_DIR / "balance_buckets.py"
-    if balance_script.exists():
-        return _run_python_script("balance_buckets.py", args.argv)
-
-    print(
-        "AttackLM dataset not found.\n"
-        "Install it with:  pip install attacklm-dataset\n"
-        "Or clone it from: https://github.com/Veedubin/attacklm-dataset",
-        file=sys.stderr,
-    )
-    return 1
+    return _delegate_to_dataset("balance", list(args.argv), "balance_buckets.py")
 
 
 def _cmd_steer(args: argparse.Namespace) -> int:
@@ -264,84 +260,7 @@ def _cmd_demo(args: argparse.Namespace) -> int:
 
 def _cmd_audit(args: argparse.Namespace) -> int:
     """Handle ``attacklm audit`` — delegate to attacklm-dataset."""
-    # Try attacklm-dataset CLI first
-    try:
-        import attacklm_dataset  # noqa: F401  — presence probe only
-
-        # Build the argv for attacklm-dataset's inversion_audit
-        forwarded = [
-            "--attack",
-            args.attack,
-            "--model",
-            args.model,
-            "--dataset-root",
-            args.dataset_root,
-        ]
-        if args.mia_method:
-            forwarded.extend(["--mia-method", args.mia_method])
-        if args.mia_threshold_mode:
-            forwarded.extend(["--mia-threshold-mode", args.mia_threshold_mode])
-        if args.mia_percentile:
-            forwarded.extend(["--mia-percentile", str(args.mia_percentile)])
-        if args.source_filter:
-            forwarded.extend(["--source-filter", *args.source_filter])
-        if args.top_k:
-            forwarded.extend(["--top-k", str(args.top_k)])
-        if args.max_new_tokens:
-            forwarded.extend(["--max-new-tokens", str(args.max_new_tokens)])
-        if args.temperature:
-            forwarded.extend(["--temperature", str(args.temperature)])
-        if args.max_records:
-            forwarded.extend(["--max-records", str(args.max_records)])
-        if args.dry_run:
-            forwarded.append("--dry-run")
-
-        result = subprocess.run(
-            [sys.executable, "-m", "attacklm_dataset.cli", "audit", *forwarded],
-            cwd=Path.cwd(),
-        )
-        return result.returncode
-    except ImportError:
-        pass
-
-    # Fallback: try local inversion_audit.py
-    audit_script = _SCRIPTS_DIR / "inversion_audit.py"
-    if audit_script.exists():
-        forwarded = [
-            "--attack",
-            args.attack,
-            "--model",
-            args.model,
-            "--dataset-root",
-            args.dataset_root,
-        ]
-        if args.mia_method:
-            forwarded.extend(["--mia-method", args.mia_method])
-        if args.mia_threshold_mode:
-            forwarded.extend(["--mia-threshold-mode", args.mia_threshold_mode])
-        if args.mia_percentile:
-            forwarded.extend(["--mia-percentile", str(args.mia_percentile)])
-        if args.source_filter:
-            forwarded.extend(["--source-filter", *args.source_filter])
-        if args.top_k:
-            forwarded.extend(["--top-k", str(args.top_k)])
-        if args.max_new_tokens:
-            forwarded.extend(["--max-new-tokens", str(args.max_new_tokens)])
-        if args.temperature:
-            forwarded.extend(["--temperature", str(args.temperature)])
-        if args.max_records:
-            forwarded.extend(["--max-records", str(args.max_records)])
-        if args.dry_run:
-            forwarded.append("--dry-run")
-        return _run_python_script("inversion_audit.py", forwarded)
-
-    print(
-        "AttackLM dataset not found.\n"
-        "Install it with:  pip install attacklm-dataset\n"
-        "Or clone it from: https://github.com/Veedubin/attacklm-dataset",
-        file=sys.stderr,
-    )
-    return 1
+    return _delegate_to_dataset("audit", _audit_forwarded_argv(args), "inversion_audit.py")
 
 
 # ---------------------------------------------------------------------------
