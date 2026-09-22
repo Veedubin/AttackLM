@@ -16,7 +16,7 @@ from typing import Any
 
 from attacklm.queue.db import QueueDB, Task
 from attacklm.queue.registry import REGISTRY
-from attacklm.queue.stats import paired_bootstrap, verdict
+from attacklm.queue.stats import Interval, paired_bootstrap, verdict
 
 try:
     from rich.console import Console
@@ -352,9 +352,101 @@ def _side(run: Run) -> dict[str, Any]:
     }
 
 
+def _subject_interval(b_vals: list[float], resamples: int, seed: int):
+    """CI of the SUBJECT's own score, for the ladder's dead-horse floor rule.
+
+    paired_bootstrap over (zeros, b_vals) gives the CI of mean(b - 0), i.e. of
+    the subject's score itself. Reusing the tested paired machinery beats
+    writing a second, separately-buggy one-sample bootstrap.
+    """
+    return paired_bootstrap([0.0] * len(b_vals), b_vals, resamples=resamples, seed=seed)
+
+
+def ladder_advice(
+    run_b: Run, rows: list[Row], resamples: int = 2000, seed: int = 42
+) -> dict[str, dict[str, Any]]:
+    """What the escalation ladder advises next, per capability benchmark.
+
+    Advisory only: it never queues GPU work on its own. Gated on the CLEAN
+    metric where one exists, per the design -- escalating on the raw CI would
+    stop the ladder while the number we actually believe is still noise.
+    """
+    try:
+        from attacklm.bench.ladder import decide_next_rung
+        from attacklm.bench.packs import get_pack
+    except ImportError:
+        return {}
+
+    by_attack: dict[str, dict[str, Any]] = {}
+    for attack, task in run_b.tasks.items():
+        if attack not in ITEM_METRICS or not attack.startswith("bench_"):
+            continue
+
+        report = load_report(task)
+        if report is None:
+            continue
+        pack_name = task.args_dict.get("pack") or report.get("metadata", {}).get("pack")
+        if not pack_name:
+            continue
+        try:
+            pack = get_pack(pack_name)
+        except (KeyError, ValueError, RuntimeError):
+            continue
+
+        # Prefer the corrected metric; fall back to raw when no check ran.
+        candidates = [r for r in rows if r.attack == attack and r.category == "overall"]
+        row = next((r for r in candidates if r.metric == "score_clean"), None)
+        gated_on = "clean"
+        if row is None or row.n == 0:
+            row = next((r for r in candidates if r.metric == "score"), None)
+            gated_on = "raw"
+        if row is None or row.delta is None:
+            continue
+
+        interval = Interval(row.delta, row.lo or 0.0, row.hi or 0.0, row.n)
+        current = (report.get("metadata", {}).get("resolved_config") or {}).get("rung")
+
+        subject_hi = None
+        if row.b is not None and row.n:
+            # Reconstruct the subject's own CI from its report items.
+            metric = "score_clean" if gated_on == "clean" else "score"
+            vals = [
+                float(item[metric])
+                for item in report.get("results", [])
+                if item.get(metric) is not None
+            ]
+            if vals:
+                subject_hi = _subject_interval(vals, resamples, seed).hi
+
+        try:
+            decision = decide_next_rung(
+                pack.ladder,
+                current,
+                interval,
+                subject_ci_hi=subject_hi,
+                chance_level=pack.chance_level,
+            )
+        except ValueError:
+            continue
+
+        by_attack[attack] = {
+            "pack": pack.name,
+            "gated_on": gated_on,
+            "current_rung": current,
+            "escalate": decision.escalate,
+            "next_rung": decision.next_rung,
+            "reason": decision.reason,
+        }
+    return by_attack
+
+
 def to_json(run_a: Run, run_b: Run, rows: list[Row], unpaired: dict[str, int]) -> dict[str, Any]:
-    return {"a": _side(run_a), "b": _side(run_b),
-            "rows": [row.__dict__ for row in rows], "unpaired": unpaired}
+    payload = {"a": _side(run_a), "b": _side(run_b),
+               "rows": [row.__dict__ for row in rows], "unpaired": unpaired}
+    advice = ladder_advice(run_b, rows)
+    if advice:
+        payload["ladder"] = advice
+    return payload
 
 
 def _fmt(x: float | None) -> str:
@@ -382,6 +474,19 @@ def _run_header(run: Run) -> str:
 def render_table(run_a: Run, run_b: Run, rows: list[Row], unpaired: dict[str, int]) -> str:
     header = f"A = {_run_header(run_a)}\nB = {_run_header(run_b)}\nΔ = B − A (higher is worse for asr/leakage/extraction)"
     footer = "unpaired items: " + ", ".join(f"{_label(k)}: {v}" for k, v in unpaired.items()) if unpaired else ""
+
+    # Ladder advice, if any capability benchmark is in this comparison.
+    advice_lines = []
+    for attack, adv in ladder_advice(run_b, rows).items():
+        if adv["escalate"]:
+            advice_lines.append(
+                f"{_label(attack)}: rerun at rung {adv['next_rung']} "
+                f"(CI still wide on the {adv['gated_on']} score)"
+            )
+        else:
+            advice_lines.append(f"{_label(attack)}: stop — {adv['reason']}")
+    if advice_lines:
+        footer = (footer + "\n" if footer else "") + "ladder: " + "; ".join(advice_lines)
     cells = [(_label(r.attack), r.metric, r.category, str(r.n) if r.n else "—", _fmt(r.a), _fmt(r.b),
               _fmt(r.delta), "—" if r.lo is None else f"[{r.lo:+.3f}, {r.hi:+.3f}]",
               r.verdict + (f" ({r.note})" if r.note else "")) for r in rows]
