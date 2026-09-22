@@ -259,3 +259,73 @@ def test_unknown_pack_errors_cleanly(tmp_path):
             "--pack", "nope", "--packs-dir", str(_local_pack(tmp_path)),
             "--base-model", "m", "--output", str(tmp_path / "r.json"),
         ])
+
+
+# --------------------------------------------------------------------------
+# dual scoring end to end through the CLI
+# --------------------------------------------------------------------------
+
+
+def test_report_carries_null_clean_when_decontam_skipped(tmp_path):
+    out = tmp_path / "report.json"
+    parsed = [ParsedSample("h0", "x", 1.0, "B", "c", True, {})]
+    with patch.object(bench_run, "_run_harness", return_value=parsed):
+        bench_run.main([
+            "--pack", "hpack", "--packs-dir", str(_harness_pack(tmp_path)),
+            "--base-model", "m", "--output", str(out), "--no-decontam",
+        ])
+    summary = json.loads(out.read_text())["summary"]
+    assert summary["score_clean"] is None
+    assert summary["score_clean_reason"]
+
+
+def test_decontam_runs_by_default_and_reports_unchecked_without_records(tmp_path):
+    """No training records on disk -> checked False, never a silent zero."""
+    out = tmp_path / "report.json"
+    parsed = [ParsedSample("h0", "x", 1.0, "B", "c", True, {})]
+    with patch.object(bench_run, "_run_harness", return_value=parsed):
+        bench_run.main([
+            "--pack", "hpack", "--packs-dir", str(_harness_pack(tmp_path)),
+            "--base-model", "m", "--output", str(out),
+        ])
+    rep = json.loads(out.read_text())
+    assert rep["metadata"]["decontamination"]["checked"] is False
+    assert rep["summary"]["score_clean"] is None
+
+
+def test_clean_score_emitted_when_training_records_supplied(tmp_path):
+    """A real overlap must lower the clean score below the raw one."""
+    records = tmp_path / "train.jsonl"
+    shared = "China Chopper is a web shell used for persistence on IIS servers " * 3
+    records.write_text(json.dumps({
+        "messages": [{"role": "assistant", "content": shared}], "source": "sigma-hq",
+    }))
+
+    items = tmp_path / "items.jsonl"
+    items.write_text("\n".join([
+        json.dumps({"question_id": "q0", "category": "c", "tier": "t",
+                    "messages": [{"role": "user", "content": shared}],
+                    "ground_truth": {"type": "mcq_choice", "answer": "C"}, "metadata": {}}),
+        json.dumps({"question_id": "q1", "category": "c", "tier": "t",
+                    "messages": [{"role": "user", "content": "something wholly unrelated"}],
+                    "ground_truth": {"type": "mcq_choice", "answer": "C"}, "metadata": {}}),
+    ]))
+
+    out = tmp_path / "report.json"
+    parsed = [ParsedSample("q0", "C", None, None, None, False, {}),   # correct
+              ParsedSample("q1", "A", None, None, None, False, {})]   # wrong
+    with patch.object(bench_run, "_run_harness", return_value=parsed):
+        bench_run.main([
+            "--pack", "demo", "--packs-dir", str(_local_pack(tmp_path)),
+            "--questions", str(items), "--base-model", "m", "--output", str(out),
+            "--training-records", str(records),
+        ])
+
+    rep = json.loads(out.read_text())
+    if not rep["metadata"]["decontamination"]["checked"]:
+        pytest.skip("decontam/datasketch unavailable in this environment")
+    assert rep["summary"]["score_raw"]["score"] == 0.5          # q0 right, q1 wrong
+    by_id = {r["question_id"]: r for r in rep["results"]}
+    assert by_id["q0"]["contaminated"] is True
+    assert "score_clean" not in by_id["q0"]
+    assert rep["summary"]["score_clean"]["score"] == 0.0        # only q1 survives

@@ -44,7 +44,11 @@ from attacklm.bench.adapters.inspect_adapter import (  # noqa: E402
     ParsedSample,
     RunConfig,
 )
-from attacklm.bench.items import load_items, sample_items  # noqa: E402
+from attacklm.bench.contamination import (  # noqa: E402
+    DEFAULT_THRESHOLD,
+    check_contamination,
+)
+from attacklm.bench.items import BenchItem, load_items, sample_items  # noqa: E402
 from attacklm.bench.packs import PACKS_DIR, Pack, get_pack  # noqa: E402
 from attacklm.bench.report import build_report  # noqa: E402
 from attacklm.bench.scorers import (  # noqa: E402
@@ -92,6 +96,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     sc.add_argument("--answer-regex", help="override answer extraction (local_scored)")
     sc.add_argument("--invalid-policy", default="count_wrong", choices=list(INVALID_POLICIES))
 
+    dc = p.add_argument_group("contamination (the \"SAE correction\")")
+    dc.add_argument("--no-decontam", action="store_true",
+                    help="skip the overlap check; the report then carries a null score_clean")
+    dc.add_argument("--decontam-threshold", type=float, default=DEFAULT_THRESHOLD,
+                    help="Jaccard at or above which an item counts as contaminated")
+    dc.add_argument("--training-records",
+                    help="JSONL of training records to check against; "
+                         "defaults to the attacklm-dataset corpus when present")
+
     p.add_argument("--keep-logs", help="copy the harness log here instead of discarding it")
     return p.parse_args(argv)
 
@@ -130,6 +143,26 @@ def _score_local_mode(
     # Pair by id, never by position.
     completions = {s.sample_id: s.completion for s in samples}
     return [score_item(item, completions.get(item.question_id, ""), cfg) for item in items]
+
+
+def _load_training_records(path: str | None) -> list[dict] | None:
+    """Records to check benchmark items against, or None when unavailable.
+
+    None means "no check was possible", which the report records as an
+    explicitly null score_clean. It must never silently become an empty list,
+    which would read as "checked, nothing overlapped".
+    """
+    if not path:
+        return None
+    p = Path(path)
+    if not p.is_file():
+        return None
+    records = []
+    for line in p.read_text().splitlines():
+        line = line.strip()
+        if line:
+            records.append(json.loads(line))
+    return records
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -171,6 +204,19 @@ def main(argv: list[str] | None = None) -> int:
             ScoreConfig(answer_regex=args.answer_regex, invalid_policy=args.invalid_policy),
         )
 
+    # Contamination is post-processing over one MinHash pass, so both the raw
+    # and corrected numbers come from this single run at no extra GPU cost.
+    contamination = None
+    if not args.no_decontam:
+        checked_items = items or [
+            BenchItem(s.question_id, s.category, "", [], {}, {}) for s in scores
+        ]
+        contamination = check_contamination(
+            checked_items,
+            _load_training_records(args.training_records),
+            threshold=args.decontam_threshold,
+        )
+
     info = adapter.probe()
     report = build_report(pack, scores, {
         "model": args.base_model,
@@ -188,18 +234,27 @@ def main(argv: list[str] | None = None) -> int:
             "invalid_policy": args.invalid_policy, "backend": args.backend,
             "base_url": args.base_url, "model_args": list(args.model_args),
             "pack_revision": pack.source.revision,
+            "decontam": (
+                None if args.no_decontam else {"threshold": args.decontam_threshold}
+            ),
         },
-    })
+    }, contamination)
 
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2))
 
-    summary = report["summary"]["score_raw"]
-    print(
-        f"{pack.name}: score={summary['score']} n={summary['n']} "
-        f"invalid={summary['invalid']}"
-    )
+    raw = report["summary"]["score_raw"]
+    clean = report["summary"].get("score_clean")
+    print(f"{pack.name}: raw={raw['score']} n={raw['n']} invalid={raw['invalid']}")
+    if clean:
+        print(
+            f"{' ' * len(pack.name)}  clean={clean['score']} n={clean['n']} "
+            f"(contamination {report['summary']['contamination_rate']:.1%})"
+        )
+    else:
+        reason = report["summary"].get("score_clean_reason")
+        print(f"{' ' * len(pack.name)}  clean=n/a ({reason})")
     print(f"Report: {out}")
     return 0
 

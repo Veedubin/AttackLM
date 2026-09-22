@@ -46,7 +46,14 @@ ITEM_METRICS: dict[str, list[tuple[str, str, str]]] = {
     # entirely, so the existing missing-metric rule counts it unpaired rather
     # than scoring it a genuine 0.0. Phase 2 adds a parallel "score_clean"
     # entry, which contaminated items omit the same way.
-    "bench_cybermetric": [("score", "question_id", "category")],
+    # score_clean is the contamination-corrected metric. A contaminated item
+    # OMITS it, so the missing-metric rule counts that item unpaired in the
+    # clean comparison while it still pairs in the raw one -- two verdicts from
+    # one run, no new logic here.
+    "bench_cybermetric": [
+        ("score", "question_id", "category"),
+        ("score_clean", "question_id", "category"),
+    ],
 }
 
 # Metric DIRECTION per attack, used for the BETTER/WORSE label.

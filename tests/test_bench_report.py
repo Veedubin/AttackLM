@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from attacklm.bench.packs import Pack, PackSource
 from attacklm.bench.report import build_report
 from attacklm.bench.scorers import ItemScore
@@ -88,10 +90,15 @@ def test_empty_scores_do_not_divide_by_zero():
     assert rep["results"] == []
 
 
-def test_score_clean_is_absent_until_phase_2():
-    """Phase 1 emits raw only; a null clean score must never read as equal."""
+def test_score_clean_is_explicitly_null_without_a_check():
+    """Superseded the Phase 1 "absent" contract with a stronger one.
+
+    Absence was ambiguous -- a reader could take a missing key for "no
+    correction needed". An explicit null plus a reason cannot be misread.
+    """
     rep = build_report(PACK, _scores(), {"model": "m"})
-    assert "score_clean" not in rep["summary"]
+    assert rep["summary"]["score_clean"] is None
+    assert rep["summary"]["score_clean_reason"]
 
 
 def test_report_is_json_serialisable():
@@ -117,3 +124,89 @@ def test_report_matches_live_compare_contract():
     # Every existing entry is a list of 3-tuples; ours must match that shape.
     for entries in ITEM_METRICS.values():
         assert all(len(e) == 3 for e in entries)
+
+
+# --------------------------------------------------------------------------
+# dual scoring -- the "SAE correction"
+# --------------------------------------------------------------------------
+
+from attacklm.bench.contamination import ContaminationResult, ItemOverlap  # noqa: E402
+
+
+def _contam(**over):
+    overlaps = {
+        qid: ItemOverlap(qid, j, c, src) for qid, (j, c, src) in over.items()
+    }
+    n_bad = sum(1 for o in overlaps.values() if o.contaminated)
+    rate = n_bad / len(overlaps) if overlaps else 0.0
+    return ContaminationResult(True, 0.80, overlaps, n_bad, rate)
+
+
+def test_no_contamination_check_yields_explicit_null_not_absence():
+    """A missing correction must never read as 'corrected, no change'."""
+    rep = build_report(PACK, _scores(), {"model": "m"})
+    assert rep["summary"]["score_clean"] is None
+    assert "score_clean_reason" in rep["summary"]
+
+
+def test_clean_equals_raw_when_nothing_is_contaminated():
+    contam = _contam(
+        q0=(0.1, False, None), q1=(0.0, False, None),
+        q2=(0.2, False, None), q3=(0.0, False, None),
+    )
+    rep = build_report(PACK, _scores(), {"model": "m"}, contam)
+    assert rep["summary"]["score_clean"]["score"] == rep["summary"]["score_raw"]["score"]
+    assert rep["summary"]["contamination_rate"] == 0.0
+
+
+def test_clean_drops_when_a_correct_item_is_contaminated():
+    # q0 scores 1.0 and is contaminated; excluding it must LOWER the clean score.
+    contam = _contam(
+        q0=(0.95, True, "sigma-hq"), q1=(0.0, False, None),
+        q2=(0.1, False, None), q3=(0.0, False, None),
+    )
+    rep = build_report(PACK, _scores(), {"model": "m"}, contam)
+    assert rep["summary"]["score_raw"]["score"] == 0.5     # q0, q2 correct of 4
+    assert rep["summary"]["score_clean"]["score"] == pytest.approx(0.3333, abs=1e-4)
+    assert rep["summary"]["score_clean"]["n"] == 3
+
+
+def test_contaminated_item_omits_score_clean_but_keeps_score():
+    contam = _contam(q0=(0.95, True, "sigma-hq"), q1=(0.0, False, None),
+                     q2=(0.0, False, None), q3=(0.0, False, None))
+    rep = build_report(PACK, _scores(), {"model": "m"}, contam)
+    by_id = {r["question_id"]: r for r in rep["results"]}
+    assert by_id["q0"]["score"] == 1.0
+    assert "score_clean" not in by_id["q0"]      # unpaired in the clean comparison
+    assert by_id["q1"]["score_clean"] == 0.0     # present and scored
+    assert by_id["q0"]["contaminated"] is True
+    assert by_id["q0"]["matched_source"] == "sigma-hq"
+
+
+def test_sensitivity_curve_and_stratification_are_emitted():
+    contam = _contam(q0=(0.95, True, "sigma-hq"), q1=(0.6, False, "metasploit"),
+                     q2=(0.0, False, None), q3=(0.0, False, None))
+    rep = build_report(PACK, _scores(), {"model": "m"}, contam)
+    curve = rep["summary"]["sensitivity"]
+    assert [row["threshold"] for row in curve] == [1.0, 0.9, 0.8, 0.7, 0.5]
+    ns = [row["n"] for row in curve]
+    assert ns == sorted(ns, reverse=True), "n must be monotonically non-increasing"
+    assert "sigma-hq" in rep["summary"]["by_matched_source"]
+
+
+def test_decontamination_block_lands_in_metadata():
+    contam = _contam(q0=(0.95, True, "sigma-hq"), q1=(0.0, False, None),
+                     q2=(0.0, False, None), q3=(0.0, False, None))
+    rep = build_report(PACK, _scores(), {"model": "m"}, contam)
+    dec = rep["metadata"]["decontamination"]
+    assert dec["checked"] is True
+    assert dec["threshold"] == 0.80
+    assert dec["contaminated_items"] == 1
+
+
+def test_unchecked_contamination_result_still_reports_null_clean():
+    unchecked = ContaminationResult(False, 0.80, {}, 0, 0.0, reason="training set not available")
+    rep = build_report(PACK, _scores(), {"model": "m"}, unchecked)
+    assert rep["summary"]["score_clean"] is None
+    assert rep["summary"]["score_clean_reason"] == "training set not available"
+    assert rep["metadata"]["decontamination"]["checked"] is False

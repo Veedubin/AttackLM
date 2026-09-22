@@ -305,12 +305,16 @@ a, _ = p.parse_known_args()
 # as SAME.
 base = [round(i * 0.1, 2) for i in range(10)]
 increment = [0.1 if i % 2 == 0 else 0.2 for i in range(10)]
-results = [{
-    "question_id": f"q{i}",
-    "category": "cat_a" if i < 6 else "cat_b",
-    "score": round(base[i] + increment[i], 2) if a.adapter else base[i],
-    "valid": True,
-} for i in range(10)]
+results = []
+for i in range(10):
+    score = round(base[i] + increment[i], 2) if a.adapter else base[i]
+    rec = {"question_id": f"q{i}", "category": "cat_a" if i < 6 else "cat_b",
+           "score": score, "valid": True, "contaminated": i == 0}
+    # q0 is "contaminated": it OMITS score_clean, so the clean comparison
+    # counts it unpaired while the raw comparison still pairs it.
+    if i != 0:
+        rec["score_clean"] = score
+    results.append(rec)
 # Different list ORDER per side, identical per-id VALUES: only an id join can
 # reproduce the expected delta.
 if not a.adapter:
@@ -362,8 +366,8 @@ def test_bench_queue_and_compare_end_to_end(sandbox, capsys):
         json=True, resamples=300, seed=1)) == 0
     data = json.loads(capsys.readouterr().out)
 
-    by_key = {(r["attack"], r["category"]): r for r in data["rows"]}
-    overall = by_key[("bench_cybermetric", "overall")]
+    by_key = {(r["attack"], r["metric"], r["category"]): r for r in data["rows"]}
+    overall = by_key[("bench_cybermetric", "score", "overall")]
     # baseline ids 0..9 score 0.0..0.9 (mean 0.45); the adapter is +0.1 on even
     # ids and +0.2 on odd (mean 0.6). Every paired diff is strictly positive,
     # so the CI cannot touch zero, and it varies, so the CI is non-degenerate.
@@ -373,6 +377,12 @@ def test_bench_queue_and_compare_end_to_end(sandbox, capsys):
     assert overall["delta"] == pytest.approx(0.15)
     # The direction fix: a capability GAIN must read BETTER, not WORSE.
     assert overall["verdict"] == "BETTER"
-    assert by_key[("bench_cybermetric", "cat_a")]["n"] == 6
-    assert by_key[("bench_cybermetric", "cat_b")]["n"] == 4
-    assert data["unpaired"]["bench_cybermetric"] == 0
+    assert by_key[("bench_cybermetric", "score", "cat_a")]["n"] == 6
+    assert by_key[("bench_cybermetric", "score", "cat_b")]["n"] == 4
+
+    # The corrected metric excludes the contaminated q0 on BOTH sides, so it
+    # is a genuinely separate verdict computed from the same single run.
+    clean = by_key[("bench_cybermetric", "score_clean", "overall")]
+    assert clean["n"] == 9, "q0 must drop out of the clean comparison"
+    assert clean["verdict"] == "BETTER"
+    assert by_key[("bench_cybermetric", "score_clean", "cat_a")]["n"] == 5
