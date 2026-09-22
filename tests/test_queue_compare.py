@@ -60,6 +60,17 @@ class TestPairItems:
         cats, _ = pair_items(ra, rb, "exact_token", "canary_id", "prefix")
         assert cats["overall"] == ([0.0], [1.0])
 
+    def test_item_missing_metric_key_is_unpaired(self):
+        # Review ruling: a malformed report item that's missing the metric key
+        # (on either side) must NOT silently score 0.0 -- it must drop out of
+        # every category's arrays and be counted as unpaired instead.
+        ra = {"results": [{"question_id": "q1", "tier": "direct", "asr": 0.0}]}
+        rb = {"results": [{"question_id": "q1", "tier": "direct"}]}  # asr missing on B
+        cats, unpaired = pair_items(ra, rb, "asr", "question_id", "tier")
+        assert cats["overall"] == ([], [])
+        assert "direct" not in cats
+        assert unpaired == 1
+
 
 class TestSelectRun:
     def test_selects_newest_completed_for_adapter(self, db, tmp_path):
@@ -160,3 +171,52 @@ class TestCompareRuns:
         tid = db.add_task(type="audit_prompt_injection", label="x", args={})
         db.mark_task(tid, status="completed", artifact_path="/does/not/exist.json")
         assert load_report(db.get_task(tid)) is None
+
+
+class TestCompareCommand:
+    def _ns(self, db, **kw):
+        base = dict(db_path=str(db.db_path), a=None, b=None, preset="core", json=False, resamples=200, seed=1)
+        base.update(kw)
+        import argparse
+        return argparse.Namespace(**base)
+
+    def _seed(self, db, tmp_path):
+        ids = [f"q{i}" for i in range(10)]
+        ra = _pi_report(tmp_path / "a.json", "b", None, {q: 0.0 for q in ids})
+        rb = _pi_report(tmp_path / "b.json", "b", "/x", {q: 1.0 for q in ids})
+        _completed_audit(db, "audit_prompt_injection", "b", None, ra, gauntlet="baseline")
+        _completed_audit(db, "audit_prompt_injection", "b", "/x", rb)
+
+    def test_no_args_latest_vs_baseline(self, db, tmp_path, capsys):
+        from attacklm.queue import cli as qcli
+        self._seed(db, tmp_path)
+        assert qcli._cmd_compare(self._ns(db)) == 0
+        out = capsys.readouterr().out
+        assert "WORSE" in out and "/x" in out
+
+    def test_json_output(self, db, tmp_path, capsys):
+        from attacklm.queue import cli as qcli
+        self._seed(db, tmp_path)
+        assert qcli._cmd_compare(self._ns(db, json=True)) == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data["b"]["adapter"] == "/x" and data["rows"][0]["verdict"] == "WORSE"
+
+    def test_adapter_vs_adapter(self, db, tmp_path, capsys):
+        from attacklm.queue import cli as qcli
+        self._seed(db, tmp_path)
+        ry = _pi_report(tmp_path / "y.json", "b", "/y", {f"q{i}": 1.0 for i in range(10)})
+        _completed_audit(db, "audit_prompt_injection", "b", "/y", ry)
+        assert qcli._cmd_compare(self._ns(db, a="/x", b="/y")) == 0
+        assert "SAME" in capsys.readouterr().out
+
+    def test_no_baseline_is_error(self, db, tmp_path, capsys):
+        from attacklm.queue import cli as qcli
+        rb = _pi_report(tmp_path / "b.json", "other", "/x", {"q1": 1.0})
+        _completed_audit(db, "audit_prompt_injection", "other", "/x", rb)
+        assert qcli._cmd_compare(self._ns(db)) == 1
+        assert "No baseline for other" in capsys.readouterr().err
+
+    def test_nothing_completed_is_error(self, db, capsys):
+        from attacklm.queue import cli as qcli
+        assert qcli._cmd_compare(self._ns(db)) == 1
+        assert "No completed gauntlet" in capsys.readouterr().err

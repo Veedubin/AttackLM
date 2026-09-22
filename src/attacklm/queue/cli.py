@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 from attacklm.queue.db import QueueDB, DEFAULT_QUEUE_DIR
 from attacklm.queue.registry import REGISTRY, resolve_attack
 from attacklm.queue.gauntlet import expand_gauntlet
 from attacklm.queue.baseline import DEFAULT_BASE_MODEL, baseline_exists, baseline_task_defs, ensure_baseline
+from attacklm.queue.compare import SHIPPED_ATTACKS, compare_runs, latest_subject, render_table, select_run, to_json
+from attacklm.queue.history import append_jsonl, history_rows, render_history
 from attacklm.queue.display import list_tasks, status_summary, task_detail
 from attacklm.queue.runner import run_loop
 
@@ -347,6 +351,65 @@ def _cmd_baseline(args: argparse.Namespace) -> int:
 
     ids = _insert_task_defs(db, baseline_task_defs(args.base_model, preset), [])
     print(f"Baseline for {args.base_model} ({preset}) queued: tasks {', '.join('#' + str(i) for i in ids)}")
+    return 0
+
+
+def _preset_attacks_for_compare(preset: str) -> list[str]:
+    from attacklm.queue.gauntlet import GAUNTLET_PRESETS
+
+    defs = GAUNTLET_PRESETS.get(preset, [])
+    keys = [d["type"] for d in defs if d["type"] in SHIPPED_ATTACKS]
+    return keys or SHIPPED_ATTACKS
+
+
+def _cmd_compare(args: argparse.Namespace) -> int:
+    """Handle `attacklm queue compare [A] [B]`."""
+    db = _get_db(args)
+    attacks = _preset_attacks_for_compare(args.preset or "core")
+
+    if args.a and args.b:
+        run_a = select_run(db, subject=args.a, attacks=attacks)
+        run_b = select_run(db, subject=args.b, attacks=attacks)
+        if run_a is None or run_b is None:
+            missing = args.a if run_a is None else args.b
+            print(f"No completed gauntlet for {missing}", file=sys.stderr)
+            return 1
+    else:
+        if args.a:
+            subject = args.a
+            run_b = select_run(db, subject=subject, attacks=attacks)
+            if run_b is None:
+                print(f"No completed gauntlet for {subject}", file=sys.stderr)
+                return 1
+            base = run_b.base_model
+        else:
+            latest = latest_subject(db)
+            if latest is None:
+                print("No completed gauntlet with an adapter yet.", file=sys.stderr)
+                return 1
+            subject, base = latest
+            run_b = select_run(db, subject=subject, attacks=attacks)
+        run_a = select_run(db, base_model=base, attacks=attacks) if base else None
+        if run_a is None:
+            print(f"No baseline for {base}. Run: attacklm queue baseline {base}", file=sys.stderr)
+            return 1
+
+    rows, unpaired = compare_runs(run_a, run_b, attacks, resamples=args.resamples or 2000, seed=args.seed or 42)
+    if args.json:
+        print(json.dumps(to_json(run_a, run_b, rows, unpaired), indent=2))
+    else:
+        print(render_table(run_a, run_b, rows, unpaired))
+    return 0
+
+
+def _cmd_history(args: argparse.Namespace) -> int:
+    """Handle `attacklm queue history`."""
+    db = _get_db(args)
+    rows = history_rows(db, adapter=args.adapter, limit=args.limit or 100)
+    if args.jsonl:
+        n = append_jsonl(rows, Path(args.jsonl))
+        print(f"Appended {n} new row(s) to {args.jsonl}")
+    print(render_history(rows))
     return 0
 
 
@@ -881,6 +944,54 @@ def build_queue_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Queue a fresh baseline even if one already exists",
     )
     baseline_p.set_defaults(func=_cmd_baseline)
+
+    # ---- compare ----
+    compare_p = queue_sub.add_parser(
+        "compare", help="Compare a subject's latest gauntlet against a baseline (or another subject)"
+    )
+    compare_p.add_argument(
+        "a",
+        type=str,
+        nargs="?",
+        default=None,
+        help="Adapter path (or base-model path for a merged model) for side A "
+             "(default: the base model's baseline). With only A given, A is "
+             "compared as side B against its own baseline.",
+    )
+    compare_p.add_argument(
+        "b",
+        type=str,
+        nargs="?",
+        default=None,
+        help="Adapter path (or base-model path for a merged model) for side B "
+             "(default: the newest completed subject)",
+    )
+    compare_p.add_argument(
+        "--preset", type=str, default="core", help="Which attacks to compare (default: core)"
+    )
+    compare_p.add_argument(
+        "--json", action="store_true", default=False, help="Print JSON instead of a table"
+    )
+    compare_p.add_argument(
+        "--resamples", type=int, default=2000, help="Bootstrap resamples (default: 2000)"
+    )
+    compare_p.add_argument(
+        "--seed", type=int, default=42, help="Bootstrap RNG seed (default: 42)"
+    )
+    compare_p.set_defaults(func=_cmd_compare)
+
+    # ---- history ----
+    history_p = queue_sub.add_parser("history", help="List completed audits, newest first")
+    history_p.add_argument(
+        "--adapter", type=str, default=None, help="Filter to one adapter (or subject) path"
+    )
+    history_p.add_argument(
+        "--limit", type=int, default=100, help="Max rows to show (default: 100)"
+    )
+    history_p.add_argument(
+        "--jsonl", type=str, default=None, help="Append new rows to this JSONL file"
+    )
+    history_p.set_defaults(func=_cmd_history)
 
     # ---- list ----
     list_p = queue_sub.add_parser("list", help="List tasks in the queue")

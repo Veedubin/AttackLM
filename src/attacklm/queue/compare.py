@@ -172,14 +172,24 @@ def load_report(task: Task) -> dict[str, Any] | None:
 def pair_items(
     ra: dict[str, Any], rb: dict[str, Any], metric: str, id_key: str, cat_key: str
 ) -> tuple[dict[str, tuple[list[float], list[float]]], int]:
-    """Join results[] by id. Returns {category: (a_vals, b_vals)} incl. 'overall', and the unpaired count."""
+    """Join results[] by id. Returns {category: (a_vals, b_vals)} incl. 'overall', and the unpaired count.
+
+    An item counts as paired only when *both* sides have the metric key
+    present and non-None. An item present on both sides but missing the
+    metric on either counts as unpaired rather than being silently scored
+    0.0 -- a malformed report must not look like a clean 0.
+    """
     ia = {r[id_key]: r for r in ra.get("results", []) if id_key in r}
     ib = {r[id_key]: r for r in rb.get("results", []) if id_key in r}
     common = [k for k in ia if k in ib]
     unpaired = (len(ia) - len(common)) + (len(ib) - len(common))
     cats: dict[str, tuple[list[float], list[float]]] = {"overall": ([], [])}
     for k in common:
-        va, vb = float(ia[k].get(metric) or 0.0), float(ib[k].get(metric) or 0.0)
+        va_raw, vb_raw = ia[k].get(metric), ib[k].get(metric)
+        if va_raw is None or vb_raw is None:
+            unpaired += 1
+            continue
+        va, vb = float(va_raw), float(vb_raw)
         cats["overall"][0].append(va)
         cats["overall"][1].append(vb)
         cat = str(ia[k].get(cat_key, "?"))
