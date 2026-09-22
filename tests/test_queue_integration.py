@@ -285,3 +285,94 @@ def test_chain_baseline_and_compare_end_to_end(sandbox, capsys):
         assert overall["delta"] == pytest.approx(0.15) and overall["verdict"] == "WORSE"
         assert by_key[(attack, "direct")]["n"] == 6 and by_key[(attack, "indirect")]["n"] == 4
     assert data["unpaired"] == {"audit_prompt_injection": 0, "audit_system_prompt": 0}
+
+
+BENCH_STUB = """\
+import argparse, json, pathlib
+p = argparse.ArgumentParser()
+p.add_argument("--pack"); p.add_argument("--packs-dir"); p.add_argument("--questions")
+p.add_argument("--output", required=True)
+p.add_argument("--base-model", required=True); p.add_argument("--adapter")
+p.add_argument("--rung", type=int); p.add_argument("--backend")
+p.add_argument("--max-tokens", type=int); p.add_argument("--invalid-policy")
+a, _ = p.parse_known_args()
+# Per-item capability score that VARIES BY ID, for the same reason the audit
+# stub does: a flat per-side value cannot distinguish id-based pairing from
+# positional pairing, because mean(b) - mean(a) is order-invariant when every
+# item on a side is identical. The increment also varies (0.1 on even ids,
+# 0.2 on odd) so the paired-diff vector has real variance and the bootstrap CI
+# is non-degenerate rather than the zero-width interval stats.verdict reports
+# as SAME.
+base = [round(i * 0.1, 2) for i in range(10)]
+increment = [0.1 if i % 2 == 0 else 0.2 for i in range(10)]
+results = [{
+    "question_id": f"q{i}",
+    "category": "cat_a" if i < 6 else "cat_b",
+    "score": round(base[i] + increment[i], 2) if a.adapter else base[i],
+    "valid": True,
+} for i in range(10)]
+# Different list ORDER per side, identical per-id VALUES: only an id join can
+# reproduce the expected delta.
+if not a.adapter:
+    results.reverse()
+scored = [r["score"] for r in results]
+o = pathlib.Path(a.output); o.parent.mkdir(parents=True, exist_ok=True)
+o.write_text(json.dumps({
+    "metadata": {"pack": a.pack, "model": a.base_model, "adapter": a.adapter,
+                 "mode": "harness_scored", "harness": {"name": "stub", "version": "0"}},
+    "summary": {"score_raw": {"score": round(sum(scored) / len(scored), 4),
+                              "n": len(scored), "invalid": 0},
+                "by_category": {}},
+    "results": results,
+}))
+print(f"Report: {o}")
+"""
+
+
+def test_bench_queue_and_compare_end_to_end(sandbox, capsys):
+    """queue baseline + bench run -> compare reports a BETTER capability verdict."""
+    import argparse
+
+    from attacklm.queue.cli import _cmd_baseline, _cmd_compare
+
+    db = sandbox
+    (Path("scripts") / "bench_run.py").write_text(BENCH_STUB)
+
+    assert _cmd_baseline(argparse.Namespace(
+        db_path=str(db.db_path), base_model="stub/base-3b",
+        preset="capability-quick", force=False)) == 0
+
+    db.add_task(
+        type="bench_cybermetric",
+        label="Bench: CyberMetric (capability)",
+        args={"base_model": "stub/base-3b", "adapter": "stub-adapter",
+              "pack": "cybermetric-500"},
+        depends_on=[],
+        timeout_seconds=3600,
+        gauntlet=None,
+    )
+    _drain(db)
+    assert {t.status for t in db.list_tasks()} == {"completed"}, [
+        (t.id, t.type, t.status, t.error) for t in db.list_tasks()
+    ]
+
+    capsys.readouterr()
+    assert _cmd_compare(argparse.Namespace(
+        db_path=str(db.db_path), a=None, b=None, preset="capability-quick",
+        json=True, resamples=300, seed=1)) == 0
+    data = json.loads(capsys.readouterr().out)
+
+    by_key = {(r["attack"], r["category"]): r for r in data["rows"]}
+    overall = by_key[("bench_cybermetric", "overall")]
+    # baseline ids 0..9 score 0.0..0.9 (mean 0.45); the adapter is +0.1 on even
+    # ids and +0.2 on odd (mean 0.6). Every paired diff is strictly positive,
+    # so the CI cannot touch zero, and it varies, so the CI is non-degenerate.
+    assert overall["n"] == 10
+    assert overall["a"] == pytest.approx(0.45)
+    assert overall["b"] == pytest.approx(0.6)
+    assert overall["delta"] == pytest.approx(0.15)
+    # The direction fix: a capability GAIN must read BETTER, not WORSE.
+    assert overall["verdict"] == "BETTER"
+    assert by_key[("bench_cybermetric", "cat_a")]["n"] == 6
+    assert by_key[("bench_cybermetric", "cat_b")]["n"] == 4
+    assert data["unpaired"]["bench_cybermetric"] == 0
