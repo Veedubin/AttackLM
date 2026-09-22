@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Sequence
@@ -281,6 +283,7 @@ def _cmd_chain(args: argparse.Namespace) -> int:
         return 1
 
     _insert_task_defs(db, tasks, [train_id])
+    print(f"\nChain ready. Run `attacklm queue start` to begin.")
     return 0
 
 
@@ -367,11 +370,31 @@ def _cmd_start(args: argparse.Namespace) -> int:
         except (ValueError, TypeError):
             pass
 
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+
+    if args.detach:
+        DEFAULT_QUEUE_DIR.mkdir(parents=True, exist_ok=True)
+        runner_log = DEFAULT_QUEUE_DIR / "runner.log"
+        cmd = [sys.executable, "-m", "attacklm", "queue"]
+        if getattr(args, "db_path", None):
+            cmd += ["--db-path", args.db_path]
+        cmd += ["start", "--poll-interval", str(args.poll_interval or 5.0)]
+        if getattr(args, "exit_when_idle", False):
+            cmd.append("--exit-when-idle")
+        with open(runner_log, "ab") as logf:
+            proc = subprocess.Popen(
+                cmd, stdout=logf, stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL, start_new_session=True,
+            )
+        print(f"Runner started in background (PID {proc.pid}). Log: {runner_log}")
+        return 0
+
     run_loop(
         db_path=args.db_path if hasattr(args, "db_path") and args.db_path else None,
         poll_interval=args.poll_interval or 5.0,
         follow=args.follow,
-        detach=args.detach,
+        exit_when_idle=getattr(args, "exit_when_idle", False),
     )
     return 0
 
@@ -778,7 +801,10 @@ def build_queue_parser(subparsers: argparse._SubParsersAction) -> None:
         "--follow", action="store_true", default=False, help="Stream current task's log"
     )
     start_p.add_argument(
-        "--detach", action="store_true", default=False, help="Run in background"
+        "--detach",
+        action="store_true",
+        default=False,
+        help="Run the runner in the background (log: evals/queue/runner.log)",
     )
     start_p.add_argument(
         "--poll-interval",
@@ -791,6 +817,12 @@ def build_queue_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         default=False,
         help="Override existing runner check",
+    )
+    start_p.add_argument(
+        "--exit-when-idle",
+        action="store_true",
+        default=False,
+        help="Exit when no task is eligible instead of polling forever",
     )
     start_p.set_defaults(func=_cmd_start)
 

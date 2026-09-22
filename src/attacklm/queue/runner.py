@@ -13,6 +13,7 @@ import re
 import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -180,6 +181,36 @@ def _run_steps(
     return 0
 
 
+class _Tail(threading.Thread):
+    """Stream a growing log file to stdout until stopped (for `start --follow`)."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(daemon=True)
+        self._path = path
+        self._stop = threading.Event()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self.join(timeout=2)
+
+    def run(self) -> None:
+        pos = 0
+        while True:
+            try:
+                with open(self._path, "rb") as f:
+                    f.seek(pos)
+                    chunk = f.read()
+                    pos = f.tell()
+                if chunk:
+                    sys.stdout.write(chunk.decode(errors="replace"))
+                    sys.stdout.flush()
+            except OSError:
+                pass
+            if self._stop.is_set():
+                break
+            time.sleep(0.5)
+
+
 def _execute_task(db: QueueDB, task: Task, follow: bool = False) -> None:
     """Execute a single task via subprocess."""
     spec = REGISTRY.get(task.type)
@@ -242,7 +273,10 @@ def _execute_task(db: QueueDB, task: Task, follow: bool = False) -> None:
     # Update the runner's current_task.
     db.set_runner_state("current_task", str(task.id))
 
-    # Run the subprocess(es).
+    # Run the subprocess(es), optionally tailing the log to stdout.
+    tail = _Tail(log_path) if follow else None
+    if tail:
+        tail.start()
     try:
         rc = _run_steps(
             steps,
@@ -264,6 +298,9 @@ def _execute_task(db: QueueDB, task: Task, follow: bool = False) -> None:
         db.mark_task(task.id, status="failed", error=str(exc))
         db.add_event(task.id, "failed", {"exception": str(exc)})
         return
+    finally:
+        if tail:
+            tail.stop()
 
     if rc != 0:
         db.mark_task(task.id, status="failed", error=f"rc={rc}")
@@ -366,6 +403,7 @@ def run_loop(
     poll_interval: float = 5.0,
     follow: bool = False,
     detach: bool = False,
+    exit_when_idle: bool = False,
 ) -> None:
     """Main runner loop. Polls for eligible tasks and executes them.
 
@@ -374,6 +412,8 @@ def run_loop(
         poll_interval: Seconds between polls.
         follow: If True, stream the current task's log to stdout.
         detach: If True, run in background (nohup).
+        exit_when_idle: If True, return as soon as no task is eligible
+            (used by tests and by `start --exit-when-idle`).
     """
     db = QueueDB(db_path)
     stop_requested = False
@@ -417,6 +457,8 @@ def run_loop(
             if task is None:
                 # Recheck blocked status.
                 db.recompute_blocked()
+                if exit_when_idle:
+                    break
                 time.sleep(poll_interval)
                 continue
 

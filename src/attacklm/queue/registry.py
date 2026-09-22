@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 
-# Resolve scripts directory (same logic as cli.py).
-_SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "scripts"
+# Resolve scripts directory (same logic as cli.py). Overridable via
+# ATTACKLM_SCRIPTS_DIR so a detached runner subprocess (spawned with a
+# different cwd/package layout in tests) can find the same stub scripts.
+_SCRIPTS_DIR = Path(
+    os.environ.get("ATTACKLM_SCRIPTS_DIR")
+    or Path(__file__).resolve().parent.parent.parent.parent / "scripts"
+)
 
 
 @dataclass(frozen=True)
