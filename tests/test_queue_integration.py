@@ -64,6 +64,21 @@ for n in ("calibration_in", "calibration_near", "calibration_ood"):
     (d / f"{n}.jsonl").write_text('{"q": "x"}\\n')
 """
 
+SCORED_AUDIT_STUB = """\
+import argparse, json, pathlib
+p = argparse.ArgumentParser()
+p.add_argument("--base-model", required=True); p.add_argument("--adapter")
+p.add_argument("--questions"); p.add_argument("--output", required=True)
+p.add_argument("--max-new-tokens", type=int, default=64)
+a = p.parse_args()
+# The adapter "learned" to comply: asr 1.0 with an adapter, 0.0 without.
+score = 1.0 if a.adapter else 0.0
+results = [{"question_id": f"q{i}", "tier": "direct" if i < 6 else "indirect", "asr": score} for i in range(10)]
+o = pathlib.Path(a.output); o.parent.mkdir(parents=True, exist_ok=True)
+o.write_text(json.dumps({"metadata": {"base_model": a.base_model, "adapter": a.adapter},
+                         "summary": {"overall_asr": score}, "results": results}))
+"""
+
 
 @pytest.fixture
 def sandbox(tmp_path, monkeypatch):
@@ -207,3 +222,36 @@ def test_detach_spawns_background_runner(sandbox, monkeypatch):
             break
         time.sleep(0.1)
     assert db.get_task(tid).status == "completed"
+
+
+def test_chain_baseline_and_compare_end_to_end(sandbox, capsys):
+    """chain --then gauntlet quick auto-queues a baseline; compare pairs them item by item."""
+    from attacklm.queue.cli import _cmd_chain, _cmd_compare
+    import argparse
+    db = sandbox
+    for name in ("audit_prompt_injection.py", "audit_system_prompt.py"):
+        (Path("scripts") / name).write_text(SCORED_AUDIT_STUB)
+    ns = argparse.Namespace(db_path=str(db.db_path), base_model="stub/base-3b", single_model=True,
+                            single_model_name=None, include_orchestrator=False, model_attacks=False,
+                            include_tools=False, epochs=None, batch_size=None, train_extra=None,
+                            label=None, train_timeout=None, then="gauntlet", gauntlet_preset="quick",
+                            attack=None, include_unshipped=False, no_baseline=False)
+    assert _cmd_chain(ns) == 0
+    tasks = db.list_tasks()
+    assert len([t for t in tasks if t.gauntlet == "baseline"]) == 2
+    assert len([t for t in tasks if t.gauntlet == "quick"]) == 2
+    _drain(db)
+    assert {t.status for t in db.list_tasks()} == {"completed"}, [(t.id, t.type, t.status, t.error) for t in db.list_tasks()]
+
+    capsys.readouterr()
+    assert _cmd_compare(argparse.Namespace(db_path=str(db.db_path), a=None, b=None, preset="quick",
+                                           json=True, resamples=300, seed=1)) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["a"]["adapter"] is None and data["a"]["base_model"] == "stub/base-3b"
+    assert data["b"]["adapter"].endswith("stub-adapter")
+    by_key = {(r["attack"], r["category"]): r for r in data["rows"]}
+    for attack in ("audit_prompt_injection", "audit_system_prompt"):
+        overall = by_key[(attack, "overall")]
+        assert overall["n"] == 10 and overall["a"] == 0.0 and overall["b"] == 1.0 and overall["verdict"] == "WORSE"
+        assert by_key[(attack, "direct")]["n"] == 6 and by_key[(attack, "indirect")]["n"] == 4
+    assert data["unpaired"] == {"audit_prompt_injection": 0, "audit_system_prompt": 0}
