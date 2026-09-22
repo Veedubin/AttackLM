@@ -191,6 +191,11 @@ def _resolve_argv(task: Task, spec: TaskSpec, db: QueueDB) -> list[str] | None:
     elif task.type == "audit_system_prompt" and "questions" not in args:
         args["questions"] = "data/bench/system_prompt_holdout.jsonl"
 
+    # Benchmark tasks name a pack rather than a question file. harness_scored
+    # packs carry their own dataset, so no `questions` default is set here.
+    if task.type.startswith("bench_") and "pack" not in args:
+        args["pack"] = task.type.removeprefix("bench_")
+
     # Set default calibration holdout paths if not specified.
     if task.type == "audit_calibration":
         if "in_distribution" not in args:

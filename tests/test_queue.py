@@ -171,8 +171,24 @@ class TestQueueDB:
 
 
 class TestRegistry:
-    def test_registry_has_9_types(self):
-        assert len(REGISTRY) == 9
+    def test_registry_contents_are_pinned(self):
+        """Guard against a task type appearing or vanishing unnoticed.
+
+        Asserts the expected set rather than a bare count, so an addition
+        fails with the offending name in the diff instead of "10 != 9".
+        """
+        assert set(REGISTRY) == {
+            "train",
+            "gen_calibration_holdouts",
+            "audit_prompt_injection",
+            "audit_system_prompt",
+            "audit_canary_pipeline",
+            "audit_calibration",
+            "audit_gcg",
+            "audit_backdoor",
+            "audit_repeated_sampling",
+            "bench_cybermetric",
+        }
 
     def test_train_spec(self):
         spec = REGISTRY["train"]

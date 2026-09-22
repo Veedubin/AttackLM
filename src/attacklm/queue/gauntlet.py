@@ -32,6 +32,13 @@ GAUNTLET_PRESETS: dict[str, list[dict[str, Any]]] = {
         {"type": "audit_canary_pipeline"},
         {"type": "audit_repeated_sampling"},
     ],
+    # Capability presets measure whether the model is a better security
+    # assistant, which is a different question from the audits' "can it be
+    # abused?". Phase 2 adds the full `capability` preset once the CTI-Bench,
+    # SecEval and SecBench packs exist.
+    "capability-quick": [
+        {"type": "bench_cybermetric", "args": {"pack": "cybermetric-500"}},
+    ],
 }
 
 

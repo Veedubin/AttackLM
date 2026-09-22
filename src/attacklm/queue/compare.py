@@ -31,6 +31,7 @@ SHIPPED_ATTACKS = [
     "audit_system_prompt",
     "audit_canary_pipeline",
     "audit_calibration",
+    "bench_cybermetric",
 ]
 
 # attack -> [(metric, id_key, category_key)]
@@ -41,6 +42,11 @@ ITEM_METRICS: dict[str, list[tuple[str, str, str]]] = {
         ("exact_token", "canary_id", "prefix"),
         ("near_verbatim", "canary_id", "prefix"),
     ],
+    # Capability benchmarks. An item the harness could not parse omits "score"
+    # entirely, so the existing missing-metric rule counts it unpaired rather
+    # than scoring it a genuine 0.0. Phase 2 adds a parallel "score_clean"
+    # entry, which contaminated items omit the same way.
+    "bench_cybermetric": [("score", "question_id", "category")],
 }
 # attack -> metric keys shown as Δ only (no per-item scores exist).
 # audit_calibration's real report shape (scripts/eval_calibration.py) is
