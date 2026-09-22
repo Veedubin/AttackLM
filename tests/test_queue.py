@@ -692,3 +692,97 @@ class TestGauntletNoDuplicateHoldout:
         )
         tasks = expand_gauntlet("core", after_task_id=1)
         assert len(tasks) == 5, f"expected 5 tasks, got {len(tasks)}"
+
+
+# ---------------------------------------------------------------------------
+# Task 1 regressions — runner/argv correctness (2026-09-22 review)
+# ---------------------------------------------------------------------------
+
+from attacklm.queue.argv import read_adapter_base, is_adapter_dir
+
+
+def _fake_adapter(tmp_path, base="huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated"):
+    d = tmp_path / "adapter"
+    d.mkdir()
+    (d / "adapter_config.json").write_text(json.dumps({"base_model_name_or_path": base}))
+    return d
+
+
+class TestAdapterConfigResolution:
+    def test_read_adapter_base(self, tmp_path):
+        d = _fake_adapter(tmp_path)
+        assert read_adapter_base(d) == "huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated"
+
+    def test_read_adapter_base_missing(self, tmp_path):
+        assert read_adapter_base(tmp_path / "nope") is None
+
+    def test_is_adapter_dir(self, tmp_path):
+        assert is_adapter_dir(_fake_adapter(tmp_path))
+        assert not is_adapter_dir(tmp_path)
+
+    def test_base_model_pointing_at_adapter_is_swapped(self, db, tmp_path):
+        """S2: the 2026-07-19 smoke test passed an adapter dir as --base-model."""
+        d = _fake_adapter(tmp_path)
+        tid = db.add_task(type="audit_prompt_injection", label="a", args={"base_model": str(d)})
+        argv = _resolve_argv(db.get_task(tid), REGISTRY["audit_prompt_injection"], db)
+        assert argv[argv.index("--adapter") + 1] == str(d)
+        assert argv[argv.index("--base-model") + 1] == "huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated"
+
+    def test_base_model_inherited_from_adapter_config_when_train_had_none(self, db, tmp_path):
+        """R6: train task stored base_model='' → read it from the adapter."""
+        d = _fake_adapter(tmp_path, base="qwen-from-config")
+        train_id = db.add_task(type="train", label="t", args={})
+        db.mark_task(train_id, status="completed", artifact_path=str(d),
+                     result=json.dumps({"kind": "adapter", "adapter_path": str(d), "base_model": ""}))
+        aid = db.add_task(type="audit_prompt_injection", label="a", args={}, depends_on=[train_id])
+        argv = _resolve_argv(db.get_task(aid), REGISTRY["audit_prompt_injection"], db)
+        assert argv[argv.index("--base-model") + 1] == "qwen-from-config"
+
+
+class TestResolvedArgsPersist:
+    def test_default_output_is_persisted(self, db, tmp_path):
+        """R4: the default --output must be visible to _collect_artifact."""
+        d = _fake_adapter(tmp_path)
+        tid = db.add_task(type="audit_prompt_injection", label="a",
+                          args={"base_model": "b", "adapter": str(d)})
+        argv = _resolve_argv(db.get_task(tid), REGISTRY["audit_prompt_injection"], db)
+        out = argv[argv.index("--output") + 1]
+        assert db.get_task(tid).args_dict["output"] == out
+        assert out.endswith(f"artifacts/{tid}/audit_prompt_injection_report.json")
+
+
+class TestGrepAdapterPathFormats:
+    def test_indented_final_adapter(self, tmp_path):
+        p = tmp_path / "l.log"
+        p.write_text("  STAGE 2 OK\n  Final adapter: /m/curriculum\n")
+        assert _grep_adapter_path(p) == "/m/curriculum"
+
+    def test_single_model_adapter_line(self, tmp_path):
+        """R3: single-model runs print '  Adapter: <path>' not 'Final adapter:'."""
+        p = tmp_path / "l.log"
+        p.write_text("  OK — single model complete in 3.0 min\n  Adapter: /m/single\n")
+        assert _grep_adapter_path(p) == "/m/single"
+
+    def test_last_match_wins(self, tmp_path):
+        p = tmp_path / "l.log"
+        p.write_text("  Adapter: /m/one\n...\n  Adapter: /m/two\n")
+        assert _grep_adapter_path(p) == "/m/two"
+
+
+class TestTimeoutMarksFailed:
+    def test_timeout_marks_task_failed_not_crash(self, db, tmp_path, monkeypatch):
+        """R2: TimeoutExpired path called mark_task(finished_at=...) → TypeError."""
+        from attacklm.queue import runner
+        monkeypatch.setattr(runner, "LOG_DIR", tmp_path / "logs")
+        monkeypatch.setattr(runner, "ARTIFACT_DIR", tmp_path / "artifacts")
+        tid = db.add_task(type="gen_calibration_holdouts", label="h", args={}, timeout_seconds=1)
+
+        def boom(argv, log_path, timeout_s=None, cwd=None, env=None):
+            raise subprocess.TimeoutExpired(cmd=argv, timeout=timeout_s or 1)
+
+        monkeypatch.setattr(runner, "_run_subprocess", boom)
+        _execute_task(db, db.get_task(tid))  # must not raise
+        t = db.get_task(tid)
+        assert t.status == "failed"
+        assert t.error == "timeout"
+        assert t.finished_at is not None

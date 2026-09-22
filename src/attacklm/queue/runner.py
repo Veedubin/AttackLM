@@ -55,7 +55,9 @@ def _collect_artifact(
         if adapter_path is None:
             return None
         # Try to extract base_model from args.
-        base_model = task.args_dict.get("base_model", "")
+        from attacklm.queue.argv import read_adapter_base
+
+        base_model = task.args_dict.get("base_model") or read_adapter_base(adapter_path) or ""
         return {
             "kind": "adapter",
             "adapter_path": adapter_path,
@@ -92,17 +94,21 @@ def _collect_artifact(
     return None
 
 
+_ADAPTER_LINE = re.compile(r"^\s*(?:Final adapter|Adapter):\s+(\S.*?)\s*$", re.MULTILINE)
+
+
 def _grep_adapter_path(log_path: Path) -> str | None:
-    """Grep a log file for 'Final adapter: <path>'."""
-    pattern = re.compile(r"^Final adapter:\s+(.+)$", re.MULTILINE)
+    """Return the last 'Adapter: <path>' / 'Final adapter: <path>' line in a log.
+
+    train_all.py prints '  Adapter: …' for single-model runs and
+    '  Final adapter: …' for curriculum runs — both indented.
+    """
     try:
         text = log_path.read_text(errors="replace")
-    except (FileNotFoundError, OSError):
+    except OSError:
         return None
-    match = pattern.search(text)
-    if match:
-        return match.group(1).strip()
-    return None
+    matches = _ADAPTER_LINE.findall(text)
+    return matches[-1] if matches else None
 
 
 def _run_subprocess(
@@ -180,9 +186,10 @@ def _execute_task(db: QueueDB, task: Task, follow: bool = False) -> None:
         db.mark_task(
             task.id,
             status="failed",
-            error="could not resolve --adapter from dependencies",
+            error="could not resolve --adapter/--base-model from dependencies",
         )
         return
+    task = db.get_task(task.id)  # args were persisted by _resolve_argv
 
     # Set up log path and artifact dir.
     _ensure_dirs()
@@ -219,12 +226,7 @@ def _execute_task(db: QueueDB, task: Task, follow: bool = False) -> None:
             env=env,
         )
     except subprocess.TimeoutExpired:
-        db.mark_task(
-            task.id,
-            status="failed",
-            error="timeout",
-            finished_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
-        )
+        db.mark_task(task.id, status="failed", error="timeout")
         db.add_event(task.id, "failed", {"reason": "timeout"})
         return
     except KeyboardInterrupt:

@@ -39,6 +39,22 @@ _BOOLEAN_FLAGS: set[str] = {
 }
 
 
+def is_adapter_dir(path: str | Path) -> bool:
+    """True if *path* is a PEFT adapter directory (has adapter_config.json)."""
+    return (Path(path) / "adapter_config.json").is_file()
+
+
+def read_adapter_base(adapter_dir: str | Path) -> str | None:
+    """Return base_model_name_or_path from an adapter's adapter_config.json."""
+    cfg = Path(adapter_dir) / "adapter_config.json"
+    try:
+        data = json.loads(cfg.read_text())
+    except (OSError, ValueError):
+        return None
+    base = data.get("base_model_name_or_path")
+    return base or None
+
+
 def _args_to_argv(args: dict[str, Any], schema: dict) -> list[str]:
     """Convert a task args dict to a CLI argv list.
 
@@ -125,16 +141,24 @@ def _resolve_argv(task: Task, spec: TaskSpec, db: QueueDB) -> list[str] | None:
     # Resolve adapter and base_model from dependencies if needed.
     if spec.consumes_artifact == "adapter":
         depends_on = task.depends_on_list
-        if "adapter" not in args or args.get("adapter") is None:
+        # S2: a --base-model that is really an adapter dir (adapter_config.json)
+        # is treated as the adapter; the true base comes from its config.
+        if args.get("base_model") and not args.get("adapter") and is_adapter_dir(args["base_model"]):
+            args["adapter"] = args["base_model"]
+            args["base_model"] = None
+        if not args.get("adapter"):
             adapter_path = _find_adapter_in_deps(depends_on, db)
             if adapter_path is None:
-                # No adapter found — task can't run.
                 return None
             args["adapter"] = adapter_path
-        if "base_model" not in args or args.get("base_model") is None:
+        if not args.get("base_model"):
             base_model = _find_base_model_in_deps(depends_on, db)
-            if base_model:
-                args["base_model"] = base_model
+            if not base_model:
+                # R6: train task may have stored '' — fall back to the adapter's config.
+                base_model = read_adapter_base(args["adapter"])
+            if not base_model:
+                return None
+            args["base_model"] = base_model
 
     # Set default output path if not specified.
     if "output" not in args or args.get("output") is None:
@@ -168,7 +192,9 @@ def _resolve_argv(task: Task, spec: TaskSpec, db: QueueDB) -> list[str] | None:
         if "ood" not in args:
             args["ood"] = "data/bench/calibration_ood.jsonl"
 
-    # Serialize args to CLI flags.
-    argv.extend(_args_to_argv(args, spec.arg_schema))
+    # R4: persist the resolved args (output, adapter, base_model, defaults) so
+    # _collect_artifact and `queue status` see exactly what the script got.
+    db.update_task(task.id, args=json.dumps(args))
+    argv.extend(_args_to_argv(dict(args), spec.arg_schema))
 
     return argv
