@@ -868,6 +868,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     demo_p.set_defaults(func=_cmd_demo)
 
+    # ---- queue ----
+    from attacklm.queue.cli import build_queue_parser
+
+    build_queue_parser(sub)
+
     return parser
 
 

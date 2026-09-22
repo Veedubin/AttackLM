@@ -1,0 +1,694 @@
+"""Tests for attacklm.queue — hermetic, uses temp databases, monkeypatched subprocess."""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+# Ensure the src directory is on the path.
+SRC = Path(__file__).resolve().parent.parent / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from attacklm.queue.db import QueueDB, Task, DEFAULT_QUEUE_DIR
+from attacklm.queue.registry import REGISTRY, resolve_attack
+from attacklm.queue.argv import _resolve_argv, _args_to_argv
+from attacklm.queue.gauntlet import expand_gauntlet, _calibration_holdouts_missing
+from attacklm.queue.runner import (
+    _execute_task,
+    _recover_interrupted,
+    _collect_artifact,
+    _grep_adapter_path,
+)
+from attacklm.queue.migrations import apply_migrations, current_schema_version
+
+
+@pytest.fixture
+def db(tmp_path):
+    """Create a temporary QueueDB for each test."""
+    db_path = tmp_path / "queue.db"
+    return QueueDB(db_path)
+
+
+# ---------------------------------------------------------------------------
+# Migrations
+# ---------------------------------------------------------------------------
+
+
+class TestMigrations:
+    def test_fresh_db_creates_schema_v1(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        version = apply_migrations(db_path)
+        assert version == 1
+
+    def test_schema_version_table_exists(self, db):
+        with db._conn() as conn:
+            row = conn.execute("SELECT COUNT(*) FROM schema_version").fetchone()
+            assert row[0] >= 1
+
+    def test_tasks_table_exists(self, db):
+        with db._conn() as conn:
+            row = conn.execute("SELECT COUNT(*) FROM tasks").fetchone()
+            assert row[0] == 0  # Empty but exists
+
+
+# ---------------------------------------------------------------------------
+# DB CRUD
+# ---------------------------------------------------------------------------
+
+
+class TestQueueDB:
+    def test_add_task(self, db):
+        task_id = db.add_task(
+            type="train",
+            label="Train test",
+            args={"single_model": True, "epochs": 3},
+        )
+        assert task_id == 1
+        task = db.get_task(task_id)
+        assert task is not None
+        assert task.type == "train"
+        assert task.label == "Train test"
+        assert task.status == "pending"
+
+    def test_add_task_with_deps(self, db):
+        train_id = db.add_task(type="train", label="Train", args={})
+        audit_id = db.add_task(
+            type="audit_prompt_injection",
+            label="Audit PI",
+            args={},
+            depends_on=[train_id],
+        )
+        task = db.get_task(audit_id)
+        assert task.depends_on_list == [train_id]
+
+    def test_list_tasks(self, db):
+        db.add_task(type="train", label="T1", args={})
+        db.add_task(type="train", label="T2", args={})
+        tasks = db.list_tasks()
+        assert len(tasks) == 2
+
+    def test_list_tasks_filter_status(self, db):
+        id1 = db.add_task(type="train", label="T1", args={})
+        db.mark_task(id1, status="completed")
+        db.add_task(type="train", label="T2", args={})
+        pending = db.list_tasks(status="pending")
+        assert len(pending) == 1
+
+    def test_mark_task_running(self, db):
+        id1 = db.add_task(type="train", label="T1", args={})
+        db.mark_task(id1, status="running", pid=12345)
+        task = db.get_task(id1)
+        assert task.status == "running"
+        assert task.pid == 12345
+
+    def test_mark_task_completed(self, db):
+        id1 = db.add_task(type="train", label="T1", args={})
+        db.mark_task(
+            id1,
+            status="completed",
+            artifact_path="/fake/path",
+            result='{"kind":"adapter"}',
+        )
+        task = db.get_task(id1)
+        assert task.status == "completed"
+        assert task.artifact_path == "/fake/path"
+
+    def test_mark_task_failed(self, db):
+        id1 = db.add_task(type="train", label="T1", args={})
+        db.mark_task(id1, status="failed", error="rc=1")
+        task = db.get_task(id1)
+        assert task.status == "failed"
+        assert task.error == "rc=1"
+
+    def test_remove_task(self, db):
+        id1 = db.add_task(type="train", label="T1", args={})
+        assert db.remove_task(id1) is True
+        assert db.get_task(id1) is None
+
+    def test_remove_task_force(self, db):
+        id1 = db.add_task(type="train", label="T1", args={})
+        db.mark_task(id1, status="completed")
+        assert db.remove_task(id1) is False  # Can't remove completed without force
+        assert db.remove_task(id1, force=True) is True
+
+    def test_clean_tasks(self, db):
+        id1 = db.add_task(type="train", label="T1", args={})
+        db.mark_task(id1, status="completed")
+        count = db.clean_tasks(status="completed")
+        assert count == 1
+        assert db.get_task(id1) is None
+
+    def test_reset_db(self, db):
+        db.add_task(type="train", label="T1", args={})
+        db.reset()
+        # DB should be empty after reset.
+        tasks = db.list_tasks()
+        assert len(tasks) == 0
+
+    def test_add_and_get_events(self, db):
+        id1 = db.add_task(type="train", label="T1", args={})
+        db.add_event(id1, "created", {"type": "train"})
+        events = db.get_events(id1)
+        assert len(events) >= 1
+
+    def test_runner_state(self, db):
+        db.set_runner_state("pid", "12345")
+        assert db.get_runner_state("pid") == "12345"
+        db.set_runner_state("heartbeat", "2026-01-01T00:00:00")
+        state = db.get_all_runner_state()
+        assert "pid" in state
+
+
+# ---------------------------------------------------------------------------
+# Registry
+# ---------------------------------------------------------------------------
+
+
+class TestRegistry:
+    def test_registry_has_9_types(self):
+        assert len(REGISTRY) == 9
+
+    def test_train_spec(self):
+        spec = REGISTRY["train"]
+        assert spec.type == "train"
+        assert spec.produces_artifact == "adapter"
+        assert spec.implemented is True
+        assert spec.default_timeout_s is None
+
+    def test_unimplemented_specs(self):
+        for key in ["audit_gcg", "audit_backdoor", "audit_repeated_sampling"]:
+            spec = REGISTRY[key]
+            assert spec.implemented is False
+
+    def test_resolve_attack_all(self):
+        keys = resolve_attack("all")
+        assert len(keys) == 4  # core 4 shipped
+
+    def test_resolve_attack_all_with_unshipped(self):
+        keys = resolve_attack("all", include_unshipped=True)
+        assert len(keys) == 7
+
+    def test_resolve_attack_by_number(self):
+        assert resolve_attack("1") == ["audit_prompt_injection"]
+        assert resolve_attack("7") == ["audit_calibration"]
+
+    def test_resolve_attack_by_name(self):
+        assert resolve_attack("gcg", include_unshipped=True) == ["audit_gcg"]
+
+    def test_resolve_attack_unimplemented_requires_flag(self):
+        with pytest.raises(ValueError, match="not yet implemented"):
+            resolve_attack("4")
+
+    def test_resolve_attack_unimplemented_with_flag(self):
+        keys = resolve_attack("4", include_unshipped=True)
+        assert keys == ["audit_gcg"]
+
+
+# ---------------------------------------------------------------------------
+# Argv
+# ---------------------------------------------------------------------------
+
+
+class TestArgv:
+    def test_args_to_argv_basic(self):
+        args = {
+            "base_model": "qwen-3b",
+            "epochs": 3,
+            "single_model": True,
+        }
+        argv = _args_to_argv(args, REGISTRY["train"].arg_schema)
+        assert "--base-model" in argv
+        assert "qwen-3b" in argv
+        assert "--epochs" in argv
+        assert "--single-model" in argv
+        assert "3" in argv
+
+    def test_args_to_argv_boolean_flags(self):
+        args = {"single_model": True, "include_orchestrator": False}
+        argv = _args_to_argv(args, REGISTRY["train"].arg_schema)
+        assert "--single-model" in argv
+        assert "--include-orchestrator" not in argv
+
+    def test_args_to_argv_extra_argv(self):
+        args = {"extra_argv": ["--ga-lore", "--spectrum"]}
+        argv = _args_to_argv(args, REGISTRY["train"].arg_schema)
+        assert "--ga-lore" in argv
+        assert "--spectrum" in argv
+
+    def test_resolve_argv_with_adapter_from_dep(self, db):
+        # Create a completed train task.
+        train_id = db.add_task(
+            type="train", label="Train", args={"base_model": "qwen-3b"}
+        )
+        db.mark_task(
+            train_id,
+            status="completed",
+            artifact_path="/fake/adapter",
+            result=json.dumps(
+                {
+                    "kind": "adapter",
+                    "adapter_path": "/fake/adapter",
+                    "base_model": "qwen-3b",
+                }
+            ),
+        )
+
+        # Create an audit task that depends on the train task.
+        audit_id = db.add_task(
+            type="audit_prompt_injection",
+            label="Audit PI",
+            args={},
+            depends_on=[train_id],
+        )
+        task = db.get_task(audit_id)
+        spec = REGISTRY["audit_prompt_injection"]
+
+        argv = _resolve_argv(task, spec, db)
+        assert argv is not None
+        assert "--adapter" in argv
+        adapter_idx = argv.index("--adapter")
+        assert argv[adapter_idx + 1] == "/fake/adapter"
+
+    def test_resolve_argv_no_adapter_fails(self, db):
+        # Audit task with no deps and no explicit adapter → should fail.
+        audit_id = db.add_task(
+            type="audit_prompt_injection",
+            label="Audit PI",
+            args={},
+        )
+        task = db.get_task(audit_id)
+        spec = REGISTRY["audit_prompt_injection"]
+        argv = _resolve_argv(task, spec, db)
+        assert argv is None  # Can't resolve adapter
+
+
+# ---------------------------------------------------------------------------
+# Gauntlet
+# ---------------------------------------------------------------------------
+
+
+class TestGauntlet:
+    def test_core_preset_has_4_tasks_when_holdouts_exist(self):
+        """When calibration holdouts already exist, core preset has exactly 4 audit tasks."""
+        with patch(
+            "attacklm.queue.gauntlet._calibration_holdouts_missing", return_value=False
+        ):
+            tasks = expand_gauntlet("core", after_task_id=1)
+            assert len(tasks) == 4
+
+    def test_core_preset_has_5_tasks_when_holdouts_missing(self):
+        """When calibration holdouts are missing, core preset auto-inserts a gen task."""
+        with patch(
+            "attacklm.queue.gauntlet._calibration_holdouts_missing", return_value=True
+        ):
+            tasks = expand_gauntlet("core", after_task_id=1)
+            assert len(tasks) == 5  # 1 holdout gen + 4 audits
+
+    def test_full_preset_has_7_tasks_when_holdouts_exist(self):
+        """When calibration holdouts already exist, full preset has 7 audit tasks."""
+        with patch(
+            "attacklm.queue.gauntlet._calibration_holdouts_missing", return_value=False
+        ):
+            tasks = expand_gauntlet("full", after_task_id=1)
+            assert len(tasks) == 7
+
+    def test_full_preset_has_8_tasks_when_holdouts_missing(self):
+        """When calibration holdouts are missing, full preset auto-inserts a gen task."""
+        with patch(
+            "attacklm.queue.gauntlet._calibration_holdouts_missing", return_value=True
+        ):
+            tasks = expand_gauntlet("full", after_task_id=1)
+            assert len(tasks) == 8  # 1 holdout gen + 7 audits
+
+    def test_quick_preset_has_2_tasks(self):
+        tasks = expand_gauntlet("quick", after_task_id=1)
+        assert len(tasks) == 2
+
+    def test_memorization_preset(self):
+        tasks = expand_gauntlet("memorization", after_task_id=1)
+        assert len(tasks) == 2
+
+    def test_unknown_preset_raises(self):
+        with pytest.raises(ValueError, match="Unknown gauntlet preset"):
+            expand_gauntlet("nonexistent")
+
+    def test_all_tasks_have_depends_on(self):
+        """When using after_task_id, all audit tasks should depend on it."""
+        with patch(
+            "attacklm.queue.gauntlet._calibration_holdouts_missing", return_value=False
+        ):
+            tasks = expand_gauntlet("core", after_task_id=5)
+            for t in tasks:
+                # Holdout gen tasks have no deps (can run anytime).
+                # All other tasks depend on the train task.
+                if t["type"] == "gen_calibration_holdouts":
+                    continue
+                assert 5 in t["depends_on"]
+
+    def test_calibration_holdouts_auto_insert(self):
+        """When calibration holdouts are missing, the gauntlet should auto-insert a gen task."""
+        # This test assumes the holdout files don't exist (which they don't in a temp env).
+        with patch(
+            "attacklm.queue.gauntlet._calibration_holdouts_missing", return_value=True
+        ):
+            tasks = expand_gauntlet("core", after_task_id=1)
+            # Should have 5 tasks: 1 holdout gen + 4 audits.
+            holdout_tasks = [
+                t for t in tasks if t["type"] == "gen_calibration_holdouts"
+            ]
+            assert len(holdout_tasks) == 1
+
+
+# ---------------------------------------------------------------------------
+# Runner
+# ---------------------------------------------------------------------------
+
+
+class TestRunner:
+    def test_recover_interrupted_no_running(self, db):
+        # No running tasks — should return empty.
+        recovered = _recover_interrupted(db)
+        assert recovered == []
+
+    def test_recover_interrupted_with_stale_pid(self, db):
+        # Add a running task with a fake PID that doesn't exist.
+        task_id = db.add_task(type="train", label="T1", args={})
+        db.update_task(task_id, status="running", pid=99999999)
+        recovered = _recover_interrupted(db)
+        assert task_id in recovered
+        task = db.get_task(task_id)
+        assert task.status == "interrupted"
+
+    def test_execute_task_unimplemented(self, db):
+        """Unimplemented tasks should be marked pending_unimplemented."""
+        task_id = db.add_task(
+            type="audit_gcg",
+            label="Audit: GCG (4)",
+            args={},
+        )
+        task = db.get_task(task_id)
+        _execute_task(db, task)
+        task = db.get_task(task_id)
+        assert task.status == "pending_unimplemented"
+
+    def test_execute_task_subprocess_mock(self, db, monkeypatch, tmp_path):
+        """Test task execution with a mocked subprocess."""
+        task_id = db.add_task(
+            type="train",
+            label="Train test",
+            args={"single_model": True},
+        )
+        task = db.get_task(task_id)
+
+        # Create a temp log dir and artifact dir.
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir()
+        artifact_dir = tmp_path / "artifacts" / str(task_id)
+        artifact_dir.mkdir(parents=True)
+
+        # Monkeypatch LOG_DIR and ARTIFACT_DIR to use temp paths.
+        from attacklm.queue import runner
+
+        monkeypatch.setattr(runner, "LOG_DIR", log_dir)
+        monkeypatch.setattr(runner, "ARTIFACT_DIR", artifact_dir)
+
+        # Mock _run_subprocess to return 0 (success) and write fake log.
+        log_path = log_dir / f"{task_id}.log"
+        log_path.write_text("Final adapter: /fake/adapter\n")
+
+        def mock_run_subprocess(argv, log_path_arg, timeout_s=None, cwd=None, env=None):
+            return 0
+
+        monkeypatch.setattr(runner, "_run_subprocess", mock_run_subprocess)
+
+        # Also mock _resolve_argv to return a simple command.
+        def mock_resolve_argv(task, spec, db_arg):
+            return [sys.executable, "-c", "print('ok')"]
+
+        monkeypatch.setattr(runner, "_resolve_argv", mock_resolve_argv)
+
+        _execute_task(db, task)
+
+        task = db.get_task(task_id)
+        assert task.status == "completed"
+
+
+# ---------------------------------------------------------------------------
+# Artifact collection
+# ---------------------------------------------------------------------------
+
+
+class TestArtifactCollection:
+    def test_grep_adapter_path(self, tmp_path):
+        log_file = tmp_path / "1.log"
+        log_file.write_text(
+            "Some output\nFinal adapter: /path/to/adapter\nMore output\n"
+        )
+        result = _grep_adapter_path(log_file)
+        assert result == "/path/to/adapter"
+
+    def test_grep_adapter_path_not_found(self, tmp_path):
+        log_file = tmp_path / "2.log"
+        log_file.write_text("Some output\nNo adapter here\n")
+        result = _grep_adapter_path(log_file)
+        assert result is None
+
+    def test_grep_adapter_path_missing_file(self, tmp_path):
+        log_file = tmp_path / "nonexistent.log"
+        result = _grep_adapter_path(log_file)
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Integration: Chain and Gauntlet via DB
+# ---------------------------------------------------------------------------
+
+
+class TestChainIntegration:
+    def test_add_train(self, db):
+        task_id = db.add_task(
+            type="train",
+            label="Train test",
+            args={"single_model": True, "epochs": 3},
+        )
+        assert task_id == 1
+        task = db.get_task(task_id)
+        assert task.type == "train"
+        assert task.status == "pending"
+
+    def test_chain_train_then_audit(self, db):
+        """Simulate: add train, then add audits depending on it."""
+        train_id = db.add_task(
+            type="train",
+            label="Train",
+            args={"single_model": True},
+        )
+
+        # Add audits depending on train.
+        for attack_key in [
+            "audit_prompt_injection",
+            "audit_system_prompt",
+            "audit_canary_pipeline",
+            "audit_calibration",
+        ]:
+            spec = REGISTRY[attack_key]
+            db.add_task(
+                type=attack_key,
+                label=spec.label,
+                args={},
+                depends_on=[train_id],
+                timeout_seconds=spec.default_timeout_s,
+            )
+
+        tasks = db.list_tasks()
+        assert len(tasks) == 5  # 1 train + 4 audits
+
+        # Train has no deps.
+        train = db.get_task(train_id)
+        assert train.depends_on_list == []
+
+        # Audits depend on train.
+        audit = db.get_task(train_id + 1)
+        assert train_id in audit.depends_on_list
+
+    def test_blocked_cascade(self, db):
+        """If a dep fails, dependents become blocked."""
+        train_id = db.add_task(type="train", label="Train", args={})
+        audit_id = db.add_task(
+            type="audit_prompt_injection",
+            label="Audit",
+            args={},
+            depends_on=[train_id],
+        )
+
+        # Train fails.
+        db.mark_task(train_id, status="failed", error="rc=1")
+
+        # Recheck blocked.
+        blocked = db.recompute_blocked()
+        assert audit_id in blocked
+
+        audit = db.get_task(audit_id)
+        assert audit.status == "blocked"
+
+    def test_unimplemented_skip(self, db):
+        """Unimplemented attacks are marked pending_unimplemented."""
+        task_id = db.add_task(
+            type="audit_gcg",
+            label="Audit: GCG (4)",
+            args={},
+        )
+        task = db.get_task(task_id)
+        _execute_task(db, task)
+
+        task = db.get_task(task_id)
+        assert task.status == "pending_unimplemented"
+
+    def test_pick_next_ready_task_no_deps(self, db):
+        """A task with no deps should be immediately eligible."""
+        db.add_task(type="train", label="Train", args={"single_model": True})
+        task = db.pick_next_ready_task()
+        assert task is not None
+        assert task.type == "train"
+        assert task.status == "running"
+
+    def test_pick_next_ready_task_with_unmet_deps(self, db):
+        """A task with unmet deps should not be picked."""
+        train_id = db.add_task(type="train", label="Train", args={})
+        db.add_task(
+            type="audit_prompt_injection",
+            label="Audit",
+            args={},
+            depends_on=[train_id],
+        )
+        # Train is pending (not completed), so audit should not be picked.
+        # But train itself should be picked (no deps).
+        task = db.pick_next_ready_task()
+        assert task is not None
+        assert task.type == "train"
+
+    def test_pick_next_ready_task_with_met_deps(self, db):
+        """A task whose deps are completed should be eligible."""
+        train_id = db.add_task(type="train", label="Train", args={})
+        db.mark_task(
+            train_id,
+            status="completed",
+            artifact_path="/fake/adapter",
+            result=json.dumps({"kind": "adapter", "adapter_path": "/fake/adapter"}),
+        )
+
+        audit_id = db.add_task(
+            type="audit_prompt_injection",
+            label="Audit",
+            args={},
+            depends_on=[train_id],
+        )
+
+        task = db.pick_next_ready_task()
+        assert task is not None
+        assert task.id == audit_id
+
+
+# ---------------------------------------------------------------------------
+# Calibration holdouts script (basic test)
+# ---------------------------------------------------------------------------
+
+
+class TestCalibrationHoldouts:
+    def test_gen_calibration_holdouts_imports(self):
+        """Verify the script can be imported."""
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "gen_calibration_holdouts",
+            str(
+                Path(__file__).resolve().parent.parent
+                / "scripts"
+                / "gen_calibration_holdouts.py"
+            ),
+        )
+        assert spec is not None
+
+
+# ---------------------------------------------------------------------------
+# Regression: duplicate holdout task + empty-deps respect
+# ---------------------------------------------------------------------------
+
+
+class TestGauntletNoDuplicateHoldout:
+    """Regression tests for the duplicate-holdout bug and empty-deps fix.
+
+    Bug: `gauntlet full` (and `chain ... --then gauntlet core`) created
+    TWO gen_calibration_holdouts tasks because expand_gauntlet() inserts
+    one and the CLI's auto-insert logic created another. Also, the
+    `or [train_id]` pattern in the CLI clobbered empty `depends_on=[]`
+    on the holdout task, wrongly binding it to the train task.
+    """
+
+    def test_gauntlet_full_has_one_holdout_when_missing(self, monkeypatch):
+        """expand_gauntlet('full') with missing holdouts → exactly 1 holdout task."""
+        monkeypatch.setattr(
+            "attacklm.queue.gauntlet._calibration_holdouts_missing",
+            lambda: True,
+        )
+        tasks = expand_gauntlet("full", after_task_id=42)
+        holdouts = [t for t in tasks if t["type"] == "gen_calibration_holdouts"]
+        assert len(holdouts) == 1, f"expected 1 holdout, got {len(holdouts)}"
+        # The holdout task should have NO deps (it can run immediately)
+        assert holdouts[0]["depends_on"] == [], (
+            f"holdout should have empty deps, got {holdouts[0]['depends_on']}"
+        )
+        # The calibration audit should have the _needs_holdout_dep flag
+        calib = [t for t in tasks if t["type"] == "audit_calibration"]
+        assert len(calib) == 1
+        assert calib[0].get("_needs_holdout_dep") is True
+
+    def test_gauntlet_core_has_one_holdout_when_missing(self, monkeypatch):
+        """expand_gauntlet('core') with missing holdouts → exactly 1 holdout task."""
+        monkeypatch.setattr(
+            "attacklm.queue.gauntlet._calibration_holdouts_missing",
+            lambda: True,
+        )
+        tasks = expand_gauntlet("core", after_task_id=1)
+        holdouts = [t for t in tasks if t["type"] == "gen_calibration_holdouts"]
+        assert len(holdouts) == 1
+
+    def test_gauntlet_no_holdout_when_files_exist(self, monkeypatch):
+        """expand_gauntlet('core') with existing holdouts → 0 holdout tasks."""
+        monkeypatch.setattr(
+            "attacklm.queue.gauntlet._calibration_holdouts_missing",
+            lambda: False,
+        )
+        tasks = expand_gauntlet("core", after_task_id=1)
+        holdouts = [t for t in tasks if t["type"] == "gen_calibration_holdouts"]
+        assert len(holdouts) == 0
+        # Calibration audit should NOT have the _needs_holdout_dep flag
+        calib = [t for t in tasks if t["type"] == "audit_calibration"]
+        assert len(calib) == 1
+        assert "_needs_holdout_dep" not in calib[0]
+
+    def test_full_gauntlet_task_count(self, monkeypatch):
+        """full gauntlet with missing holdouts = 1 holdout + 7 audits = 8 tasks."""
+        monkeypatch.setattr(
+            "attacklm.queue.gauntlet._calibration_holdouts_missing",
+            lambda: True,
+        )
+        tasks = expand_gauntlet("full", after_task_id=1)
+        assert len(tasks) == 8, f"expected 8 tasks, got {len(tasks)}"
+
+    def test_core_gauntlet_task_count_with_missing_holdouts(self, monkeypatch):
+        """core gauntlet with missing holdouts = 1 holdout + 4 audits = 5 tasks."""
+        monkeypatch.setattr(
+            "attacklm.queue.gauntlet._calibration_holdouts_missing",
+            lambda: True,
+        )
+        tasks = expand_gauntlet("core", after_task_id=1)
+        assert len(tasks) == 5, f"expected 5 tasks, got {len(tasks)}"

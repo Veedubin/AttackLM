@@ -241,6 +241,12 @@ dev = [
     "scipy>=1.11",  # needed for eval tests (Spearman correlation)
     "rich",          # needed by train_template.py (imported in tests)
 ]
+# Queue orchestration — persistent task queue for training & audit gauntlets.
+# `rich` is optional (plain-text fallback exists); `pyyaml` for gauntlet recipes.
+queue = [
+    "rich>=13.0",
+    "pyyaml>=6.0",
+]
 eval = [
     "scipy>=1.11",  # for Spearman correlation in golden_vectors.py
 ]

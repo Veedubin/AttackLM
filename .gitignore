@@ -130,9 +130,13 @@ notes.md
 HANDOFF.md
 TASKS.md
 CONTEXT.md
+SESSION_MEMORY_FALLBACK.md
 REPLAY_PLAN.md
 QA_BEFORE_RELEASES.md
 notes/
+
+# ----- Queue state (local-only: DB, logs, artifacts) -----
+evals/queue/
 
 # ----- Internal docs (per-source methodology, attack surveys, audit reports) -----
 # These are local-only — kept out of the public PyPI/GitHub distribution.
