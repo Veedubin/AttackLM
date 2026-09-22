@@ -63,12 +63,13 @@ logs/*.json
 logs/*.tmp
 !logs/.gitkeep
 
-# ----- HPO trial outputs (keep hpo_state.json, exclude trial CSVs and adapter dirs) -----
+# ----- HPO trial outputs (all regenerable run artifacts — none tracked) -----
 hpo_runs/*_trial*/
 hpo_runs/*.csv
+hpo_runs/*.jsonl
+hpo_runs/*.json
 hpo_runs/*.dataset_stats.json
 !hpo_runs/.gitkeep
-!hpo_runs/hpo_state.json
 
 # ----- Trained models (large, regenerable) -----
 models/
@@ -133,6 +134,7 @@ CONTEXT.md
 SESSION_MEMORY_FALLBACK.md
 REPLAY_PLAN.md
 QA_BEFORE_RELEASES.md
+V0.10.0_PLAN.md
 notes/
 
 # ----- Queue state (local-only: DB, logs, artifacts) -----

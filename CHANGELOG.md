@@ -1,3 +1,27 @@
+## [0.18.1] — 2026-09-21
+
+- **Repo hygiene**: Untracked `hpo_runs/hpo_trial_dataset.jsonl` (4.8 MB) and `hpo_runs/hpo_state.json` — regenerable HPO run artifacts that were tracked since the initial release via a `.gitignore` gap (`*.jsonl` was not covered). All of `hpo_runs/` is now ignored except `.gitkeep`. Both files remain in git history; they stay local on disk.
+- **Stale docs removed from public tree**: `V0.10.0_PLAN.md` (baseline said v0.9.5; superseded by CHANGELOG) moved to local-only. The `docs-site/docs/attacklm-dataset-docs/` mirror of attacklm-dataset's internal methodology docs (ATTACK_TAXONOMY, AUDIT_RUNNER, MIA_THRESHOLD_CALIBRATION, LIRA, DECONTAM, MEMORIZATION, HELD_OUT_NLL, AUDIT_ITER, PROBE_TOKEN_BUDGET) removed from the public docs site — those docs are local-only per project policy, and the AUDIT_RUNNER copy embedded local machine paths. Corresponding "Methodology" nav section removed from `docs-site/mkdocs.yml`.
+- **Duplicate removed**: `docs-site/docs/docs/RL_RECIPE.md` (redundant second copy; `attacklm-rl-recipe.md` covers it).
+
+No code changes. No PyPI publish.
+
+## [0.18.0] — 2026-09-21
+
+- **Queue & orchestration system**: New `src/attacklm/queue/` package (9 modules, ~2,900 LOC) — a persistent, dependency-respecting task queue. SQLite storage (WAL mode) at `evals/queue/queue.db`, forward-only schema migrations, TaskSpec registry (9 task types: train, 4 shipped audits, 3 unimplemented placeholders, calibration-holdout generator), single-worker subprocess runner with SIGINT-safe crash recovery, gauntlet presets (core/full/quick/memorization), rich display with plain-text fallback.
+- **CLI**: 11 new subcommands under `attacklm queue` (add-train, add-audit, add-holdouts, chain, gauntlet, list, status, start, stop, remove, retry, clean, reset). Headline flow: `attacklm queue chain --single-model --then gauntlet core && attacklm queue start --follow`.
+- **New script**: `scripts/gen_calibration_holdouts.py` — generates the in-distribution / near-OOD / OOD calibration holdout files required by Attack 7.
+- **Tests**: `tests/test_queue.py` — 59 hermetic tests including 5 regression tests for the duplicate-holdout bug found during development. Full suite: 600/600 pass, 2 skipped.
+- **Packaging**: new `[queue]` optional-deps group (rich, pyyaml). `evals/queue/` is gitignored (queue DB, logs, artifacts are local-only).
+
+No PyPI publish (new CLI surface is git-only for now).
+
+## [0.17.5] — 2026-07-18
+
+- **Docs-only**: Version bump covering the MkDocs documentation site + GitHub Pages deploy workflow (`.github/workflows/docs.yml`, `docs-site/`) and the README docs index from the v0.17.4 cycle.
+
+No code changes. No PyPI publish.
+
 ## [0.17.4] — 2026-07-16
 
 - **Calibration fix**: Replaced `sigmoid(-NLL)` heuristic with `exp(-NLL)` in `eval_calibration.py`. Previously NLL=0 (perfect prediction) gave `prob_correct=0.5`; now gives `1.0`. Brier and ECE metrics are now meaningful.
