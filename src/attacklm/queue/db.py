@@ -327,11 +327,16 @@ class QueueDB:
             return None
 
     def recompute_blocked(self) -> list[int]:
-        """Scan all pending/ready tasks and mark those with failed/cancelled/blocked deps as blocked.
+        """Scan all pending/ready tasks and mark as blocked any whose deps
+        are failed/cancelled/blocked — or whose dep row no longer exists at
+        all (e.g. removed via `queue remove --force`) — the latter used to
+        be silently ignored, leaving the task stuck pending forever with no
+        explanation.
 
         Returns the list of newly-blocked task ids.
         """
         blocked_ids: list[int] = []
+        terminal_statuses = {"failed", "cancelled", "blocked"}
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT * FROM tasks WHERE status IN ('pending', 'ready', 'blocked')"
@@ -341,23 +346,30 @@ class QueueDB:
                 deps = task.depends_on_list
                 if not deps:
                     continue
-                terminal_statuses = {"failed", "cancelled", "blocked"}
-                any_dep_terminal = any(
-                    conn.execute(
-                        "SELECT status FROM tasks WHERE id = ?",
-                        (dep_id,),
-                    ).fetchone()["status"]
-                    in terminal_statuses
-                    for dep_id in deps
-                    if conn.execute(
-                        "SELECT 1 FROM tasks WHERE id = ?", (dep_id,)
+                any_dep_terminal = False
+                missing_dep_id: int | None = None
+                for dep_id in deps:
+                    dep_row = conn.execute(
+                        "SELECT status FROM tasks WHERE id = ?", (dep_id,)
                     ).fetchone()
-                )
+                    if dep_row is None:
+                        # The dep no longer exists — treat it as terminal.
+                        any_dep_terminal = True
+                        missing_dep_id = dep_id
+                        break
+                    if dep_row["status"] in terminal_statuses:
+                        any_dep_terminal = True
                 if any_dep_terminal and task.status != "blocked":
-                    conn.execute(
-                        "UPDATE tasks SET status = 'blocked' WHERE id = ?",
-                        (task.id,),
-                    )
+                    if missing_dep_id is not None:
+                        conn.execute(
+                            "UPDATE tasks SET status = 'blocked', error = ? WHERE id = ?",
+                            (f"dependency #{missing_dep_id} no longer exists", task.id),
+                        )
+                    else:
+                        conn.execute(
+                            "UPDATE tasks SET status = 'blocked' WHERE id = ?",
+                            (task.id,),
+                        )
                     blocked_ids.append(task.id)
         return blocked_ids
 
@@ -404,10 +416,13 @@ class QueueDB:
                 r[0]
                 for r in conn.execute(f"SELECT id FROM tasks WHERE {where}", params).fetchall()
             ]
-            # Never delete a task that a non-terminal task still depends on.
+            # Never delete a task that a still-retryable task depends on —
+            # 'failed'/'interrupted' are retryable via `queue retry`, and
+            # retrying would find its dependency gone (stranded).
             active = conn.execute(
                 "SELECT depends_on FROM tasks WHERE status IN "
-                "('pending', 'ready', 'blocked', 'running', 'pending_unimplemented')"
+                "('pending', 'ready', 'blocked', 'running', 'pending_unimplemented', "
+                "'failed', 'interrupted')"
             ).fetchall()
             protected: set[int] = set()
             for (raw,) in active:

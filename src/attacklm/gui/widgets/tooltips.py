@@ -87,12 +87,18 @@ TOOLTIPS: dict[str, str] = {
     # === New: Queue screen (v0.19.0) ===
     "btn-queue": "Open the task queue: enqueue audits or a gauntlet, start/stop "
     "the background runner, retry failed tasks. Same state as `attacklm queue`.",
-    "queue_base_model": "HF id or local path of the base model. Leave empty when "
-    "chaining after a train task (inherited from the adapter's adapter_config.json).",
+    "queue_base_model": "HF id or local path of the base model. Leave this and "
+    "Adapter both empty to depend on the latest train task instead "
+    "('--after'/'--depends-on latest') — with neither set the "
+    "task(s) would have no model to run against.",
     "queue_adapter": "PEFT adapter directory (e.g. models/attacklm-3b_16g). "
-    "Leave empty to inherit from the most recent train task.",
+    "Leave this and Base model both empty to depend on the latest "
+    "train task instead of enqueueing a task with nothing to run.",
     "queue_attack": "Which audit to enqueue. 1/2/3/7 add one task; 'core' and "
-    "'quick' add a gauntlet that depends on the latest train task.",
+    "'quick' add a gauntlet. With no Base model/Adapter given, the "
+    "task(s) depend on the latest train task; if none exists yet, "
+    "the CLI reports that in the log instead of creating a task "
+    "that's guaranteed to fail.",
     "btn-queue-enqueue": "Create the task(s) in evals/queue/queue.db. Nothing runs "
     "until the runner is started.",
     "btn-queue-start": "Start the runner in the background (attacklm queue start "

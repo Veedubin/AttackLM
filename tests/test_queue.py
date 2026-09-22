@@ -834,6 +834,34 @@ class TestCanaryPipeline:
         assert len(steps) == 1
         assert steps[0][steps[0].index("--canaries") + 1] == "data/canaries.jsonl"
 
+    def test_retry_regenerates_canaries(self, db, tmp_path, monkeypatch):
+        """IMPORTANT #2 (final review): resolve_steps persists the
+        auto-generated canaries path; a naive retry would see that path as
+        already-supplied and skip straight to the probe against a file that
+        may no longer exist. canaries_generated must force regeneration on
+        every resolve, including after retry."""
+        from attacklm.queue.argv import resolve_steps
+        from attacklm.queue import argv as argv_mod
+        from attacklm.queue.cli import _cmd_retry
+        import argparse
+        monkeypatch.setattr(argv_mod, "DEFAULT_QUEUE_DIR", tmp_path)
+        d = _fake_adapter(tmp_path)
+        tid = db.add_task(type="audit_canary_pipeline", label="c",
+                          args={"base_model": "b", "adapter": str(d)})
+
+        steps = resolve_steps(db.get_task(tid), REGISTRY["audit_canary_pipeline"], db)
+        assert len(steps) == 2
+        assert db.get_task(tid).args_dict.get("canaries_generated") is True
+
+        db.mark_task(tid, status="failed", error="rc=1")
+        assert _cmd_retry(argparse.Namespace(db_path=str(db.db_path), task_id=tid)) == 0
+
+        steps2 = resolve_steps(db.get_task(tid), REGISTRY["audit_canary_pipeline"], db)
+        assert len(steps2) == 2
+        assert steps2[0][1].endswith("canary_generator.py")
+        # canaries_generated must never leak into the probe's CLI argv.
+        assert "--canaries-generated" not in steps2[1]
+
     def test_subprocess_mode_is_single_step(self, db, tmp_path):
         from attacklm.queue.argv import resolve_steps
         d = _fake_adapter(tmp_path)
@@ -914,6 +942,30 @@ class TestDbFixes:
         assert db.remove_task(tid, force=True) is False
         assert db.get_task(tid) is not None
 
+    def test_clean_protects_failed_and_interrupted_dependents(self, db):
+        """IMPORTANT #3 (final review): a completed train task must not be
+        cleaned while a failed/interrupted audit still depends on it —
+        those statuses are retryable via `queue retry`, and retrying would
+        find the dependency gone."""
+        train = db.add_task(type="train", label="t", args={})
+        db.mark_task(train, status="completed")
+        audit = db.add_task(type="audit_prompt_injection", label="a", args={}, depends_on=[train])
+        db.mark_task(audit, status="failed", error="rc=1")
+        assert db.clean_tasks(status="completed", yes=True) == 0
+        assert db.get_task(train) is not None
+
+    def test_recompute_blocked_missing_dep(self, db):
+        """IMPORTANT #3 (final review): a dep row that no longer exists
+        (e.g. removed via `queue remove --force`) must not be silently
+        ignored — the dependent gets marked blocked with a clear error
+        instead of sitting pending forever."""
+        tid = db.add_task(type="audit_prompt_injection", label="a", args={}, depends_on=[999])
+        blocked = db.recompute_blocked()
+        assert tid in blocked
+        t = db.get_task(tid)
+        assert t.status == "blocked"
+        assert t.error == "dependency #999 no longer exists"
+
 
 # ---------------------------------------------------------------------------
 # Task 4 — queue CLI fixes + dedupe (R8-cli, R11, R12, R13, S1, S4)
@@ -963,6 +1015,21 @@ class TestCliFixes:
         assert qcli._cmd_remove(self._ns(db_path=str(db.db_path), task_id=tid, force=True)) == 1
         assert "running" in capsys.readouterr().err
         assert db.get_task(tid) is not None
+
+    def test_remove_force_cascade_spares_finished_dependents(self, db):
+        """Minor (final review): --force cascade must only relabel
+        pending/ready/blocked dependents — a completed/running dependent
+        already has its own outcome and must not be overwritten."""
+        from attacklm.queue import cli as qcli
+        train = db.add_task(type="train", label="t", args={})
+        done_audit = db.add_task(type="audit_prompt_injection", label="done", args={}, depends_on=[train])
+        pending_audit = db.add_task(type="audit_system_prompt", label="pending", args={}, depends_on=[train])
+        db.mark_task(done_audit, status="completed", artifact_path="/r.json")
+
+        assert qcli._cmd_remove(self._ns(db_path=str(db.db_path), task_id=train, force=True)) == 0
+
+        assert db.get_task(done_audit).status == "completed"
+        assert db.get_task(pending_audit).status == "blocked"
 
     def test_os_imported_at_top(self):
         """S1"""
@@ -1015,3 +1082,21 @@ class TestCliFixes:
         out = capsys.readouterr().out
         assert "Removed 1 task(s)" in out
         assert db.get_task(tid) is None
+
+    def test_detach_argv_propagates_force(self, db):
+        """IMPORTANT #4 (final review): the detached child does its own
+        'already running' check on startup — without --force it would
+        refuse to start over the very runner --detach --force was meant
+        to override."""
+        from attacklm.queue import cli as qcli
+        args = self._ns(db_path=str(db.db_path), poll_interval=0.05,
+                        exit_when_idle=False, force=True)
+        cmd = qcli._detach_argv(args)
+        assert "--force" in cmd
+
+    def test_detach_argv_omits_force_when_not_set(self, db):
+        from attacklm.queue import cli as qcli
+        args = self._ns(db_path=str(db.db_path), poll_interval=0.05,
+                        exit_when_idle=False, force=False)
+        cmd = qcli._detach_argv(args)
+        assert "--force" not in cmd

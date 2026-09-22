@@ -439,7 +439,7 @@ def run_loop(
         stop_requested = True
         logger.info("SIGINT received — will stop after current task")
 
-    signal.signal(signal.SIGINT, _handle_sigint)
+    _prev_sigint_handler = signal.signal(signal.SIGINT, _handle_sigint)
 
     try:
         while not stop_requested:
@@ -467,5 +467,6 @@ def run_loop(
             db.recompute_blocked()
 
     finally:
+        signal.signal(signal.SIGINT, _prev_sigint_handler)
         _deregister_runner(db)
         logger.info("Runner stopped")

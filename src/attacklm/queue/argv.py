@@ -136,6 +136,8 @@ def _resolve_argv(task: Task, spec: TaskSpec, db: QueueDB) -> list[str] | None:
 
     args = task.args_dict.copy()
     args.pop("num_canaries", None)
+    args.pop("canary_format", None)  # legacy rows from before the R5 fix
+    args.pop("inject_split", None)   # legacy rows from before the R5 fix
 
     # Start with the Python interpreter and script path.
     argv = [sys.executable, str(spec.script_path)]
@@ -200,8 +202,14 @@ def _resolve_argv(task: Task, spec: TaskSpec, db: QueueDB) -> list[str] | None:
 
     # R4: persist the resolved args (output, adapter, base_model, defaults) so
     # _collect_artifact and `queue status` see exactly what the script got.
+    # `canaries_generated` (set by resolve_steps) is a marker that must
+    # survive in the persisted args so a retry knows to regenerate the
+    # canaries file — persist it, but strip it before CLI serialization
+    # since the probe script doesn't accept it as a flag.
     db.update_task(task.id, args=json.dumps(args))
-    argv.extend(_args_to_argv(dict(args), spec.arg_schema))
+    argv_args = dict(args)
+    argv_args.pop("canaries_generated", None)
+    argv.extend(_args_to_argv(argv_args, spec.arg_schema))
 
     return argv
 
@@ -213,8 +221,10 @@ def resolve_steps(task: Task, spec: TaskSpec, db: QueueDB) -> list[list[str]] | 
     """Build the ordered list of argv lists a task must run.
 
     Subprocess tasks are a single step. `audit_canary_pipeline` is two:
-    canary_generator.py (skipped when `canaries` is supplied) then
-    audit_canary_extraction.py.
+    canary_generator.py then audit_canary_extraction.py. The generator step
+    is skipped only when the task was given an explicit `canaries` path (not
+    one we generated ourselves) — a self-generated `canaries` file is always
+    regenerated, including on retry, since it may no longer exist.
     """
     import sys
 
@@ -227,7 +237,12 @@ def resolve_steps(task: Task, spec: TaskSpec, db: QueueDB) -> list[list[str]] | 
 
     args = task.args_dict.copy()
     steps: list[list[str]] = []
-    if not args.get("canaries"):
+    # Regenerate whenever no canaries path is set yet, OR the existing path
+    # is one *we* generated (canaries_generated=True) — on a retry the file
+    # may no longer exist (e.g. the artifacts dir was cleaned), so a
+    # user-supplied `canaries` path is trusted as-is, but our own is always
+    # regenerated to be safe.
+    if not args.get("canaries") or args.get("canaries_generated"):
         canaries = DEFAULT_QUEUE_DIR / "artifacts" / str(task.id) / "canaries.jsonl"
         count = int(args.pop("num_canaries", None) or _CANARY_DEFAULT_COUNT)
         steps.append([
@@ -235,6 +250,7 @@ def resolve_steps(task: Task, spec: TaskSpec, db: QueueDB) -> list[list[str]] | 
             "--output", str(canaries), "--count", str(count), "--seed", "42",
         ])
         args["canaries"] = str(canaries)
+        args["canaries_generated"] = True
     else:
         args.pop("num_canaries", None)
     db.update_task(task.id, args=json.dumps(args))

@@ -339,6 +339,26 @@ def _cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _detach_argv(args: argparse.Namespace) -> list[str]:
+    """Build the argv for the detached background runner subprocess.
+
+    Factored out from `_cmd_start` so it's unit-testable without actually
+    spawning a subprocess.
+    """
+    cmd = [sys.executable, "-m", "attacklm", "queue"]
+    if getattr(args, "db_path", None):
+        cmd += ["--db-path", args.db_path]
+    cmd += ["start", "--poll-interval", str(args.poll_interval or 5.0)]
+    if getattr(args, "exit_when_idle", False):
+        cmd.append("--exit-when-idle")
+    if getattr(args, "force", False):
+        # The child does its own "already running" check on startup — it
+        # needs --force too, or it refuses to start over the very runner
+        # this command was told to override.
+        cmd.append("--force")
+    return cmd
+
+
 def _cmd_start(args: argparse.Namespace) -> int:
     """Handle `attacklm queue start`."""
     db = _get_db(args)
@@ -380,12 +400,7 @@ def _cmd_start(args: argparse.Namespace) -> int:
             )
         DEFAULT_QUEUE_DIR.mkdir(parents=True, exist_ok=True)
         runner_log = DEFAULT_QUEUE_DIR / "runner.log"
-        cmd = [sys.executable, "-m", "attacklm", "queue"]
-        if getattr(args, "db_path", None):
-            cmd += ["--db-path", args.db_path]
-        cmd += ["start", "--poll-interval", str(args.poll_interval or 5.0)]
-        if getattr(args, "exit_when_idle", False):
-            cmd.append("--exit-when-idle")
+        cmd = _detach_argv(args)
         with open(runner_log, "ab") as logf:
             proc = subprocess.Popen(
                 cmd, stdout=logf, stderr=subprocess.STDOUT,
@@ -454,11 +469,16 @@ def _cmd_remove(args: argparse.Namespace) -> int:
         return 1
 
     if args.force and dependents:
-        # Cascade: mark dependents as blocked.
-        dep_ids = [t.id for t in dependents]
-        for t in dependents:
-            db.mark_task(t.id, status="blocked", error=f"dependency #{task_id} removed")
-        print(f"Cascaded: tasks {dep_ids} marked as blocked (dependency removed).")
+        # Cascade: only relabel dependents that are still pending/ready/
+        # blocked — a completed/failed/running/etc. dependent already has
+        # its own outcome and must not be overwritten.
+        cascadable = {"pending", "ready", "blocked"}
+        to_block = [t for t in dependents if t.status in cascadable]
+        if to_block:
+            dep_ids = [t.id for t in to_block]
+            for t in to_block:
+                db.mark_task(t.id, status="blocked", error=f"dependency #{task_id} removed")
+            print(f"Cascaded: tasks {dep_ids} marked as blocked (dependency removed).")
 
     removed = db.remove_task(task_id, force=args.force)
     if removed:

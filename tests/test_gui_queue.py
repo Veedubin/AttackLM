@@ -68,6 +68,18 @@ class TestQueueScreen:
         assert "add-audit" in cmd and cmd[cmd.index("--attack") + 1] == "1"
         assert cmd[cmd.index("--adapter") + 1] == "/a" and cmd[cmd.index("--base-model") + 1] == "b"
 
+    def test_enqueue_command_chains_to_latest_when_fields_empty(self, tmp_path):
+        """IMPORTANT #1 (final review): with neither field filled, a
+        gauntlet/audit has no adapter, base model, or deps and the runner
+        marks it failed immediately — chain to the latest train task."""
+        screen = QueueScreen(db_path=tmp_path / "q.db")
+        cmd = screen._enqueue_cmd(base_model="", adapter="", attack="core")
+        assert cmd[cmd.index("--after") + 1] == "latest"
+        cmd = screen._enqueue_cmd(base_model="", adapter="", attack="1")
+        assert "add-audit" in cmd
+        assert cmd[cmd.index("--depends-on") + 1] == "latest"
+        assert "--base-model" not in cmd and "--adapter" not in cmd
+
 
 class TestQueueButtonPresses:
     """Exercise on_button_pressed via real button presses (Button.press()
@@ -106,6 +118,29 @@ class TestQueueButtonPresses:
         assert cmd[cmd.index("--adapter") + 1] == "/a"
 
     @pytest.mark.asyncio
+    async def test_enqueue_numeric_attack_without_fields(self, tmp_path, monkeypatch):
+        """IMPORTANT #1 (final review): a single audit with no model/adapter
+        must chain to the latest train task, not enqueue an unrunnable task."""
+        _patch_presets(monkeypatch, tmp_path)
+        captured = self._capture(monkeypatch)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            app.screen.query_one("#queue_attack", Select).value = "1"
+            app.screen.query_one("#btn-queue-enqueue", Button).press()
+            await pilot.pause()
+
+        assert len(captured) == 1
+        cmds = captured[0]
+        assert len(cmds) == 1
+        cmd = cmds[0]
+        assert "add-audit" in cmd
+        assert cmd[cmd.index("--attack") + 1] == "1"
+        assert cmd[cmd.index("--depends-on") + 1] == "latest"
+        assert "--base-model" not in cmd and "--adapter" not in cmd
+
+    @pytest.mark.asyncio
     async def test_enqueue_gauntlet_quick_no_model_fields(self, tmp_path, monkeypatch):
         _patch_presets(monkeypatch, tmp_path)
         captured = self._capture(monkeypatch)
@@ -120,7 +155,11 @@ class TestQueueButtonPresses:
         assert len(captured) == 1
         cmds = captured[0]
         assert len(cmds) == 1
-        assert cmds[0][-2:] == ["gauntlet", "quick"]
+        cmd = cmds[0]
+        # IMPORTANT #1 (final review): with no model/adapter given, chain to
+        # the latest train task instead of enqueueing an unrunnable gauntlet.
+        assert "gauntlet" in cmd and "quick" in cmd
+        assert cmd[-2:] == ["--after", "latest"]
 
     @pytest.mark.asyncio
     async def test_enqueue_gauntlet_quick_with_adapter_expands(self, tmp_path, monkeypatch):

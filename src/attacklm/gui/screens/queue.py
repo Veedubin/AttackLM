@@ -58,7 +58,10 @@ class QueueScreen(_BaseCommandScreen):
             yield self._row("Adapter", "queue_adapter", placeholder="models/attacklm-3b_16g")
             yield Horizontal(
                 Label("Attack:", classes="form-label"),
-                Select(_ATTACK_CHOICES, id="queue_attack", value="core"),
+                # allow_blank=False: Select.BLANK is truthy, so a cleared
+                # Select would silently bypass the `attack or "core"`
+                # fallback below and produce a garbage command.
+                Select(_ATTACK_CHOICES, id="queue_attack", value="core", allow_blank=False),
                 classes="form-row",
             )
             with Horizontal(id="cmd-button-row"):
@@ -112,14 +115,24 @@ class QueueScreen(_BaseCommandScreen):
 
     def _enqueue_cmd(self, base_model: str, adapter: str, attack: str) -> list[str]:
         cmd = self._base_cmd()
+        # With neither field filled, a gauntlet/audit has no adapter, no
+        # base model, and no deps — the runner would mark it failed on the
+        # spot. Chain it to the latest train task instead; if there isn't
+        # one yet, the CLI reports that into the log rather than silently
+        # creating an unrunnable task.
+        chain_to_latest = not base_model and not adapter
         if attack in _GAUNTLETS:
             cmd += ["gauntlet", attack]
+            if chain_to_latest:
+                cmd += ["--after", "latest"]
         else:
             cmd += ["add-audit", "--attack", attack]
             if base_model:
                 cmd += ["--base-model", base_model]
             if adapter:
                 cmd += ["--adapter", adapter]
+            if chain_to_latest:
+                cmd += ["--depends-on", "latest"]
         return cmd
 
     def _enqueue_cmds(self, base_model: str, adapter: str, attack: str) -> list[list[str]]:
