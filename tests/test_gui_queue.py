@@ -17,7 +17,7 @@ def _patch_presets(monkeypatch, tmp_path):
 
 WIDGET_IDS = ["queue-table", "queue_base_model", "queue_adapter", "queue_attack",
               "btn-queue-refresh", "btn-queue-enqueue", "btn-queue-start",
-              "btn-queue-stop", "btn-queue-retry", "btn-back", "cmd-output"]
+              "btn-queue-stop", "btn-queue-retry", "btn-queue-compare", "btn-back", "cmd-output"]
 
 
 class TestQueueScreen:
@@ -53,7 +53,8 @@ class TestQueueScreen:
             app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
             await pilot.pause()
             for wid in ("queue_base_model", "queue_adapter", "queue_attack",
-                        "btn-queue-enqueue", "btn-queue-start", "btn-queue-stop", "btn-queue-retry"):
+                        "btn-queue-enqueue", "btn-queue-start", "btn-queue-stop", "btn-queue-retry",
+                        "btn-queue-compare"):
                 assert app.screen.query_one(f"#{wid}").tooltip, wid
 
     def test_main_menu_tooltip_key(self):
@@ -227,3 +228,15 @@ class TestQueueButtonPresses:
 
         assert captured == []
         assert "Select a task first" in text
+
+    @pytest.mark.asyncio
+    async def test_compare_button(self, tmp_path, monkeypatch):
+        _patch_presets(monkeypatch, tmp_path)
+        captured = self._capture(monkeypatch)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            app.screen.query_one("#btn-queue-compare", Button).press()
+            await pilot.pause()
+        assert captured == [[["attacklm", "queue", "--db-path", str(tmp_path / "q.db"), "compare"]]]

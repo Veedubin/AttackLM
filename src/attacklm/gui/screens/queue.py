@@ -69,6 +69,7 @@ class QueueScreen(_BaseCommandScreen):
                 yield Button("Start runner", id="btn-queue-start", variant="success")
                 yield Button("Stop runner", id="btn-queue-stop")
                 yield Button("Retry selected", id="btn-queue-retry")
+                yield Button("Compare latest", id="btn-queue-compare")
                 yield Button("Refresh", id="btn-queue-refresh")
                 yield Button("Back", id="btn-back")
             yield RichLog(id="cmd-output", highlight=True, wrap=True)
@@ -78,7 +79,7 @@ class QueueScreen(_BaseCommandScreen):
         table = self.query_one("#queue-table", DataTable)
         table.add_columns(*_COLUMNS)
         for wid in ("queue_base_model", "queue_adapter", "queue_attack", "btn-queue-enqueue",
-                    "btn-queue-start", "btn-queue-stop", "btn-queue-retry"):
+                    "btn-queue-start", "btn-queue-stop", "btn-queue-retry", "btn-queue-compare"):
             try:
                 attach_tooltip(self.query_one(f"#{wid}"), wid)
             except Exception:
@@ -185,3 +186,5 @@ class QueueScreen(_BaseCommandScreen):
                 self.query_one("#cmd-output", RichLog).write("[yellow]Select a task first.[/]")
                 return
             asyncio.create_task(self._run_then_refresh([self._base_cmd() + ["retry", str(tid)]]))
+        elif bid == "btn-queue-compare":
+            asyncio.create_task(self._run_then_refresh([self._base_cmd() + ["compare"]]))

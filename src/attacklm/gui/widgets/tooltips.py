@@ -105,6 +105,9 @@ TOOLTIPS: dict[str, str] = {
     "--detach). Log: evals/queue/runner.log.",
     "btn-queue-stop": "Ask the runner to stop after the current task finishes.",
     "btn-queue-retry": "Reset the highlighted failed/blocked/interrupted task to pending.",
+    "btn-queue-compare": "Compare the latest adapter gauntlet against its base-model baseline "
+    "(attacklm queue compare): Δ per attack and category with a 95% CI and a "
+    "WORSE/BETTER/SAME verdict.",
 }
 
 
