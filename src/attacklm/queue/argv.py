@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from attacklm.queue.db import Task, QueueDB
+from attacklm.queue.db import DEFAULT_QUEUE_DIR, Task, QueueDB
 from attacklm.queue.registry import REGISTRY, TaskSpec, _SCRIPTS_DIR
 
 
@@ -25,8 +25,6 @@ _ARG_FLAG_MAP: dict[str, str] = {
     "near_ood": "--near-ood",
     "ood": "--ood",
     "num_canaries": "--num-canaries",
-    "canary_format": "--canary-format",
-    "inject_split": "--inject-split",
     "output_dir": "--output-dir",
 }
 
@@ -134,6 +132,7 @@ def _resolve_argv(task: Task, spec: TaskSpec, db: QueueDB) -> list[str] | None:
     import sys
 
     args = task.args_dict.copy()
+    args.pop("num_canaries", None)
 
     # Start with the Python interpreter and script path.
     argv = [sys.executable, str(spec.script_path)]
@@ -163,8 +162,6 @@ def _resolve_argv(task: Task, spec: TaskSpec, db: QueueDB) -> list[str] | None:
     # Set default output path if not specified.
     if "output" not in args or args.get("output") is None:
         if spec.produces_artifact == "report":
-            from attacklm.queue.db import DEFAULT_QUEUE_DIR
-
             args["output"] = str(
                 DEFAULT_QUEUE_DIR
                 / "artifacts"
@@ -198,3 +195,43 @@ def _resolve_argv(task: Task, spec: TaskSpec, db: QueueDB) -> list[str] | None:
     argv.extend(_args_to_argv(dict(args), spec.arg_schema))
 
     return argv
+
+
+_CANARY_DEFAULT_COUNT = 50
+
+
+def resolve_steps(task: Task, spec: TaskSpec, db: QueueDB) -> list[list[str]] | None:
+    """Build the ordered list of argv lists a task must run.
+
+    Subprocess tasks are a single step. `audit_canary_pipeline` is two:
+    canary_generator.py (skipped when `canaries` is supplied) then
+    audit_canary_extraction.py.
+    """
+    import sys
+
+    if spec.runner_mode != "pipeline":
+        argv = _resolve_argv(task, spec, db)
+        return None if argv is None else [argv]
+
+    if task.type != "audit_canary_pipeline":
+        raise ValueError(f"no pipeline definition for {task.type!r}")
+
+    args = task.args_dict.copy()
+    steps: list[list[str]] = []
+    if not args.get("canaries"):
+        canaries = DEFAULT_QUEUE_DIR / "artifacts" / str(task.id) / "canaries.jsonl"
+        count = int(args.pop("num_canaries", None) or _CANARY_DEFAULT_COUNT)
+        steps.append([
+            sys.executable, str(_SCRIPTS_DIR / "canary_generator.py"),
+            "--output", str(canaries), "--count", str(count), "--seed", "42",
+        ])
+        args["canaries"] = str(canaries)
+    else:
+        args.pop("num_canaries", None)
+    db.update_task(task.id, args=json.dumps(args))
+    task = db.get_task(task.id)
+    probe = _resolve_argv(task, spec, db)
+    if probe is None:
+        return None
+    steps.append(probe)
+    return steps

@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from attacklm.queue.argv import _resolve_argv
+from attacklm.queue.argv import _resolve_argv, read_adapter_base, resolve_steps
 from attacklm.queue.db import DEFAULT_QUEUE_DIR, QueueDB, Task
 from attacklm.queue.registry import REGISTRY, TaskSpec
 
@@ -55,8 +55,6 @@ def _collect_artifact(
         if adapter_path is None:
             return None
         # Try to extract base_model from args.
-        from attacklm.queue.argv import read_adapter_base
-
         base_model = task.args_dict.get("base_model") or read_adapter_base(adapter_path) or ""
         return {
             "kind": "adapter",
@@ -163,6 +161,25 @@ def _run_subprocess(
     return rc
 
 
+def _run_steps(
+    steps: list[list[str]],
+    log_path: Path,
+    timeout_s: int | None,
+    cwd: str | None,
+    env: dict[str, str] | None,
+) -> int:
+    """Run pipeline steps sequentially; stop and return the first non-zero rc."""
+    deadline = time.monotonic() + timeout_s if timeout_s else None
+    for i, argv in enumerate(steps, 1):
+        remaining = None if deadline is None else max(1, int(deadline - time.monotonic()))
+        with open(log_path, "ab", buffering=0) as logf:
+            logf.write(f"\n# ----- step {i}/{len(steps)}: {' '.join(argv[1:2])} -----\n".encode())
+        rc = _run_subprocess(argv, log_path, timeout_s=remaining, cwd=cwd, env=env)
+        if rc != 0:
+            return rc
+    return 0
+
+
 def _execute_task(db: QueueDB, task: Task, follow: bool = False) -> None:
     """Execute a single task via subprocess."""
     spec = REGISTRY.get(task.type)
@@ -180,16 +197,23 @@ def _execute_task(db: QueueDB, task: Task, follow: bool = False) -> None:
         logger.info(f"Task #{task.id} skipped: {task.type} not implemented")
         return
 
-    # Resolve argv (including adapter inheritance from deps).
-    argv = _resolve_argv(task, spec, db)
-    if argv is None:
+    # Resolve argv/steps (including adapter inheritance from deps). Pipeline
+    # tasks (e.g. audit_canary_pipeline) resolve to multiple steps; everything
+    # else stays a single-step subprocess run through the module-level
+    # `_resolve_argv` so existing tests that monkeypatch it keep working.
+    if spec.runner_mode == "pipeline":
+        steps = resolve_steps(task, spec, db)
+    else:
+        argv = _resolve_argv(task, spec, db)
+        steps = None if argv is None else [argv]
+    if steps is None:
         db.mark_task(
             task.id,
             status="failed",
             error="could not resolve --adapter/--base-model from dependencies",
         )
         return
-    task = db.get_task(task.id)  # args were persisted by _resolve_argv
+    task = db.get_task(task.id)  # args were persisted by _resolve_argv/resolve_steps
 
     # Set up log path and artifact dir.
     _ensure_dirs()
@@ -204,7 +228,9 @@ def _execute_task(db: QueueDB, task: Task, follow: bool = False) -> None:
         pid=os.getpid(),
         log_path=str(log_path),
     )
-    db.add_event(task.id, "started", {"pid": os.getpid(), "argv": argv})
+    db.add_event(
+        task.id, "started", {"pid": os.getpid(), "argv": steps[-1], "steps": len(steps)}
+    )
 
     # Set ATTACKLM_QUEUE_TASK_ID in the child env.
     env = os.environ.copy()
@@ -216,10 +242,10 @@ def _execute_task(db: QueueDB, task: Task, follow: bool = False) -> None:
     # Update the runner's current_task.
     db.set_runner_state("current_task", str(task.id))
 
-    # Run the subprocess.
+    # Run the subprocess(es).
     try:
-        rc = _run_subprocess(
-            argv,
+        rc = _run_steps(
+            steps,
             log_path,
             timeout_s=timeout,
             cwd=str(Path.cwd()),

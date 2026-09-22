@@ -106,17 +106,17 @@ REGISTRY: dict[str, TaskSpec] = {
         produces_artifact="report",
         consumes_artifact="adapter",
         arg_schema={
-            "num_canaries": {"type": "integer", "required": False},
-            "canary_format": {"type": "string", "required": False},
-            "inject_split": {"type": "string", "required": False},
+            "canaries": {"type": "string", "required": False},      # existing canaries.jsonl; generated if absent
+            "num_canaries": {"type": "integer", "required": False}, # count for canary_generator.py (default 50)
             "base_model": {"type": "string", "required": False},
             "adapter": {"type": "string", "required": False},
             "output": {"type": "string", "required": False},
+            "max_new_tokens": {"type": "integer", "required": False},
         },
         default_timeout_s=7200,
         gauntlet_member=True,
         implemented=True,
-        description="Attack 3 — canary extraction (3-step pipeline)",
+        description="Attack 3 — canary extraction (generate canaries → probe; inject at train time via canary_inject.py)",
     ),
     "audit_calibration": TaskSpec(
         type="audit_calibration",

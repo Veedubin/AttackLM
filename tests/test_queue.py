@@ -786,3 +786,59 @@ class TestTimeoutMarksFailed:
         assert t.status == "failed"
         assert t.error == "timeout"
         assert t.finished_at is not None
+
+
+# ---------------------------------------------------------------------------
+# Task 2 — canary pipeline that matches the scripts (R5)
+# ---------------------------------------------------------------------------
+
+
+class TestCanaryPipeline:
+    def test_registry_schema_matches_script(self):
+        schema = REGISTRY["audit_canary_pipeline"].arg_schema
+        assert set(schema) == {"canaries", "num_canaries", "base_model", "adapter", "output", "max_new_tokens"}
+
+    def test_steps_generate_then_probe(self, db, tmp_path, monkeypatch):
+        from attacklm.queue.argv import resolve_steps
+        from attacklm.queue import argv as argv_mod
+        monkeypatch.setattr(argv_mod, "DEFAULT_QUEUE_DIR", tmp_path)
+        d = _fake_adapter(tmp_path)
+        tid = db.add_task(type="audit_canary_pipeline", label="c",
+                          args={"base_model": "b", "adapter": str(d), "num_canaries": 7})
+        steps = resolve_steps(db.get_task(tid), REGISTRY["audit_canary_pipeline"], db)
+        assert len(steps) == 2
+        gen, probe = steps
+        assert gen[1].endswith("canary_generator.py")
+        assert gen[gen.index("--count") + 1] == "7"
+        canaries = gen[gen.index("--output") + 1]
+        assert canaries.endswith(f"artifacts/{tid}/canaries.jsonl")
+        assert probe[1].endswith("audit_canary_extraction.py")
+        assert probe[probe.index("--canaries") + 1] == canaries
+        for bad in ("--num-canaries", "--canary-format", "--inject-split"):
+            assert bad not in probe
+
+    def test_steps_skip_generation_when_canaries_given(self, db, tmp_path):
+        from attacklm.queue.argv import resolve_steps
+        d = _fake_adapter(tmp_path)
+        tid = db.add_task(type="audit_canary_pipeline", label="c",
+                          args={"base_model": "b", "adapter": str(d), "canaries": "data/canaries.jsonl"})
+        steps = resolve_steps(db.get_task(tid), REGISTRY["audit_canary_pipeline"], db)
+        assert len(steps) == 1
+        assert steps[0][steps[0].index("--canaries") + 1] == "data/canaries.jsonl"
+
+    def test_subprocess_mode_is_single_step(self, db, tmp_path):
+        from attacklm.queue.argv import resolve_steps
+        d = _fake_adapter(tmp_path)
+        tid = db.add_task(type="audit_prompt_injection", label="a", args={"base_model": "b", "adapter": str(d)})
+        steps = resolve_steps(db.get_task(tid), REGISTRY["audit_prompt_injection"], db)
+        assert len(steps) == 1 and steps[0][1].endswith("audit_prompt_injection.py")
+
+    def test_run_steps_stops_on_first_failure(self, tmp_path):
+        from attacklm.queue.runner import _run_steps
+        log = tmp_path / "s.log"
+        steps = [[sys.executable, "-c", "print('one')"],
+                 [sys.executable, "-c", "import sys; sys.exit(3)"],
+                 [sys.executable, "-c", "print('never')"]]
+        assert _run_steps(steps, log, timeout_s=30, cwd=str(tmp_path), env=None) == 3
+        text = log.read_text()
+        assert "one" in text and "never" not in text
