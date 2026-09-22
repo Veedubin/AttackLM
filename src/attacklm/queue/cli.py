@@ -13,7 +13,12 @@ from typing import Any
 
 from attacklm.queue.db import QueueDB, DEFAULT_QUEUE_DIR
 from attacklm.queue.registry import REGISTRY, resolve_attack
-from attacklm.queue.gauntlet import expand_gauntlet
+from attacklm.queue.gauntlet import (
+    DEFAULT_SUITE,
+    SUITES,
+    expand_gauntlet,
+    resolve_suite,
+)
 from attacklm.queue.baseline import baseline_exists, baseline_task_defs, ensure_baseline
 from attacklm.queue.compare import SHIPPED_ATTACKS, compare_runs, latest_subject, render_table, select_run, to_json
 from attacklm.queue.history import append_jsonl, history_rows, render_history
@@ -316,7 +321,22 @@ def _cmd_chain(args: argparse.Namespace) -> int:
 def _cmd_gauntlet(args: argparse.Namespace) -> int:
     """Handle `attacklm queue gauntlet <preset>`."""
     db = _get_db(args)
-    preset = args.preset
+
+    # A positional preset still wins, so every existing invocation keeps
+    # working. With neither, the default suite is `capability`.
+    if args.preset and getattr(args, "suite", None):
+        print("Error: pass a preset or --suite, not both", file=sys.stderr)
+        return 1
+    try:
+        presets = (
+            [args.preset]
+            if args.preset
+            else resolve_suite(getattr(args, "suite", None) or DEFAULT_SUITE)
+        )
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    preset = presets[0]
 
     # Resolve --after (depends_on).
     depends_on = _parse_dep_ids(db, args.after, "--after")
@@ -324,11 +344,15 @@ def _cmd_gauntlet(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        tasks = expand_gauntlet(
-            preset,
-            after_task_ids=depends_on,
-            recipe_path=args.recipe,
-        )
+        tasks = []
+        for name in presets:
+            tasks.extend(
+                expand_gauntlet(
+                    name,
+                    after_task_ids=depends_on,
+                    recipe_path=args.recipe,
+                )
+            )
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
@@ -954,7 +978,19 @@ def build_queue_parser(subparsers: argparse._SubParsersAction) -> None:
     gauntlet_p.add_argument(
         "preset",
         type=str,
-        help="Gauntlet preset: core, full, quick, memorization",
+        nargs="?",
+        default=None,
+        help="Gauntlet preset: capability, capability-quick, core, full, "
+             "quick, memorization. Omit to use --suite.",
+    )
+    gauntlet_p.add_argument(
+        "--suite",
+        type=str,
+        default=None,
+        choices=sorted(SUITES),
+        help="capability (default) measures whether the model is a better "
+             "security assistant; audits measures attack resistance, the "
+             "gauntlet that used to be the default; all runs both.",
     )
     gauntlet_p.add_argument(
         "--after",

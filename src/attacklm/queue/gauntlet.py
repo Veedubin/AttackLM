@@ -50,6 +50,29 @@ GAUNTLET_PRESETS: dict[str, list[dict[str, Any]]] = {
 }
 
 
+# Suites group presets into the two questions worth asking of a model.
+#
+# DEFAULT_SUITE is "capability" as of the benchmark work: the audits measure
+# whether a model can be ABUSED, which is necessary but is not what the model
+# is for. They remain fully available -- `--suite audits` runs exactly the
+# gauntlet that used to be the default, unchanged.
+SUITES: dict[str, list[str]] = {
+    "capability": ["capability"],
+    "audits": ["core"],
+    "all": ["capability", "core"],
+}
+DEFAULT_SUITE = "capability"
+
+
+def resolve_suite(name: str) -> list[str]:
+    """Suite name -> the gauntlet presets it runs."""
+    if name not in SUITES:
+        raise ValueError(
+            f"Unknown suite: {name!r}. Available: {', '.join(SUITES)}"
+        )
+    return list(SUITES[name])
+
+
 def _calibration_holdouts_missing() -> bool:
     """Check if any of the 3 calibration holdout files are missing."""
     bench_dir = Path("data/bench")
