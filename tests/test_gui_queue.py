@@ -1,0 +1,68 @@
+"""Tests for the Queue screen (v0.19.0)."""
+
+from __future__ import annotations
+
+import pytest
+
+from attacklm.gui.app import AttackLMApp
+from attacklm.gui.screens.queue import QueueScreen
+from attacklm.gui.widgets.tooltips import TOOLTIPS
+from attacklm.queue.db import QueueDB
+
+
+def _patch_presets(monkeypatch, tmp_path):
+    monkeypatch.setattr("attacklm.gui.app.ensure_builtin_presets", lambda: None)
+
+
+WIDGET_IDS = ["queue-table", "queue_base_model", "queue_adapter", "queue_attack",
+              "btn-queue-refresh", "btn-queue-enqueue", "btn-queue-start",
+              "btn-queue-stop", "btn-queue-retry", "btn-back", "cmd-output"]
+
+
+class TestQueueScreen:
+    @pytest.mark.asyncio
+    async def test_mounts_and_has_widgets(self, tmp_path, monkeypatch):
+        _patch_presets(monkeypatch, tmp_path)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            assert app.screen.__class__.__name__ == "QueueScreen"
+            for wid in WIDGET_IDS:
+                assert app.screen.query_one(f"#{wid}") is not None, wid
+
+    @pytest.mark.asyncio
+    async def test_table_lists_tasks(self, tmp_path, monkeypatch):
+        _patch_presets(monkeypatch, tmp_path)
+        db = QueueDB(tmp_path / "q.db")
+        db.add_task(type="audit_prompt_injection", label="PI smoke", args={"adapter": "/a"})
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=db.db_path))
+            await pilot.pause()
+            table = app.screen.query_one("#queue-table")
+            assert table.row_count == 1
+            assert "PI smoke" in str(table.get_row_at(0))
+
+    @pytest.mark.asyncio
+    async def test_inputs_have_tooltips(self, tmp_path, monkeypatch):
+        _patch_presets(monkeypatch, tmp_path)
+        app = AttackLMApp()
+        async with app.run_test() as pilot:
+            app.push_screen(QueueScreen(db_path=tmp_path / "q.db"))
+            await pilot.pause()
+            for wid in ("queue_base_model", "queue_adapter", "queue_attack",
+                        "btn-queue-enqueue", "btn-queue-start", "btn-queue-stop", "btn-queue-retry"):
+                assert app.screen.query_one(f"#{wid}").tooltip, wid
+
+    def test_main_menu_tooltip_key(self):
+        assert "btn-queue" in TOOLTIPS
+
+    def test_enqueue_command_shape(self, tmp_path):
+        screen = QueueScreen(db_path=tmp_path / "q.db")
+        cmd = screen._enqueue_cmd(base_model="b", adapter="/a", attack="core")
+        assert cmd[:4] == ["attacklm", "queue", "--db-path", str(tmp_path / "q.db")]
+        assert "gauntlet" in cmd and "core" in cmd
+        cmd = screen._enqueue_cmd(base_model="b", adapter="/a", attack="1")
+        assert "add-audit" in cmd and cmd[cmd.index("--attack") + 1] == "1"
+        assert cmd[cmd.index("--adapter") + 1] == "/a" and cmd[cmd.index("--base-model") + 1] == "b"

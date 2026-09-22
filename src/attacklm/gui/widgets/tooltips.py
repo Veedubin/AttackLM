@@ -84,6 +84,21 @@ TOOLTIPS: dict[str, str] = {
     "for memory savings.",
     "train_learning_rate": "Optimizer learning rate. 2e-4 for QLoRA, 1e-5 "
     "for Q-GaLore, 5e-6 for full-parameter.",
+    # === New: Queue screen (v0.19.0) ===
+    "btn-queue": "Open the task queue: enqueue audits or a gauntlet, start/stop "
+    "the background runner, retry failed tasks. Same state as `attacklm queue`.",
+    "queue_base_model": "HF id or local path of the base model. Leave empty when "
+    "chaining after a train task (inherited from the adapter's adapter_config.json).",
+    "queue_adapter": "PEFT adapter directory (e.g. models/attacklm-3b_16g). "
+    "Leave empty to inherit from the most recent train task.",
+    "queue_attack": "Which audit to enqueue. 1/2/3/7 add one task; 'core' and "
+    "'quick' add a gauntlet that depends on the latest train task.",
+    "btn-queue-enqueue": "Create the task(s) in evals/queue/queue.db. Nothing runs "
+    "until the runner is started.",
+    "btn-queue-start": "Start the runner in the background (attacklm queue start "
+    "--detach). Log: evals/queue/runner.log.",
+    "btn-queue-stop": "Ask the runner to stop after the current task finishes.",
+    "btn-queue-retry": "Reset the highlighted failed/blocked/interrupted task to pending.",
 }
 
 

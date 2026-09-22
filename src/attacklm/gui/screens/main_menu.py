@@ -11,7 +11,7 @@ from attacklm.gui.widgets import attach_tooltip
 
 
 class MainMenuScreen(Screen):
-    """Main menu with command launchers (v0.11.0 — added Audit screen)."""
+    """Main menu with command launchers (v0.19.0 — added Queue screen)."""
 
     CSS = """
     MainMenuScreen {
@@ -60,6 +60,7 @@ class MainMenuScreen(Screen):
             yield Button("🧠  Run Inference", id="btn-infer")
             yield Button("📊  Evaluate", id="btn-eval")
             yield Button("🔍  Audit", id="btn-audit")
+            yield Button("📋  Queue", id="btn-queue")
             yield Button("🧭  Steer Model", id="btn-steer")
             yield Button("📏  Benchmark", id="btn-bench")
             yield Label(
@@ -77,6 +78,7 @@ class MainMenuScreen(Screen):
             ("#btn-infer", "btn-infer"),
             ("#btn-eval", "btn-eval"),
             ("#btn-audit", "btn-audit"),
+            ("#btn-queue", "btn-queue"),
             ("#btn-steer", "btn-steer"),
             ("#btn-bench", "btn-bench"),
         ]:
@@ -117,6 +119,10 @@ class MainMenuScreen(Screen):
             from attacklm.gui.screens.audit import AuditFormScreen
 
             self.app.push_screen(AuditFormScreen())
+        elif btn_id == "btn-queue":
+            from attacklm.gui.screens.queue import QueueScreen
+
+            self.app.push_screen(QueueScreen())
         elif btn_id == "btn-steer":
             from attacklm.gui.screens.command_forms import SteerFormScreen
 
