@@ -1,3 +1,11 @@
+## [0.18.2] — 2026-09-21
+
+- **Docs-site rebuilt properly**: the 19 tracked files under `docs-site/docs/` were **broken symlinks** pointing at a sibling-checkout layout that exists neither in CI nor for cloners — the GitHub Pages build could never have worked. Replaced with build-time generation: `docs-site/sync-docs.sh` (local dev) and the "Generate docs-site content" step in `.github/workflows/docs.yml` (CI) copy the real docs into place; generated files are gitignored. Removed the `monorepo` mkdocs plugin (was declared but never installed in CI — another guaranteed build failure).
+- **Internal docs off the public site**: the `attacklm-dataset-docs/` methodology mirror removed from nav and sources (those docs are local-only per policy; the old copy also embedded local machine paths). The dataset-repo `docs/` copy step removed from the workflow accordingly.
+- **README**: removed links to attacklm-dataset's `docs/*.md` files (no longer distributed; would 404).
+
+No code changes. No PyPI publish.
+
 ## [0.18.1] — 2026-09-21
 
 - **Repo hygiene**: Untracked `hpo_runs/hpo_trial_dataset.jsonl` (4.8 MB) and `hpo_runs/hpo_state.json` — regenerable HPO run artifacts that were tracked since the initial release via a `.gitignore` gap (`*.jsonl` was not covered). All of `hpo_runs/` is now ignored except `.gitkeep`. Both files remain in git history; they stay local on disk.

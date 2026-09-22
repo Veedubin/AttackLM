@@ -1,1 +1,0 @@
-../../AttackLM/CONTRIBUTING.md

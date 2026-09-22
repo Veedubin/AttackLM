@@ -181,9 +181,9 @@ this is for owner-side testing, not adversary work):
 Output is per-record JSONL (chmod 0600) plus a `summary.json` and
 `threshold.md`. Use `--attack extraction` or `--attack mia` to
 scope to a single class; `--mia-method {reference,zlib,per_token,lira,all}`
-to pick a MIA variant. See
-[attacklm-dataset/docs/ATTACK_TAXONOMY.md](https://github.com/Veedubin/attacklm-dataset/blob/main/docs/ATTACK_TAXONOMY.md)
-for the full design.
+to pick a MIA variant. The implementations are clean-room
+reimplementations of the papers above, with per-file provenance blocks
+in [attacklm-dataset `scripts/inversion/`](https://github.com/Veedubin/attacklm-dataset/tree/main/scripts/inversion).
 
 The audit harness is **hermetic** — it does not call out to any
 network, does not require GPU, runs on a CPU laptop in minutes.
@@ -351,15 +351,9 @@ reconstructions, chmod 0600, stay workspace-internal).
 
 The audit harness is built on the
 [attacklm-dataset `scripts/inversion/`](https://github.com/Veedubin/attacklm-dataset/tree/main/scripts/inversion)
-package and the design is documented in:
-
-- [ATTACK_TAXONOMY.md](https://github.com/Veedubin/attacklm-dataset/blob/main/docs/ATTACK_TAXONOMY.md)
-  — the 3-attack-class taxonomy, the LLM MI = TDE collapse argument,
-  and the CLI flag mapping
-- [LIRA.md](https://github.com/Veedubin/attacklm-dataset/blob/main/docs/LIRA.md)
-  — LiRA design, K parameter guide, compute cost
-- [MIA_THRESHOLD_CALIBRATION.md](https://github.com/Veedubin/attacklm-dataset/blob/main/docs/MIA_THRESHOLD_CALIBRATION.md)
-  — threshold calibration design
+package. The methodology docs are maintainer-local and not
+distributed; the attack classes and canonical papers are listed in
+the [attacklm-dataset README](https://github.com/Veedubin/attacklm-dataset#privacy-audit-research-toolkit).
 
 **All attack code is for defensive, audit, and academic-research use
 only** — see [RIGHTS.md](https://github.com/Veedubin/attacklm-dataset/blob/main/RIGHTS.md).

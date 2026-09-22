@@ -47,15 +47,25 @@ jobs:
       - name: Install dependencies
         run: pip install mkdocs mkdocs-material
 
-      - name: Copy dataset docs
+      - name: Generate docs-site content
         run: |
-          cp -r _dataset/docs docs-site/docs/attacklm-dataset-docs/
-          cp _dataset/README.md docs-site/docs/attacklm-dataset-readme.md
-          cp _dataset/CHANGELOG.md docs-site/docs/attacklm-dataset-changelog.md
-          cp _dataset/ATTRIBUTION.md docs-site/docs/attacklm-dataset-attribution.md
-          cp _dataset/PROVENANCE.md docs-site/docs/attacklm-dataset-provenance.md
-          cp _dataset/RIGHTS.md docs-site/docs/attacklm-dataset-rights.md
-          cp _dataset/SECURITY.md docs-site/docs/attacklm-dataset-security.md
+          # Mirror of docs-site/sync-docs.sh for the CI checkout layout
+          # (AttackLM at workspace root, dataset at _dataset/).
+          # Internal methodology docs (attacklm-dataset docs/) are
+          # local-only per project policy and are intentionally not copied.
+          d=docs-site/docs
+          cp README.md         "$d/attacklm-readme.md"
+          cp CHANGELOG.md      "$d/attacklm-changelog.md"
+          cp docs/RL_RECIPE.md "$d/attacklm-rl-recipe.md"
+          cp EVALUATION.md     "$d/attacklm-evaluation.md"
+          cp CONTRIBUTING.md   "$d/attacklm-contributing.md"
+          cp ATTRIBUTION.md    "$d/attacklm-attribution.md"
+          cp _dataset/README.md       "$d/attacklm-dataset-readme.md"
+          cp _dataset/CHANGELOG.md    "$d/attacklm-dataset-changelog.md"
+          cp _dataset/ATTRIBUTION.md  "$d/attacklm-dataset-attribution.md"
+          cp _dataset/PROVENANCE.md   "$d/attacklm-dataset-provenance.md"
+          cp _dataset/RIGHTS.md       "$d/attacklm-dataset-rights.md"
+          cp _dataset/SECURITY.md     "$d/attacklm-dataset-security.md"
 
       - name: Build site
         run: cd docs-site && mkdocs build
