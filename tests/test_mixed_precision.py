@@ -9,12 +9,10 @@ Run with:
     python -m pytest tests/test_mixed_precision.py -v
 """
 
-import json
 import sys
-import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 # Make the scripts/ dir importable
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
@@ -27,7 +25,7 @@ _mock_transformers.trainer_callback.TrainerCallback = MagicMock()
 sys.modules["transformers"] = _mock_transformers
 sys.modules["transformers.trainer_callback"] = _mock_transformers.trainer_callback
 
-import train_template
+import train_template  # noqa: E402 — must come after the sys.path.insert/transformers mock above
 
 
 # =========================================================================

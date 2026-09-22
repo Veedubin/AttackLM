@@ -14,9 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-import signal
 import sys
-from unittest.mock import MagicMock
 
 import pytest
 

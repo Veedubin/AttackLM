@@ -94,7 +94,7 @@ def merge_adapter(
         base_model = read_adapter_base_model(adapter_path)
 
     print(f"\n{'=' * 60}")
-    print(f" Merging adapter")
+    print(" Merging adapter")
     print(f"{'=' * 60}")
     print(f" Base model:  {base_model}")
     print(f" Adapter:     {adapter_path}")
@@ -203,7 +203,6 @@ def merge_all(base_model: str | None = None) -> list[str]:
     into deployable artifacts). Override with --force-all-versions
     to merge every timestamped run.
     """
-    import argparse as _ap
 
     models_dir = BASE_DIR / "models"
     merged_dir = BASE_DIR / "models" / "merged"

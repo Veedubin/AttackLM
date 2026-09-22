@@ -9,9 +9,7 @@ Run with:
     python -m pytest tests/test_fp8_bitnet.py -v
 """
 
-import json
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -27,7 +25,7 @@ _mock_transformers.trainer_callback.TrainerCallback = MagicMock()
 sys.modules["transformers"] = _mock_transformers
 sys.modules["transformers.trainer_callback"] = _mock_transformers.trainer_callback
 
-import train_template
+import train_template  # noqa: E402 — must come after the sys.path.insert/transformers mock above
 
 
 # =========================================================================

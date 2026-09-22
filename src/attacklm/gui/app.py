@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 # PROVENANCE METADATA — src/attacklm/gui/app.py
 # ================================================================================
 # Attack class:        N/A (this file is a Textual TUI wrapper around the
@@ -30,6 +28,7 @@ from __future__ import annotations
 # ================================================================================
 """Main Textual application for AttackLM GUI."""
 
+from __future__ import annotations
 
 from pathlib import Path
 

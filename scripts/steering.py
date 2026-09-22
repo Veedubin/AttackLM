@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import struct
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -484,7 +483,6 @@ def diagnose_refusal(
 
     # Step 2: Measure projection magnitude in target model
     n_layers = len(layers)
-    hidden_dim = target_model.config.hidden_size
     device = target_model.device
 
     # Accumulate target model activations on harmful prompts
@@ -1105,7 +1103,7 @@ def _cmd_diagnose(args: argparse.Namespace, compute_dtype: torch.dtype) -> int:
 
     # Print summary
     rd = report["refusal_direction"]
-    print(f"\n  Refusal Direction Diagnostic:", file=sys.stderr)
+    print("\n  Refusal Direction Diagnostic:", file=sys.stderr)
     print(
         f"    Magnitude in reference: {rd['magnitude_in_reference']}", file=sys.stderr
     )

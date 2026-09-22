@@ -132,7 +132,6 @@ def register_steering_hooks(model, vectors, metadata, scale, layers) -> list:
     Returns:
         List of hook handles (call remove_hooks to clean up).
     """
-    import numpy as np
 
     import torch
 

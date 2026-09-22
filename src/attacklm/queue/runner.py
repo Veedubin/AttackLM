@@ -174,7 +174,7 @@ def _run_steps(
     for i, argv in enumerate(steps, 1):
         remaining = None if deadline is None else max(1, int(deadline - time.monotonic()))
         with open(log_path, "ab", buffering=0) as logf:
-            logf.write(f"\n# ----- step {i}/{len(steps)}: {' '.join(argv[1:2])} -----\n".encode())
+            logf.write(f"\n# ----- step {i}/{len(steps)}: {Path(argv[1]).name} -----\n".encode())
         rc = _run_subprocess(argv, log_path, timeout_s=remaining, cwd=cwd, env=env)
         if rc != 0:
             return rc
@@ -402,7 +402,6 @@ def run_loop(
     db_path: Path | str | None = None,
     poll_interval: float = 5.0,
     follow: bool = False,
-    detach: bool = False,
     exit_when_idle: bool = False,
 ) -> None:
     """Main runner loop. Polls for eligible tasks and executes them.
@@ -411,7 +410,6 @@ def run_loop(
         db_path: Path to the queue database.
         poll_interval: Seconds between polls.
         follow: If True, stream the current task's log to stdout.
-        detach: If True, run in background (nohup).
         exit_when_idle: If True, return as soon as no task is eligible
             (used by tests and by `start --exit-when-idle`).
     """

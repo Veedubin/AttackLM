@@ -290,7 +290,6 @@ class TestTrainingIntegration(unittest.TestCase):
                 force=False,
             )
             # Should end in _YYYY-MM-DD_HH-MM
-            import re
 
             self.assertRegex(Path(out).name, r"_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}$")
 

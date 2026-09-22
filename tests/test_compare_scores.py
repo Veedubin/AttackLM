@@ -13,7 +13,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 # Make the scripts/ dir importable
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
@@ -261,7 +260,7 @@ class TestIntegration(unittest.TestCase):
 
             # p1: delta_nll = 1.2 - 1.5 = -0.3, delta_lcp = 0.9 - 0.8 = 0.1 → improved
             # p2: delta_nll = 2.5 - 2.0 = 0.5, delta_lcp = 0.3 - 0.5 = -0.2 → regressed
-            data_lines = [l for l in lines[1:] if l.strip()]
+            data_lines = [line for line in lines[1:] if line.strip()]
             self.assertEqual(len(data_lines), 2)
 
     def test_main_no_common_prompts_returns_error(self):
@@ -436,7 +435,7 @@ class TestIntegration(unittest.TestCase):
 
             with open(output_path) as f:
                 lines = f.read().strip().split("\n")
-            data_line = [l for l in lines[1:] if l.strip()][0]
+            data_line = [line for line in lines[1:] if line.strip()][0]
             self.assertIn("improved", data_line)
 
 

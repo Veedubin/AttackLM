@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from attacklm.queue.registry import REGISTRY, resolve_attack
+from attacklm.queue.registry import REGISTRY
 
 # Built-in gauntlet presets.
 GAUNTLET_PRESETS: dict[str, list[dict[str, Any]]] = {

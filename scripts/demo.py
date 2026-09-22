@@ -14,9 +14,7 @@ Usage:
 
 import argparse
 import json
-import os
 import re
-import sys
 import time
 from pathlib import Path
 
@@ -219,12 +217,12 @@ def run_demo(scenario_name: str | None = None) -> None:
         print(f"# SCENARIO: {name.replace('_', ' ').title()}")
         print(f"# EXPECTED: {expected_agent}")
         print(f"{'#' * 70}")
-        print(f"\n📋 ENGAGEMENT STATE:")
+        print("\n📋 ENGAGEMENT STATE:")
         for line in state_text.strip().split("\n"):
             print(f"   {line}")
 
         # Step 1: Orchestrator routing
-        print(f"\n🧠 ORCHESTRATOR (reasoning)...")
+        print("\n🧠 ORCHESTRATOR (reasoning)...")
         start = time.time()
 
         orch_messages = [
@@ -253,7 +251,7 @@ def run_demo(scenario_name: str | None = None) -> None:
         routing = extract_routing_decision(orch_response)
         if routing is None:
             print(
-                f"\n   ⚠️  Could not extract routing decision. Skipping tactical agent."
+                "\n   ⚠️  Could not extract routing decision. Skipping tactical agent."
             )
             results.append((name, expected_agent, "FAIL", "--", 0))
             continue
@@ -309,7 +307,7 @@ def run_demo(scenario_name: str | None = None) -> None:
 
     # Summary
     print(f"\n{'=' * 70}")
-    print(f" DEMO COMPLETE")
+    print(" DEMO COMPLETE")
     print(f"{'=' * 70}")
     print(f" {'Scenario':<25} {'Expected':<25} {'Routed':<25} {'Match':<8} {'Time':>8}")
     print(f" {'─' * 25} {'─' * 25} {'─' * 25} {'─' * 8} {'─' * 8}")

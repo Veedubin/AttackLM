@@ -254,11 +254,6 @@ class TrainLiveScreen(Screen):
 
         # Trend
         if metrics.trend:
-            trend_class = {
-                "↓": "trend-down",
-                "→": "trend-flat",
-                "↑": "trend-up",
-            }.get(metrics.trend, "")
             self.query_one("#trend-label", Label).update(
                 f"Trend: {metrics.trend} {metrics.trend_value:+.4f}"
             )

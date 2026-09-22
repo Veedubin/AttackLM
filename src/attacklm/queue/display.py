@@ -12,7 +12,6 @@ from attacklm.queue.registry import REGISTRY
 try:
     from rich.console import Console
     from rich.table import Table
-    from rich.text import Text
 
     _HAS_RICH = True
 except ImportError:
@@ -345,7 +344,7 @@ def task_detail(task: Task, db: QueueDB) -> str:
             if dep:
                 dep_spec = REGISTRY.get(dep.type)
                 dep_label = dep_spec.label if dep_spec else dep.type
-                dep_strs.append(f"#{dep_id} ({dep.status})")
+                dep_strs.append(f"#{dep_id} {dep_label} ({dep.status})")
             else:
                 dep_strs.append(f"#{dep_id} (unknown)")
         lines.append(f"  Depends on:   {', '.join(dep_strs)}")
@@ -355,11 +354,11 @@ def task_detail(task: Task, db: QueueDB) -> str:
             adapter_path = task.args_dict.get("adapter")
             if adapter_path:
                 if adapter_path == "<inherited>":
-                    lines.append(f"  Adapter:      (inherited from dep)")
+                    lines.append("  Adapter:      (inherited from dep)")
                 else:
                     lines.append(f"  Adapter:      {adapter_path}")
             else:
-                lines.append(f"  Adapter:      (will be resolved from deps)")
+                lines.append("  Adapter:      (will be resolved from deps)")
 
     # Output/Artifact info.
     if task.artifact_path:

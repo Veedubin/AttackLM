@@ -523,7 +523,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
     # Print summary
     print(f"\n{'=' * 60}", file=sys.stderr)
-    print(f"  Validation complete", file=sys.stderr)
+    print("  Validation complete", file=sys.stderr)
     print(f"  Total positions:         {total_positions}", file=sys.stderr)
     print(
         f"  Byte matches:            {total_byte_matches}/{total_positions} ({byte_match_rate:.2%})",

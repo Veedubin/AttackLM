@@ -54,7 +54,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -232,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
 
         merged_output = args.merged_output or Path(f"models/merged/{name}")
         print(f"\n{'=' * 60}")
-        print(f" Step 1/3: Merge LoRA → BF16")
+        print(" Step 1/3: Merge LoRA → BF16")
         print(f"{'=' * 60}")
         print(f"  Adapter:   {args.adapter}")
         print(f"  Base:      {base}")
@@ -285,7 +284,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # --- Step 3: build manifest ---
     print(f"\n{'=' * 60}")
-    print(f" Step 3/3: Build manifest")
+    print(" Step 3/3: Build manifest")
     print(f"{'=' * 60}")
 
     gguf_path = Path("models/gguf") / f"{name}.{args.quant}.gguf"
@@ -343,7 +342,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"   {gguf_link.name}  → {gguf_path}")
 
     print(f"\n{'=' * 60}")
-    print(f" BUILD COMPLETE")
+    print(" BUILD COMPLETE")
     print(f"{'=' * 60}")
     print(f"  Model:    {name}")
     print(f"  GGUF:     {gguf_path}  ({gguf_path.stat().st_size / 1e9:.2f}GB)")

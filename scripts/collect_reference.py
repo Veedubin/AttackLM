@@ -38,7 +38,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _eval_loader import (
     load_model_and_tokenizer,
     detect_compute_dtype,
-    resolve_model_path,
 )
 from device_utils import print_hardware_banner
 

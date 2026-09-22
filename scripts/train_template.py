@@ -72,7 +72,6 @@ import torch
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 from transformers.trainer_callback import TrainerCallback
 
 # ---------------------------------------------------------------------------
@@ -103,7 +102,6 @@ from device_utils import (  # noqa: E402  (import after sys.path tweak)
     gpu_mem_info,
     gpu_mem_info_bytes,
     gpu_mem_allocated_bytes,
-    gpu_mem_reserved_bytes,
     gpu_mem_cached_bytes,
     gpu_fragmentation_report,
     suggest_attn_implementation,
@@ -1302,7 +1300,7 @@ def check_gpu(args: argparse.Namespace | None = None) -> str:
                 args.fp8 = False
             else:
                 try:
-                    import transformer_engine
+                    import transformer_engine  # noqa: F401 — probe for availability only
 
                     _c.print(f"  [green]FP8 training:[/green] enabled on {gpu_name}")
                     os.environ["NVTE_FP8_COLLECTION"] = "1"
@@ -1769,7 +1767,6 @@ def check_vram_headroom(
     """
     num_heads = getattr(model_config, "num_attention_heads", 0)
     hidden_size = getattr(model_config, "hidden_size", 0)
-    num_layers = getattr(model_config, "num_hidden_layers", 0)
     # For GQA models, num_key_value_heads may differ from num_attention_heads.
     # The attention score matrix size is based on num_attention_heads (Q heads).
     if num_heads == 0 or hidden_size == 0:
@@ -2393,7 +2390,6 @@ def main() -> None:
         if evolved_dir.is_dir():
             # Write the current dataset to a temporary JSONL so mix_evolved can
             # read it. mix_evolved works with file paths, not HF Dataset objects.
-            import tempfile
 
             pre_evolved_path = _P(args.dataset)
             combined_path, evolved_composition = _mix_evolved(
@@ -2895,7 +2891,7 @@ def main() -> None:
     if args.use_unsloth:
         try:
             import unsloth  # noqa: F401 — must be first for monkey-patching
-            from unsloth import FastLanguageModel, is_bfloat16_supported
+            from unsloth import FastLanguageModel
 
             _unsloth_available = True
             console.print(
@@ -3711,8 +3707,8 @@ def main() -> None:
     # enabled on Hopper (SM90) / Blackwell (SM100+) GPUs.
     if getattr(args, "fp8", False):
         try:
-            from transformer_engine.common.recipe import Format, DelayedScaling
-            from transformer_engine.pytorch import fp8_autocast
+            from transformer_engine.common.recipe import Format, DelayedScaling  # noqa: F401 — probe for availability only; not yet wired to fp8_autocast(model, recipe)
+            from transformer_engine.pytorch import fp8_autocast  # noqa: F401 — see above
 
             console.print(
                 "  [green]FP8:[/green] wrapping model with Transformer Engine fp8_autocast"
@@ -3855,7 +3851,8 @@ def main() -> None:
         # CUDA guarantees ABI compatibility within a major version (e.g. 13.0
         # and 13.3 are compatible), so we only skip the check when the major
         # versions match.  If they differ, we warn and let the user force it.
-        import re, subprocess
+        import re
+        import subprocess
 
         _torch_cuda = getattr(torch.version, "cuda", None) or ""
         _sys_cuda = ""
@@ -4412,7 +4409,6 @@ def main() -> None:
             print(f"\n  [Spectrum] Computing SNR over {self.num_batches} batches...")
 
             # Collect gradient norms per layer over num_batches
-            import torch
 
             layer_grad_norms: dict[str, list] = {}
             layer_names = []
@@ -4941,16 +4937,16 @@ def main() -> None:
         _galore_rank = args.galore_rank
 
         if _use_qgalore:
-            print(f"  Q-GaLore: INT4 projections + stochastic rounding")
+            print("  Q-GaLore: INT4 projections + stochastic rounding")
             print(f"  Q-GaLore rank:       {_galore_rank}")
-            print(f"  Q-GaLore optimizer:  8-bit GaLoreAdamW8bit")
-            print(f"  Q-GaLore update:     per-layer hooks (grouped by layer)")
+            print("  Q-GaLore optimizer:  8-bit GaLoreAdamW8bit")
+            print("  Q-GaLore update:     per-layer hooks (grouped by layer)")
         elif _use_32bit:
-            print(f"  GaLore optimizer:    32-bit GaLoreAdamW")
-            print(f"  GaLore update mode:  standard (multi-GPU compatible)")
+            print("  GaLore optimizer:    32-bit GaLoreAdamW")
+            print("  GaLore update mode:  standard (multi-GPU compatible)")
         else:
-            print(f"  GaLore optimizer:    8-bit GaLoreAdamW8bit")
-            print(f"  GaLore update mode:  per-layer hooks (grouped by layer)")
+            print("  GaLore optimizer:    8-bit GaLoreAdamW8bit")
+            print("  GaLore update mode:  per-layer hooks (grouped by layer)")
 
         if _use_32bit:
             # --- 32-bit path: standard optimizer, multi-GPU compatible ---

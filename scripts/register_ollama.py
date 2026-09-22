@@ -67,7 +67,7 @@ def main():
         else:
             print(f"❌ {result.stderr.strip()[-200:]}")
 
-    print(f"\n✅ Done — run: ollama list")
+    print("\n✅ Done — run: ollama list")
 
 
 if __name__ == "__main__":

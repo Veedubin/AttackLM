@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 # PROVENANCE METADATA — src/attacklm/cli.py
 # ================================================================================
 # Attack class:        N/A (this file is the unified CLI driver; the
@@ -50,6 +48,7 @@ Usage::
     attacklm demo [args...]
 """
 
+from __future__ import annotations
 
 import argparse
 import os

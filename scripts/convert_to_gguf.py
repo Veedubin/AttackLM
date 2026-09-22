@@ -287,12 +287,12 @@ def main() -> None:
                 f"\nERROR: {args.input} looks like a LoRA adapter, not a merged model."
             )
             print(
-                f"  Has:   adapter_config.json (peft_type=LORA) + adapter_model.safetensors"
+                "  Has:   adapter_config.json (peft_type=LORA) + adapter_model.safetensors"
             )
             print(
-                f"  Need:  a directory with config.json + *.safetensors (full merged weights)"
+                "  Need:  a directory with config.json + *.safetensors (full merged weights)"
             )
-            print(f"\nFix: merge the adapter into the base first, then convert.")
+            print("\nFix: merge the adapter into the base first, then convert.")
             print(f"  attacklm build --merge-only -- --adapter {args.input} \\")
             print(f"                  --base {suggested_base} \\")
             print(f"                  --output models/merged/{input_path.name}")
@@ -340,14 +340,14 @@ def main() -> None:
             signround_dir = model_dir.parent / f"{model_dir.name}_signround"
             if signround_dir.exists() and not args.force:
                 print(f"  ⏭  SignRoundV2 output already exists at {signround_dir.name}")
-                print(f"     (use --force to re-quantize)")
+                print("     (use --force to re-quantize)")
                 effective_model_dir = signround_dir
             else:
                 print(f"  🔬 Applying SignRoundV2 quantization to {name}...")
                 print(f"     Target: {args.signround_bits} bits/weight average")
-                print(f"     Method: gradient-informed per-layer bit allocation")
+                print("     Method: gradient-informed per-layer bit allocation")
                 print(
-                    f"     This achieves QAT-level accuracy at PTQ cost (~2.5 GPU-hours)"
+                    "     This achieves QAT-level accuracy at PTQ cost (~2.5 GPU-hours)"
                 )
                 try:
                     from signround import quantize_model  # type: ignore[import-untyped]
@@ -374,8 +374,8 @@ def main() -> None:
         quant_type = args.quant
         if args.dynamic_gguf:
             print(f"  🎯 Using Dynamic 2.0 GGUF quantization for {name}...")
-            print(f"     Method: per-layer quantization with 1.5M token calibration")
-            print(f"     This outperforms standard imatrix GGUF on quality benchmarks")
+            print("     Method: per-layer quantization with 1.5M token calibration")
+            print("     This outperforms standard imatrix GGUF on quality benchmarks")
             # Dynamic 2.0 GGUF passes the --dynamic flag to llama-quantize.
             # Requires llama.cpp built with Dynamic 2.0 support.
             # Fall back to standard quantization if the binary doesn't support it.
@@ -522,7 +522,7 @@ def main() -> None:
         print(
             f"\n💡 To use in LM Studio, copy GGUF files to ~/.lmstudio/models/local/{agent_name_for_hint}/"
         )
-        print(f"   Or re-run with --install-lmstudio to do it automatically.")
+        print("   Or re-run with --install-lmstudio to do it automatically.")
 
     if converted_now:
         print(f"\n✅ Done — {len(converted_now)} GGUF(s) built:")
@@ -572,7 +572,6 @@ def _register_with_ollama(
     the Modelfile content and the manual command — non-fatal.
     """
     import shutil as _sh
-    from datetime import datetime, timezone
 
     ollama_bin = _sh.which("ollama")
     if ollama_bin is None:

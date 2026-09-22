@@ -59,7 +59,7 @@ except ImportError:
         get_bucket,
     )
 
-from attacklm._project_root import (
+from attacklm._project_root import (  # noqa: F401 — re-exported below for compatibility
     BASE_DIR,
     DATASETS_DIR,
     BUCKETS_DIR,

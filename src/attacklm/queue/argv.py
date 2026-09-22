@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from attacklm.queue.db import DEFAULT_QUEUE_DIR, Task, QueueDB
-from attacklm.queue.registry import REGISTRY, TaskSpec, _SCRIPTS_DIR
+from attacklm.queue.registry import TaskSpec, _SCRIPTS_DIR
 
 
 # Mapping from Python arg keys to CLI flag names.
@@ -24,7 +24,6 @@ _ARG_FLAG_MAP: dict[str, str] = {
     "in_distribution": "--in-distribution",
     "near_ood": "--near-ood",
     "ood": "--ood",
-    "num_canaries": "--num-canaries",
     "output_dir": "--output-dir",
 }
 

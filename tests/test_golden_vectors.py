@@ -429,7 +429,7 @@ class TestCmdValidate(unittest.TestCase):
             args.seed = 42
             args.compute_dtype = None
 
-            rc = gv.cmd_validate(args)
+            gv.cmd_validate(args)
             # cmd_validate returns 0 for PASS/WARN, 1 for FAIL
             # With mocked model, byte_match_rate=0.0 and mean_spearman_rho=0.0 → FAIL → returns 1
             # We just check the report was created

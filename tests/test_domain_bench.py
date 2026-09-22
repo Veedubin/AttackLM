@@ -17,7 +17,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import torch
 
 # Make the scripts/ dir importable
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"

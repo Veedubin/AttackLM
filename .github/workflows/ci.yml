@@ -30,4 +30,3 @@ jobs:
 
       - name: Lint
         run: ruff check src/ tests/ scripts/
-        continue-on-error: true

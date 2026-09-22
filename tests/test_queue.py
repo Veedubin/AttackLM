@@ -6,9 +6,8 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -17,17 +16,16 @@ SRC = Path(__file__).resolve().parent.parent / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from attacklm.queue.db import QueueDB, Task, DEFAULT_QUEUE_DIR
-from attacklm.queue.registry import REGISTRY, resolve_attack
-from attacklm.queue.argv import _resolve_argv, _args_to_argv
-from attacklm.queue.gauntlet import expand_gauntlet, _calibration_holdouts_missing
-from attacklm.queue.runner import (
+from attacklm.queue.db import QueueDB  # noqa: E402 — must come after the sys.path.insert above
+from attacklm.queue.registry import REGISTRY, resolve_attack  # noqa: E402
+from attacklm.queue.argv import _resolve_argv, _args_to_argv  # noqa: E402
+from attacklm.queue.gauntlet import expand_gauntlet  # noqa: E402
+from attacklm.queue.runner import (  # noqa: E402
     _execute_task,
     _recover_interrupted,
-    _collect_artifact,
     _grep_adapter_path,
 )
-from attacklm.queue.migrations import apply_migrations, current_schema_version
+from attacklm.queue.migrations import apply_migrations  # noqa: E402
 
 
 @pytest.fixture
@@ -698,7 +696,7 @@ class TestGauntletNoDuplicateHoldout:
 # Task 1 regressions — runner/argv correctness (2026-09-22 review)
 # ---------------------------------------------------------------------------
 
-from attacklm.queue.argv import read_adapter_base, is_adapter_dir
+from attacklm.queue.argv import read_adapter_base, is_adapter_dir  # noqa: E402
 
 
 def _fake_adapter(tmp_path, base="huihui-ai/Qwen2.5-Coder-3B-Instruct-abliterated"):

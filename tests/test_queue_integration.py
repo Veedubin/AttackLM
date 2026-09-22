@@ -9,8 +9,6 @@ exercised for real. No GPU, no network, ~2 s.
 from __future__ import annotations
 
 import json
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -132,7 +130,8 @@ def test_adapter_dir_given_as_base_model(sandbox):
     from attacklm.queue.cli import _cmd_add_audit
     import argparse
     db = sandbox
-    adapter = Path("models/pretrained-adapter"); adapter.mkdir(parents=True)
+    adapter = Path("models/pretrained-adapter")
+    adapter.mkdir(parents=True)
     (adapter / "adapter_config.json").write_text(json.dumps({"base_model_name_or_path": "real/base"}))
     ns = argparse.Namespace(db_path=str(db.db_path), attack="1", include_unshipped=False, depends_on=None,
                             adapter=None, base_model=str(adapter), label=None, timeout=None)
@@ -176,7 +175,8 @@ def test_status_while_pending_does_not_consume(sandbox):
 def test_detach_spawns_background_runner(sandbox, monkeypatch):
     """--detach must return immediately and leave a runner that drains the queue."""
     from attacklm.queue.cli import _cmd_start
-    import argparse, time
+    import argparse
+    import time
     db = sandbox
     tid = db.add_task(type="gen_calibration_holdouts", label="h", args={})
     ns = argparse.Namespace(db_path=str(db.db_path), force=False, follow=False, detach=True,

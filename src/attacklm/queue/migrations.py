@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import Sequence
 
 # Each migration is (version, list_of_sql_statements).
 # Migrations are applied in order, forward-only (never roll back).

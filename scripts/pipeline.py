@@ -76,7 +76,7 @@ def run_train(job_name: str, train_cfg: dict) -> bool:
 
     print(f"\n{'=' * 60}")
     print(f"  Job: {job_name}")
-    print(f"  Stage: TRAIN")
+    print("  Stage: TRAIN")
     print(f"  Command: {' '.join(cmd)}")
     print(f"{'=' * 60}\n")
 
@@ -91,7 +91,7 @@ def run_merge(job_name: str, merge_cfg: dict, train_cfg: dict) -> bool:
     # Determine input: merge.output or train.output
     input_dir = merge_cfg.get("output") or train_cfg.get("output")
     if not input_dir:
-        print(f"  ERROR: No output directory specified for merge stage")
+        print("  ERROR: No output directory specified for merge stage")
         return False
 
     cmd = [
@@ -106,7 +106,7 @@ def run_merge(job_name: str, merge_cfg: dict, train_cfg: dict) -> bool:
 
     print(f"\n{'=' * 60}")
     print(f"  Job: {job_name}")
-    print(f"  Stage: MERGE")
+    print("  Stage: MERGE")
     print(f"  Command: {' '.join(cmd)}")
     print(f"{'=' * 60}\n")
 
@@ -123,7 +123,7 @@ def run_gguf(job_name: str, gguf_cfg: dict, merge_cfg: dict, train_cfg: dict) ->
         gguf_cfg.get("output") or merge_cfg.get("output") or train_cfg.get("output")
     )
     if not input_dir:
-        print(f"  ERROR: No output directory specified for gguf stage")
+        print("  ERROR: No output directory specified for gguf stage")
         return False
 
     cmd = [sys.executable, script, "--input", input_dir]
@@ -135,7 +135,7 @@ def run_gguf(job_name: str, gguf_cfg: dict, merge_cfg: dict, train_cfg: dict) ->
 
     print(f"\n{'=' * 60}")
     print(f"  Job: {job_name}")
-    print(f"  Stage: GGUF")
+    print("  Stage: GGUF")
     print(f"  Command: {' '.join(cmd)}")
     print(f"{'=' * 60}\n")
 
@@ -241,7 +241,7 @@ def run_pipeline(config_path: str) -> bool:
     if all_success:
         print(f"  All {len(jobs)} job(s) succeeded")
     else:
-        print(f"  Some jobs failed — check output above")
+        print("  Some jobs failed — check output above")
 
     return all_success
 

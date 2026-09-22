@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 import tempfile
@@ -282,10 +281,8 @@ class TestExtraction(unittest.TestCase):
 
     def test_extract_default_layers(self):
         """Default layers should be 20-30."""
-        from steering import extract_steering_vector
 
         model = _make_mock_model()
-        tokenizer = _make_mock_tokenizer()
 
         # This will fail on actual forward pass (mock model), but we can
         # verify the function signature and default behavior

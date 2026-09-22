@@ -12,7 +12,6 @@ For full TUI behavior, see tests/test_gui.py.
 
 from __future__ import annotations
 
-import pytest
 
 
 class TestGuiCliModule:

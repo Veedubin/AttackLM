@@ -108,7 +108,7 @@ def main() -> int:
     if not args.adapter and not args.merged:
         parser.error(
             "Must specify either --adapter PATH or --merged PATH. "
-            f"Use 'make merge' to create a merged model from an adapter."
+            "Use 'make merge' to create a merged model from an adapter."
         )
 
     # ---------------------------------------------------------------------

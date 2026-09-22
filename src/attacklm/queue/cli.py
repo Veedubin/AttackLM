@@ -7,12 +7,11 @@ import logging
 import os
 import subprocess
 import sys
-from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
-from attacklm.queue.db import QueueDB, Task, DEFAULT_QUEUE_DIR, DEFAULT_DB_NAME
-from attacklm.queue.registry import REGISTRY, resolve_attack, ATTACK_ALIASES
-from attacklm.queue.gauntlet import expand_gauntlet, GAUNTLET_PRESETS
+from attacklm.queue.db import QueueDB, DEFAULT_QUEUE_DIR
+from attacklm.queue.registry import REGISTRY, resolve_attack
+from attacklm.queue.gauntlet import expand_gauntlet
 from attacklm.queue.display import list_tasks, status_summary, task_detail
 from attacklm.queue.runner import run_loop
 
@@ -283,7 +282,7 @@ def _cmd_chain(args: argparse.Namespace) -> int:
         return 1
 
     _insert_task_defs(db, tasks, [train_id])
-    print(f"\nChain ready. Run `attacklm queue start` to begin.")
+    print("\nChain ready. Run `attacklm queue start` to begin.")
     return 0
 
 
@@ -374,6 +373,11 @@ def _cmd_start(args: argparse.Namespace) -> int:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
     if args.detach:
+        if getattr(args, "follow", False):
+            print(
+                "Warning: --follow is ignored in detached mode (nothing to stream to).",
+                file=sys.stderr,
+            )
         DEFAULT_QUEUE_DIR.mkdir(parents=True, exist_ok=True)
         runner_log = DEFAULT_QUEUE_DIR / "runner.log"
         cmd = [sys.executable, "-m", "attacklm", "queue"]

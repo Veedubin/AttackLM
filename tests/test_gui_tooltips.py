@@ -8,7 +8,6 @@ text, this test fails.
 
 from __future__ import annotations
 
-import pytest
 
 from attacklm.gui.widgets import attach_tooltip
 from attacklm.gui.widgets.tooltips import TOOLTIPS

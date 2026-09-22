@@ -13,7 +13,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 # Make the scripts/ dir importable
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
@@ -26,7 +26,7 @@ _mock_transformers.trainer_callback.TrainerCallback = MagicMock()
 sys.modules["transformers"] = _mock_transformers
 sys.modules["transformers.trainer_callback"] = _mock_transformers.trainer_callback
 
-import train_template
+import train_template  # noqa: E402 — must come after the sys.path.insert/transformers mock above
 
 
 # =========================================================================
@@ -516,12 +516,6 @@ class TestCompileQLoRAIncompatibility(unittest.TestCase):
                 "--compile",
                 "--use-deepspeed",
             ]
-        )
-        skip_quantization = (
-            args.moe_safe_target
-            or args.use_unsloth
-            or args.use_galore
-            or args.use_qgalore
         )
         # --use-deepspeed avoids BnB 4-bit, so torch.compile is fine
         self.assertTrue(args.compile)

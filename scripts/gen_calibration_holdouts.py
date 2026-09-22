@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -236,7 +235,7 @@ def main() -> int:
                 f.write(json.dumps(q) + "\n")
         print(f"Wrote {len(data)} questions to {out_path}")
 
-    print(f"\nClassification summary:")
+    print("\nClassification summary:")
     print(f"  In-distribution (security): {len(in_dist)}")
     print(f"  Near-OOD (adjacent tech):    {len(near_ood)}")
     print(f"  OOD (off-topic):             {len(ood)}")

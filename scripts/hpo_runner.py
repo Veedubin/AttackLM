@@ -40,11 +40,10 @@ import argparse
 import csv
 import json
 import os
-import shutil
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Optional
 
@@ -264,7 +263,7 @@ def parse_trial_csv(csv_path: str) -> dict:
         sx = sum(steps[:n])
         sy = sum(losses[:n])
         sxx = sum(s * s for s in steps[:n])
-        sxy = sum(s * l for s, l in zip(steps[:n], losses[:n]))
+        sxy = sum(s * loss_val for s, loss_val in zip(steps[:n], losses[:n]))
         denom = n * sxx - sx * sx
         if abs(denom) > 1e-9:
             out["loss_slope"] = (n * sxy - sx * sy) / denom
@@ -294,7 +293,6 @@ def evaluate_trial(stats: dict, prev_stats: Optional[dict] = None) -> tuple:
     mean_loss_last = stats.get("mean_loss_last10", 0)
     max_grad = stats.get("max_grad_norm", 0) or 0
     p95_grad = stats.get("p95_grad_norm", 0) or 0
-    mean_grad_2nd_half = stats.get("mean_grad_second_half", 0) or 0
     slope = stats.get("loss_slope", 0) or 0
     final_tok_acc = stats.get("final_tok_acc", 0) or 0
     final_entropy = stats.get("final_entropy", 0) or 0
@@ -306,7 +304,6 @@ def evaluate_trial(stats: dict, prev_stats: Optional[dict] = None) -> tuple:
     # the caller (parse_trial_csv) would need to add it. For now, infer
     # progress from slope + final_loss: if slope is strongly negative AND
     # final_loss is well below 2.0, the trial is healthy.
-    progress_ratio = None
     # Use the negative-slope / final-loss combo as a proxy for "this trial
     # actually learned something". A divergent run has slope >= 0 AND
     # final_loss > 2.0; a healthy run has slope < 0 AND final_loss < 2.0.
@@ -419,7 +416,6 @@ def run_hpo_sweep(
         current_value = axis.default_low
         best_value_this_axis = current_value
         prev_stats = None
-        best_stats_this_axis = None
 
         for trial_idx in range(args.hpo_trials_per_axis):
             current_value = axis.clip(current_value)
@@ -516,7 +512,6 @@ def run_hpo_sweep(
             if verdict == "OK":
                 # Save this as best for this axis
                 best_value_this_axis = current_value
-                best_stats_this_axis = stats
                 prev_stats = stats
                 # Escalate for next trial
                 current_value = axis.next_value(current_value)

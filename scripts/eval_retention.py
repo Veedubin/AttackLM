@@ -71,12 +71,12 @@ import torch
 # ---------------------------------------------------------------------------
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from device_utils import (  # noqa: E402
+from device_utils import (  # noqa: E402,F401 — is_cuda re-exported for eval_retention.is_cuda
     is_cuda,
     setup_allocator_env,
     print_hardware_banner,
 )
-from _eval_loader import (  # noqa: E402
+from _eval_loader import (  # noqa: E402,F401 — resolve_model_path re-exported for eval_retention.resolve_model_path
     resolve_model_path,
     detect_compute_dtype,
     load_model_and_tokenizer,
