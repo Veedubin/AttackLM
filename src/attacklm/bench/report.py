@@ -67,6 +67,7 @@ def build_report(
     metadata: dict[str, Any],
     contamination: ContaminationResult | None = None,
     posture: list[Any] | None = None,
+    judged: bool = False,
 ) -> dict[str, Any]:
     scored = [s for s in scores if s.score is not None]
 
@@ -146,18 +147,24 @@ def build_report(
         def _rate(name: str) -> float | None:
             return round(labels.count(name) / n, 4) if n else None
 
-        block = {
+        block: dict[str, Any] = {
             "n": n,
+            "judged": judged,
             "refusal_rate": _rate("refused"),
-            "answered_rate": _rate("answered"),
             "evaded_rate": _rate("evaded"),
         }
-        # taught/overshared exist only when a judge ran. Emitted only if any
-        # item carries them, so a deterministic run's summary is not padded
-        # with zeros that could be mistaken for a judge verdict of "none".
-        if any(lbl in ("taught", "overshared") for lbl in labels):
+        if judged:
+            # A judge ran: taught/overshared are ALWAYS meaningful now (0.0 is a
+            # real verdict of "none", not "no judge"), so they are always
+            # emitted -- an all-evaded judge pass must not look byte-identical
+            # to a deterministic run. Any item still labelled "answered" is one
+            # the judge could not classify; it is reported as its own
+            # unparseable_rate, never folded into a posture outcome.
             block["taught_rate"] = _rate("taught")
             block["overshared_rate"] = _rate("overshared")
+            block["unparseable_rate"] = _rate("answered")
+        else:
+            block["answered_rate"] = _rate("answered")
         summary["posture"] = block
 
     meta = {

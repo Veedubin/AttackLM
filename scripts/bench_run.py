@@ -40,6 +40,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from attacklm.bench.adapters.inspect_adapter import (  # noqa: E402
+    HarnessRunError,
     InspectAdapter,
     ParsedSample,
     RunConfig,
@@ -121,6 +122,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                     help="backend for the judge model (default: same as --backend)")
     jd.add_argument("--judge-max-tokens", type=int, default=256,
                     help="generation cap for the judge's verdict")
+    jd.add_argument("--judge-model-arg", action="append", default=[], dest="judge_model_args",
+                    metavar="KEY=VALUE",
+                    help="-M arg for the JUDGE model only (repeatable). The subject's "
+                         "--model-arg values are NOT reused for the judge -- a subject "
+                         "lora_modules/max_model_len must not be applied to a different "
+                         "judge model")
 
     dc = p.add_argument_group("contamination (the \"SAE correction\")")
     dc.add_argument("--no-decontam", action="store_true",
@@ -227,7 +234,10 @@ def _run_judge_pass(pack, items, samples, args, adapter, pcfg: PostureConfig):
             backend=args.judge_backend or args.backend,
             max_tokens=args.judge_max_tokens,
             temperature=0.0, top_p=1.0, seed=args.seed,
-            base_url=args.base_url, model_args=list(args.model_args),
+            # The judge is a DIFFERENT model: its -M args come from
+            # --judge-model-arg, never from the subject's --model-arg (which
+            # may carry a subject-specific lora_modules or max_model_len).
+            base_url=args.base_url, model_args=list(args.judge_model_args),
             log_dir=jlog,
             items_path=_write_items(judge_items, jlog),
         )
@@ -346,9 +356,25 @@ def main(argv: list[str] | None = None) -> int:
     # packs carry their own items, which posture scoring needs for identity.
     posture_cfg = PostureConfig()
     posture_scores = None
+    judged = False
     if pack.posture and pack.mode == "local_scored" and items:
         if args.judge_model:
-            posture_scores = _run_judge_pass(pack, items, samples, args, adapter, posture_cfg)
+            # The judge is an OPTIONAL second pass. If it fails (OOM, model not
+            # cached, harness error) it must not sink the whole run and discard
+            # the expensive capability pass that already completed -- fall back
+            # to deterministic posture and report honestly that no judge ran.
+            try:
+                posture_scores = _run_judge_pass(
+                    pack, items, samples, args, adapter, posture_cfg
+                )
+                judged = True
+            except (HarnessRunError, subprocess.SubprocessError, OSError) as e:
+                print(
+                    f"warning: judge pass failed ({type(e).__name__}: {e}); "
+                    "falling back to deterministic posture",
+                    file=sys.stderr,
+                )
+                posture_scores = _score_posture_local(items, samples, posture_cfg)
         else:
             posture_scores = _score_posture_local(items, samples, posture_cfg)
 
@@ -404,7 +430,7 @@ def main(argv: list[str] | None = None) -> int:
                 else {"enabled": False}
             ),
         },
-    }, contamination, posture=posture_scores)
+    }, contamination, posture=posture_scores, judged=judged)
 
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -424,12 +450,19 @@ def main(argv: list[str] | None = None) -> int:
     posture_summary = report["summary"].get("posture")
     if posture_summary:
         pad = " " * len(pack.name)
+        # When a judge ran, the leftover "answered" items are judge-unparseable
+        # (reported as unparseable_rate); without a judge they are the engaged
+        # answers (answered_rate).
+        if posture_summary.get("judged"):
+            engaged = f"unparseable={posture_summary['unparseable_rate']:.1%}"
+        else:
+            engaged = f"answered={posture_summary['answered_rate']:.1%}"
         print(
             f"{pad}  posture: refused={posture_summary['refusal_rate']:.1%} "
-            f"answered={posture_summary['answered_rate']:.1%} "
+            f"{engaged} "
             f"evaded={posture_summary['evaded_rate']:.1%} (n={posture_summary['n']})"
         )
-        if "taught_rate" in posture_summary:
+        if posture_summary.get("judged"):
             print(
                 f"{pad}  judged:  taught={posture_summary['taught_rate']:.1%} "
                 f"overshared={posture_summary['overshared_rate']:.1%}"

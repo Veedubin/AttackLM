@@ -505,3 +505,91 @@ def test_attack_subtechnique_knob_changes_scoring(tmp_path):
                 "--no-decontam", "--attack-id-subtechniques", policy,
             ])
         assert json.loads(out.read_text())["summary"]["score_raw"]["score"] == expected
+
+
+# --- code-review fixes #7 (judge failure resilience) and #10 (truthful judged) ---
+
+def test_all_evaded_judge_run_differs_from_no_judge(tmp_path):
+    """A judge that classifies every answered item 'evaded' must still emit
+    taught_rate/overshared_rate (0.0) and judged=True -- it must NOT look
+    byte-identical to a deterministic no-judge run."""
+    out = tmp_path / "report.json"
+    items = _items_file(tmp_path, n=2)
+    main_samples = [
+        ParsedSample("q0", "This is SQL injection; use parameterised queries.", None, None, None, False, {}),
+        ParsedSample("q1", "This is SQL injection; use parameterised queries.", None, None, None, False, {}),
+    ]
+    judge_samples = [
+        ParsedSample("q0", "VERDICT: evaded", None, None, None, False, {}),
+        ParsedSample("q1", "VERDICT: evaded", None, None, None, False, {}),
+    ]
+    with patch.object(bench_run, "_run_harness", side_effect=[main_samples, judge_samples]):
+        bench_run.main([
+            "--pack", "applied", "--packs-dir", str(_posture_pack(tmp_path)),
+            "--questions", str(items), "--base-model", "m", "--output", str(out),
+            "--no-decontam", "--judge-model", "judge/m",
+        ])
+    ps = json.loads(out.read_text())["summary"]["posture"]
+    assert ps["judged"] is True
+    assert ps["taught_rate"] == 0.0 and ps["overshared_rate"] == 0.0
+    assert ps["evaded_rate"] == 1.0
+    assert "answered_rate" not in ps  # judged runs report unparseable, not answered
+
+
+def test_judge_pass_failure_falls_back_and_keeps_capability_report(tmp_path):
+    """If the judge harness pass raises, the capability report must still be
+    written and posture must fall back to deterministic (judged=False)."""
+    from attacklm.bench.adapters.inspect_adapter import HarnessRunError
+
+    out = tmp_path / "report.json"
+    items = _items_file(tmp_path, n=2)
+    main_samples = [
+        ParsedSample("q0", "This is SQL injection; use parameterised queries.", None, None, None, False, {}),
+        ParsedSample("q1", "Here is a working exploit you can run as-is.", None, None, None, False, {}),
+    ]
+
+    def _run(pack, cfg, adapter):
+        if "judge" in str(cfg.model):
+            raise HarnessRunError("judge model OOM")
+        return main_samples
+
+    with patch.object(bench_run, "_run_harness", side_effect=_run):
+        rc = bench_run.main([
+            "--pack", "applied", "--packs-dir", str(_posture_pack(tmp_path)),
+            "--questions", str(items), "--base-model", "m", "--output", str(out),
+            "--no-decontam", "--judge-model", "judge/m",
+        ])
+    assert rc == 0
+    rep = json.loads(out.read_text())
+    assert rep["summary"]["score_raw"]["n"] == 2       # capability report survived
+    ps = rep["summary"]["posture"]
+    assert ps["judged"] is False
+    assert "taught_rate" not in ps and "answered_rate" in ps
+
+
+def test_judge_does_not_inherit_subject_model_args(tmp_path):
+    """A subject --model-arg (e.g. lora_modules) must never be applied to the
+    judge model; the judge uses only --judge-model-arg."""
+    out = tmp_path / "report.json"
+    items = _items_file(tmp_path, n=1)
+    seen = []
+
+    def _run(pack, cfg, adapter):
+        seen.append(cfg)
+        if "judge" in str(cfg.model):
+            return [ParsedSample("q0", "VERDICT: taught", None, None, None, False, {})]
+        return [ParsedSample("q0", "This is SQL injection; use parameterised queries.",
+                             None, None, None, False, {})]
+
+    with patch.object(bench_run, "_run_harness", side_effect=_run):
+        bench_run.main([
+            "--pack", "applied", "--packs-dir", str(_posture_pack(tmp_path)),
+            "--questions", str(items), "--base-model", "m", "--output", str(out),
+            "--no-decontam", "--judge-model", "judge/m",
+            "--model-arg", "lora_modules=subj", "--judge-model-arg", "max_model_len=4096",
+        ])
+    subject_cfg = next(c for c in seen if "judge" not in str(c.model))
+    judge_cfg = next(c for c in seen if "judge" in str(c.model))
+    assert subject_cfg.model_args == ["lora_modules=subj"]
+    assert judge_cfg.model_args == ["max_model_len=4096"]
+    assert "lora_modules=subj" not in judge_cfg.model_args

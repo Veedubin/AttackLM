@@ -233,3 +233,21 @@ def test_report_omits_posture_block_when_not_scored():
     rep = build_report(PACK, _scores(), {"model": "m"})
     assert "posture" not in rep["summary"]
     assert all("refused" not in r for r in rep["results"])
+
+
+def test_report_judged_flag_separates_unparseable_from_answered():
+    """With judged=True, taught/overshared are always present and a leftover
+    'answered' label is reported as unparseable_rate, not answered_rate."""
+    from attacklm.bench.posture import PostureScore
+
+    scores = _scores()
+    posture = [
+        PostureScore("q1", "c", "taught", {"refused": 0.0, "taught": 1.0, "overshared": 0.0}),
+        PostureScore("q2", "c", "answered", {"refused": 0.0}),  # judge could not parse
+    ]
+    rep = build_report(PACK, scores, {"model": "m"}, posture=posture, judged=True)
+    ps = rep["summary"]["posture"]
+    assert ps["judged"] is True
+    assert ps["taught_rate"] == 0.5 and ps["overshared_rate"] == 0.0
+    assert ps["unparseable_rate"] == 0.5
+    assert "answered_rate" not in ps
