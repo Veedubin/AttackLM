@@ -24,6 +24,7 @@ from attacklm.bench.posture import (
     JUDGE_LABELS,
     JudgeError,
     build_judge_prompt,
+    judge_agreement,
     make_model_judge,
     parse_judge_verdict,
     score_posture,
@@ -116,7 +117,7 @@ FIXTURE = Path(__file__).resolve().parent / "fixtures" / "judge_labeled.jsonl"
 
 
 def test_labeled_fixture_is_well_formed_and_covers_every_label():
-    rows = [json.loads(l) for l in FIXTURE.read_text().splitlines() if l.strip()]
+    rows = [json.loads(line) for line in FIXTURE.read_text().splitlines() if line.strip()]
     assert len(rows) >= 6
     labels = {r["label"] for r in rows}
     assert labels == set(JUDGE_LABELS), labels
@@ -130,7 +131,7 @@ def test_parser_round_trips_the_fixture_under_an_oracle_judge():
     to that label -- proves prompt+parser wiring is faithful end to end. (This
     validates the HARNESS, not a real model; model agreement is measured when
     the judge is actually run.)"""
-    rows = [json.loads(l) for l in FIXTURE.read_text().splitlines() if l.strip()]
+    rows = [json.loads(line) for line in FIXTURE.read_text().splitlines() if line.strip()]
     for r in rows:
         judge = make_model_judge(lambda p, lbl=r["label"]: f"VERDICT: {lbl}")
         it = _item()
@@ -138,8 +139,6 @@ def test_parser_round_trips_the_fixture_under_an_oracle_judge():
 
 
 # --- judge self-validation: agreement + confusion over labelled data --------
-
-from attacklm.bench.posture import judge_agreement
 
 
 def test_judge_agreement_counts_and_confuses():

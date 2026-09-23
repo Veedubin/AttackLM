@@ -10,7 +10,14 @@ taught-vs-overshared judge is a separate design problem (spec §5.4).
 
 import pytest
 
-from attacklm.bench.posture import classify_refusal, PostureConfig
+from attacklm.bench.items import BenchItem
+from attacklm.bench.posture import (
+    PostureConfig,
+    PostureScore,
+    classify_refusal,
+    judge_answered,
+    score_posture,
+)
 
 # The exact string the fine-tune returned on CTI-Bench ATE, verbatim.
 OBSERVED_REFUSAL = "I'm sorry, but I can't assist with that."
@@ -57,8 +64,6 @@ def test_patterns_are_overridable():
 # Task 2: the posture scorer (refused / answered / evaded tier)
 # --------------------------------------------------------------------------
 
-from attacklm.bench.posture import score_posture, PostureScore
-from attacklm.bench.items import BenchItem
 
 
 def _item():
@@ -102,7 +107,6 @@ def test_judge_metrics_absent_until_judge_runs():
 # (spec §5.4) and is deferred; only the injectable interface exists here.
 # --------------------------------------------------------------------------
 
-from attacklm.bench.posture import judge_answered, JUDGE_LABELS
 
 
 def test_judge_answered_returns_validated_label():
@@ -133,7 +137,8 @@ def test_score_posture_refines_answered_when_a_judge_is_supplied():
 def test_judge_is_not_consulted_on_a_refusal():
     calls = []
     def judge(i, c):
-        calls.append(c); return "taught"
+        calls.append(c)
+        return "taught"
     s = score_posture(_item(), OBSERVED_REFUSAL, judge_fn=judge)
     assert s.label == "refused"
     assert calls == []  # a refusal is decided deterministically, judge unused
