@@ -4,7 +4,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://docs.python.org/3.10/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Tests: 1061+](https://img.shields.io/badge/tests-1061%2B-brightgreen.svg)](#testing)
-[![GH release: v0.20.0](https://img.shields.io/badge/release-v0.20.0-blue.svg)](https://github.com/Veedubin/AttackLM/releases)
+[![GH release: v0.21.0](https://img.shields.io/badge/release-v0.21.0-blue.svg)](https://github.com/Veedubin/AttackLM/releases)
 
 **A security-AI fine-tuning platform and research toolkit.**
 
@@ -122,7 +122,7 @@ pip install -e ".[all]"
 ### Verify
 
 ```bash
-attacklm --version       # 0.20.0
+attacklm --version       # 0.21.0
 attacklm --help
 pytest tests/ -q         # 1061+ passed
 ```
@@ -634,7 +634,7 @@ Full flag list per subcommand: `attacklm queue <subcommand> --help`.
 ## Testing
 
 AttackLM is **defensive-tested**, not just smoke-tested. As of
-v0.20.0 there are 1,061+ tests across 50+ test files, all hermetic
+v0.21.0 there are 1,061+ tests across 50+ test files, all hermetic
 (no network, no GPU required, fast enough to run in CI on every
 PR):
 
