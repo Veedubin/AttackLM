@@ -8,7 +8,7 @@
 
 **A security-AI fine-tuning platform and research toolkit.**
 
-AttackLM is two things in one package:
+AttackLM is three things in one package:
 
 1. **A fine-tuning pipeline** for MITRE ATT&CK-grounded security LLMs.
    Trains Qwen2.5-Coder, DeepSeek, and other open models on a curated
@@ -17,12 +17,20 @@ AttackLM is two things in one package:
    methods (DeepSpeed ZeRO-3 + CPU offload, LOMO, FP8, BitNet).
 
 2. **A research toolkit** for owner-side model security testing.
-   `attacklm audit` runs inversion attacks (Carlini 2021 prefix-
- la completion extraction, Carlini 2022 reference attack, per-token
-   loss, and LiRA shadow-model MIA) against your own model so you
-   can quantify what it memorized before deployment.
+   `attacklm audit` runs inversion attacks (Carlini 2021
+   prefix-completion extraction, Carlini 2022 reference attack,
+   per-token loss, and LiRA shadow-model MIA) against your own model so
+   you can quantify what it memorized before deployment.
 
-Both are wired into a **terminal GUI** (`attacklm gui`) for
+3. **A capability benchmark** (Inspect AI) that measures whether the
+   fine-tune is a *better security analyst* than its base — with
+   contamination-aware scoring and a teach-don't-arm posture judge. A
+   Qwen3-14B fine-tune reaches **0.675 on CTI-Bench MCQ** (llama-3-70B /
+   Gemini-1.5 tier) and **+57% on applied ATT&CK reasoning** over the 3B,
+   while never emitting a working exploit. See
+   [Benchmark model capability](#benchmark-model-capability).
+
+All of it is wired into a **terminal GUI** (`attacklm gui`) for
 interactive use over SSH, WSL, or headless servers.
 
 The training data lives in the companion package
