@@ -1,0 +1,3192 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the AttackLM red-team LLM training toolkit and dataset">
+      
+      
+        <meta name="author" content="Veedubin">
+      
+      
+      
+        <link rel="prev" href="./">
+      
+      
+        <link rel="next" href="../attacklm-changelog/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Home - AttackLM Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#attacklm" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="AttackLM Documentation" class="md-header__button md-logo" aria-label="AttackLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AttackLM Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Home
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Veedubin/AttackLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Veedubin/AttackLM
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="AttackLM Documentation" class="md-nav__button md-logo" aria-label="AttackLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    AttackLM Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Veedubin/AttackLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Veedubin/AttackLM
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Table of Contents
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-attacklm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why AttackLM?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quickstart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quickstart
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Installation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pip-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pip (recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#from-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        From source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#memory-optimization-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory optimization note
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-you-can-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What you can do
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What you can do">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#train-a-security-llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Train a security LLM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#audit-a-model-for-memorized-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit a model for memorized data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#benchmark-model-capability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Benchmark model capability
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#queue-gauntlets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Queue &amp; gauntlets
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Queue &amp; gauntlets">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#did-it-get-worse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Did it get worse?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-the-tui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run the TUI
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#training-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Training methods
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Training methods">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hardware-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardware reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deepspeed-configs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DeepSpeed configs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dataset-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dataset &amp; provenance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#research-toolkit-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Research toolkit (audit)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Research toolkit (audit)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#roadmap-rl-post-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Roadmap: RL post-training
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CLI reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#top-level-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top-level commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attacklm-train-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attacklm train flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attacklm-audit-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attacklm audit flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attacklm-queue-subcommands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attacklm queue subcommands
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license-contributing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        License &amp; contributing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AttackLM (Training Tool)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    AttackLM (Training Tool)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Table of Contents
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-attacklm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why AttackLM?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quickstart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quickstart
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Installation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pip-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pip (recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#from-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        From source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#memory-optimization-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory optimization note
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-you-can-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What you can do
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What you can do">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#train-a-security-llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Train a security LLM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#audit-a-model-for-memorized-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit a model for memorized data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#benchmark-model-capability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Benchmark model capability
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#queue-gauntlets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Queue &amp; gauntlets
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Queue &amp; gauntlets">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#did-it-get-worse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Did it get worse?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-the-tui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run the TUI
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#training-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Training methods
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Training methods">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hardware-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardware reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deepspeed-configs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DeepSpeed configs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dataset-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dataset &amp; provenance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#research-toolkit-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Research toolkit (audit)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Research toolkit (audit)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#roadmap-rl-post-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Roadmap: RL post-training
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CLI reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#top-level-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top-level commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attacklm-train-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attacklm train flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attacklm-audit-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attacklm audit flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attacklm-queue-subcommands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attacklm queue subcommands
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license-contributing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        License &amp; contributing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-rl-recipe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RL Recipe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    attacklm-dataset
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    attacklm-dataset
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-readme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Legal
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Legal
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-provenance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-rights/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rights
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Table of Contents
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-attacklm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why AttackLM?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quickstart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quickstart
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Installation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pip-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pip (recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#from-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        From source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#memory-optimization-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memory optimization note
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-you-can-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What you can do
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What you can do">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#train-a-security-llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Train a security LLM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#audit-a-model-for-memorized-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit a model for memorized data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#benchmark-model-capability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Benchmark model capability
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#queue-gauntlets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Queue &amp; gauntlets
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Queue &amp; gauntlets">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#did-it-get-worse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Did it get worse?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-the-tui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run the TUI
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#training-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Training methods
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Training methods">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hardware-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardware reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deepspeed-configs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DeepSpeed configs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dataset-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dataset &amp; provenance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#research-toolkit-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Research toolkit (audit)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Research toolkit (audit)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#roadmap-rl-post-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Roadmap: RL post-training
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CLI reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#top-level-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top-level commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attacklm-train-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attacklm train flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attacklm-audit-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attacklm audit flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attacklm-queue-subcommands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attacklm queue subcommands
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license-contributing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        License &amp; contributing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="attacklm">AttackLM<a class="headerlink" href="#attacklm" title="Permanent link">&para;</a></h1>
+<p><a href="https://pypi.org/project/attacklm/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/attacklm.svg?label=version&amp;color=blue" /></a>
+<a href="https://docs.python.org/3.10/"><img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10+-blue.svg" /></a>
+<a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
+<a href="#testing"><img alt="Tests: 1061+" src="https://img.shields.io/badge/tests-1061%2B-brightgreen.svg" /></a>
+<a href="https://github.com/Veedubin/AttackLM/releases"><img alt="GH release: v0.21.0" src="https://img.shields.io/badge/release-v0.21.0-blue.svg" /></a></p>
+<p><strong>A security-AI fine-tuning platform and research toolkit.</strong></p>
+<p>AttackLM is two things in one package:</p>
+<ol>
+<li>
+<p><strong>A fine-tuning pipeline</strong> for MITRE ATT&amp;CK-grounded security LLMs.
+   Trains Qwen2.5-Coder, DeepSeek, and other open models on a curated
+   security corpus (26K+ training pairs, 19 sources) using parameter-
+   efficient methods (QLoRA, GaLore, PiSSA, Spectrum) and full-parameter
+   methods (DeepSpeed ZeRO-3 + CPU offload, LOMO, FP8, BitNet).</p>
+</li>
+<li>
+<p><strong>A research toolkit</strong> for owner-side model security testing.
+   <code>attacklm audit</code> runs inversion attacks (Carlini 2021 prefix-
+ la completion extraction, Carlini 2022 reference attack, per-token
+   loss, and LiRA shadow-model MIA) against your own model so you
+   can quantify what it memorized before deployment.</p>
+</li>
+</ol>
+<p>Both are wired into a <strong>terminal GUI</strong> (<code>attacklm gui</code>) for
+interactive use over SSH, WSL, or headless servers.</p>
+<p>The training data lives in the companion package
+<strong><a href="https://github.com/Veedubin/attacklm-dataset">Veedubin/attacklm-dataset</a></strong>
+(since v0.11.0). <code>attacklm init</code> automatically uses it when installed,
+or guides you to install it.</p>
+<hr />
+<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="#why-attacklm">Why AttackLM?</a></li>
+<li><a href="#quickstart">Quickstart</a></li>
+<li><a href="#installation">Installation</a></li>
+<li><a href="#what-you-can-do">What you can do</a></li>
+<li><a href="#train-a-security-llm">Train a security LLM</a></li>
+<li><a href="#audit-a-model-for-memorized-data">Audit a model for memorized data</a></li>
+<li><a href="#benchmark-model-capability">Benchmark model capability</a></li>
+<li><a href="#queue--gauntlets">Queue &amp; gauntlets</a></li>
+<li><a href="#run-the-tui">Run the TUI</a></li>
+<li><a href="#training-methods">Training methods</a></li>
+<li><a href="#dataset--provenance">Dataset &amp; provenance</a></li>
+<li><a href="#research-toolkit-audit">Research toolkit (audit)</a></li>
+<li><a href="#architecture">Architecture</a></li>
+<li><a href="#cli-reference">CLI reference</a></li>
+<li><a href="#testing">Testing</a></li>
+<li><a href="#license--contributing">License &amp; contributing</a></li>
+</ul>
+<hr />
+<h2 id="why-attacklm">Why AttackLM?<a class="headerlink" href="#why-attacklm" title="Permanent link">&para;</a></h2>
+<p>Offensive-security LLM tooling is fragmented:
+- <strong>Trainers</strong> (Axolotl, LLaMA-Factory) give you no domain data.
+- <strong>Security datasets</strong> (MITRE Caldera, Atomic Red Team) give you no
+  training harness.
+- <strong>Research tools</strong> (membership-inference libraries) are
+  paper-specific and don't ship with a usable pipeline.</p>
+<p>AttackLM is the integration point. The same install that gives you
+QLoRA + DeepSpeed + 24K curated security pairs also gives you an
+audit harness (Carlini 2021 extraction + MIA 4 ways) and a
+terminal UI that runs over SSH. The data is per-record attributed
+to its upstream source (BSD-3, DRL-1.1, Apache-2.0, MIT, etc.),
+so the legal audit is part of the package, not a TODO.</p>
+<h2 id="quickstart">Quickstart<a class="headerlink" href="#quickstart" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># 1. Install the full stack (trainer + dataset)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;attacklm[all]&quot;</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># 2. Pull the per-record-attributed security corpus</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>attacklm<span class="w"> </span>init<span class="w"> </span>--yes
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># 3. Build a balanced training subset</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>attacklm<span class="w"> </span>balance<span class="w"> </span>--profile<span class="w"> </span>7b-16gb<span class="w"> </span>--preset<span class="w"> </span>red-team
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># 4. Train (QLoRA on Qwen2.5-Coder-3B, 10 epochs)</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>attacklm<span class="w"> </span>train<span class="w"> </span>--<span class="w"> </span>--dataset<span class="w"> </span>data/datasets/balanced/balanced_7b-16gb.jsonl<span class="w"> </span>--epochs<span class="w"> </span><span class="m">10</span><span class="w"> </span>--train
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1"># 5. (Optional) Audit the trained model for memorization</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>attacklm<span class="w"> </span>audit<span class="w"> </span>--attack<span class="w"> </span>all<span class="w"> </span>--mia-method<span class="w"> </span>per_token<span class="w"> </span>--model<span class="w"> </span>models/attacklm-single_TIMESTAMP
+</code></pre></div>
+<p>The <code>--dataset ...</code> path is local; the model checkpoints are local;
+nothing leaves your machine.</p>
+<h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
+<h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>OS</strong>: Linux (Ubuntu recommended) or WSL2</li>
+<li><strong>Python</strong>: 3.10+</li>
+<li><strong>Hardware</strong>: NVIDIA GPU with 8GB+ VRAM (RTX 30-series/40-series)
+  or AMD ROCm-compatible GPU</li>
+</ul>
+<h3 id="pip-recommended">Pip (recommended)<a class="headerlink" href="#pip-recommended" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># NVIDIA CUDA</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;attacklm[all]&quot;</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># AMD ROCm</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;attacklm[all-rocm]&quot;</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># uv (faster)</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;attacklm[all]&quot;</span>
+</code></pre></div>
+<h3 id="from-source">From source<a class="headerlink" href="#from-source" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Veedubin/AttackLM.git
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">cd</span><span class="w"> </span>AttackLM
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[all]&quot;</span>
+</code></pre></div>
+<h3 id="verify">Verify<a class="headerlink" href="#verify" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>attacklm<span class="w"> </span>--version<span class="w">       </span><span class="c1"># 0.21.0</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>attacklm<span class="w"> </span>--help
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pytest<span class="w"> </span>tests/<span class="w"> </span>-q<span class="w">         </span><span class="c1"># 1061+ passed</span>
+</code></pre></div>
+<p><strong>Note on the audit harness</strong>: AttackLM wraps
+<code>attacklm-dataset/scripts/inversion_audit.py</code>. The five bug fixes
+in commit <code>4386995</code> of attacklm-dataset (3 correctness/MUST-FIX
++ 2 quality) have been documented in
+<a href="https://github.com/Veedubin/attacklm-dataset/blob/main/CHANGELOG.md">attacklm-dataset/CHANGELOG.md</a>
+and the <a href="https://github.com/Veedubin/attacklm-dataset/blob/main/README.md">attacklm-dataset README</a>.
+The AttackLM CLI flag set is unchanged; the fixes are in the
+implementation under the hood.</p>
+<h3 id="memory-optimization-note">Memory optimization note<a class="headerlink" href="#memory-optimization-note" title="Permanent link">&para;</a></h3>
+<p>By default, AttackLM uses PyTorch's built-in
+<code>torch.backends.cuda.enable_mem_efficient_sdp()</code> instead of
+<code>flash-attn</code>. Same $\mathcal{O}(1)$ tiled-attention algorithm, zero
+compilation, works on every supported PyTorch/CUDA environment. At
+sequence length 12,000, a vanilla $\mathcal{O}(n^2)$ attention
+matrix would consume ~8GB of VRAM just for the matrix; SDP keeps
+that constant. If you have a perfectly tuned environment and want
+the absolute maximum throughput, <code>pip install "attacklm[flash-attn]"</code>
+gets you standalone FlashAttention-2.</p>
+<hr />
+<h2 id="what-you-can-do">What you can do<a class="headerlink" href="#what-you-can-do" title="Permanent link">&para;</a></h2>
+<h3 id="train-a-security-llm">Train a security LLM<a class="headerlink" href="#train-a-security-llm" title="Permanent link">&para;</a></h3>
+<p>Five end-to-end workflows, from "I have nothing" to "I have a GGUF
+file Ollama can serve":</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Workflow</th>
+<th style="text-align: left;">Time</th>
+<th style="text-align: left;">What you get</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Quick Start</strong></td>
+<td style="text-align: left;">5 min install, ~1h train</td>
+<td style="text-align: left;">QLoRA adapter on Qwen2.5-Coder-3B</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Maximum Quality</strong></td>
+<td style="text-align: left;">~3h train</td>
+<td style="text-align: left;">GaLore + Spectrum + 20% evolved pairs</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>HPO $\rightarrow$ Train $\rightarrow$ Deploy</strong></td>
+<td style="text-align: left;">variable</td>
+<td style="text-align: left;">Hyperparameter-swept adapter, merged into a local GGUF</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Evolve Pairs $\rightarrow$ Filter $\rightarrow$ Train</strong></td>
+<td style="text-align: left;">~30 min evolve</td>
+<td style="text-align: left;">Synthetic expansion of short factual pairs</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>40B+ on 16GB GPU</strong></td>
+<td style="text-align: left;">overnight</td>
+<td style="text-align: left;">DeepSpeed ZeRO-3 + CPU offload</td>
+</tr>
+</tbody>
+</table>
+<p>See the <a href="#cli-reference">CLI reference</a> below for every flag.</p>
+<h3 id="audit-a-model-for-memorized-data">Audit a model for memorized data<a class="headerlink" href="#audit-a-model-for-memorized-data" title="Permanent link">&para;</a></h3>
+<p><code>attacklm audit</code> is the <strong>research toolkit</strong> side. It runs four
+attack classes against a model you point it at (your own model —
+this is for owner-side testing, not adversary work):</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Attack class</th>
+<th style="text-align: left;">Paper</th>
+<th style="text-align: left;">What it measures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Prefix-completion extraction</strong></td>
+<td style="text-align: left;">Carlini et al. 2021 (<a href="https://arxiv.org/abs/2012.07805">arXiv:2012.07805</a>)</td>
+<td style="text-align: left;">Whether the model can regenerate verbatim training data given a prefix.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>MIA reference attack (loss on assistant turn + zlib entropy)</strong></td>
+<td style="text-align: left;">Carlini et al. 2022 (<a href="https://arxiv.org/abs/2112.03570">arXiv:2112.03570</a>)</td>
+<td style="text-align: left;">Whether per-record NLL is lower on members than on non-members. After commit <code>4386995</code> in <code>attacklm-dataset</code>, the reference attack scores the assistant turn only (per MUSE 2023 default), eliminating the prompt-length bias that affected earlier runs. Zlib entropy is computed as a separate calibration signal.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>MIA per-token loss</strong></td>
+<td style="text-align: left;">Shi et al. (MUSE) 2024 (<a href="https://arxiv.org/abs/2407.06460">arXiv:2407.06460</a>)</td>
+<td style="text-align: left;">Same idea, normalized by suffix-token count (removes length bias).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>MIA LiRA (likelihood ratio)</strong></td>
+<td style="text-align: left;">Carlini et al. 2022 §4 (<a href="https://arxiv.org/abs/2112.03570">arXiv:2112.03570</a>)</td>
+<td style="text-align: left;">The "10× more powerful at low FPR" MIA. Requires K shadow-model loss files.</td>
+</tr>
+</tbody>
+</table>
+<p>Output is per-record JSONL (chmod 0600) plus a <code>summary.json</code> and
+<code>threshold.md</code>. Use <code>--attack extraction</code> or <code>--attack mia</code> to
+scope to a single class; <code>--mia-method {reference,zlib,per_token,lira,all}</code>
+to pick a MIA variant. The implementations are clean-room
+reimplementations of the papers above, with per-file provenance blocks
+in <a href="https://github.com/Veedubin/attacklm-dataset/tree/main/scripts/inversion">attacklm-dataset <code>scripts/inversion/</code></a>.</p>
+<p>The audit harness is <strong>hermetic</strong> — it does not call out to any
+network, does not require GPU, runs on a CPU laptop in minutes.
+Mocked model loaders mean you can test the audit pipeline in CI
+without owning a real model.</p>
+<h3 id="benchmark-model-capability">Benchmark model capability<a class="headerlink" href="#benchmark-model-capability" title="Permanent link">&para;</a></h3>
+<p>Since v0.19.0, AttackLM ships a <strong>capability benchmark</strong> that scores
+your model on external security benchmarks through an eval harness
+(Inspect AI). Results are normalised into the same report schema
+<code>queue compare</code> consumes, so a training run, its privacy audits, and
+its capability benchmarks all land in one comparison against the
+base-model baseline.</p>
+<p><strong>Results so far (v0.21.0).</strong> The benchmark's first real use qualified a
+larger candidate: a <strong>Qwen3-14B</strong> fine-tune, run through the <em>same</em> pipeline
+as the shipped 3B, is a substantially stronger security analyst while fully
+preserving <em>teach-don't-arm</em>.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Benchmark</th>
+<th style="text-align: left;">3B</th>
+<th style="text-align: left;"><strong>Qwen3-14B</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">applied-attack micro-F1 (n=36)</td>
+<td style="text-align: left;">0.278</td>
+<td style="text-align: left;"><strong>0.435</strong> (+57%)</td>
+</tr>
+<tr>
+<td style="text-align: left;">&nbsp;&nbsp;— code-review sub-score</td>
+<td style="text-align: left;">0.000</td>
+<td style="text-align: left;"><strong>0.308</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">CTI-Bench MCQ accuracy</td>
+<td style="text-align: left;">0.545</td>
+<td style="text-align: left;"><strong>0.675</strong> (≈ llama3-70b / gemini-1.5 tier)</td>
+</tr>
+<tr>
+<td style="text-align: left;">CTI-Bench ATE micro-F1</td>
+<td style="text-align: left;">0.099</td>
+<td style="text-align: left;"><strong>0.183</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Posture holds on <strong>both</strong> models: 0% refusals, 94–100% "taught", <strong>0%
+"overshared"</strong>, and zero arming markers (shellcode / msfvenom / reverse-shell)
+in a structural scan — the 14B is not just smarter but <em>cleaner</em>. It loads
+4-bit in ~10 GB (fits a 16 GB card). Full write-up:
+<a href="docs/results/qwen3-14b-vs-3b.md"><code>docs/results/qwen3-14b-vs-3b.md</code></a>. <em>(Caveat:
+these ran through a direct transformers+bnb-4bit generation path, not the
+Inspect+vLLM harness — scoring is identical; only generation differs.)</em></p>
+<p><strong>Benchmark packs</strong> (defined in <code>data/bench/packs/</code>, loaded by
+<code>src/attacklm/bench/packs.py</code>):</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Pack</th>
+<th style="text-align: left;">What it measures</th>
+<th style="text-align: left;">Scoring</th>
+<th style="text-align: left;">Data</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>cybermetric-500</code></td>
+<td style="text-align: left;">Cybersecurity knowledge MCQ (CyberMetric-500)</td>
+<td style="text-align: left;">harness-owned (<code>inspect_evals</code>)</td>
+<td style="text-align: left;">via Inspect AI</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>ctibench-mcq</code></td>
+<td style="text-align: left;">CTI knowledge MCQ</td>
+<td style="text-align: left;">local <code>mcq_choice</code></td>
+<td style="text-align: left;">CC BY-NC-SA, fetched at run time</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>ctibench-ate</code></td>
+<td style="text-align: left;">MITRE ATT&amp;CK technique-ID extraction</td>
+<td style="text-align: left;">local <code>attack_technique_set</code></td>
+<td style="text-align: left;">CC BY-NC-SA, fetched at run time</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>secbench-en</code></td>
+<td style="text-align: left;">English security knowledge MCQ</td>
+<td style="text-align: left;">local <code>mcq_choice</code></td>
+<td style="text-align: left;">MIT, fetched at run time</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>seceval</code></td>
+<td style="text-align: left;">Multi-select security MCQ</td>
+<td style="text-align: left;">local <code>mcq_choice</code></td>
+<td style="text-align: left;">CC BY-NC-SA, fetched at run time</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>applied-attack</code></td>
+<td style="text-align: left;">Applied ATT&amp;CK reasoning + posture judgement</td>
+<td style="text-align: left;">local, optional LLM judge</td>
+<td style="text-align: left;">in-repo</td>
+</tr>
+</tbody>
+</table>
+<p>Fetched packs are downloaded into <code>data/bench/cache/</code> on first use;
+their data is <strong>never redistributed</strong> — cached copies and raw results stay
+local (<code>bench_results/</code> is gitignored); only the human-readable write-ups
+under <code>docs/results/</code> are committed.</p>
+<p>Two pack modes: <strong>harness_scored</strong> (the harness owns the dataset and
+scoring — used when <code>inspect_evals</code> already implements the benchmark,
+so we inherit its validated prompt and answer extraction) and
+<strong>local_scored</strong> (we own the items and scoring; the harness only
+generates completions).</p>
+<p>Scorer and judge knobs worth knowing:</p>
+<ul>
+<li><code>mcq_choice</code>: per-item bounded option alphabet (a 4-option question
+  extracts only A–D, a 6-option one A–F), invalid-completion policies
+  (<code>count_wrong</code> / <code>exclude</code> / <code>fail_run</code>), multi-select modes
+  (<code>exact</code> / <code>partial</code>).</li>
+<li><code>attack_technique_set</code> (backs CTI-Bench's ATE task): sub-technique
+  policy <code>strip</code> (default — compare parent techniques only) / <code>keep</code> /
+  <code>either</code>, scored as per-item micro-F1.</li>
+<li><strong>Contamination check</strong> (<code>src/attacklm/bench/contamination.py</code>):
+  every local-scored run can be checked against your training records
+  with 20-gram MinHash Jaccard (default gate 0.80), plus a sensitivity
+  curve at 1.0 / 0.9 / 0.8 / 0.7 / 0.5 and a per-source overlap
+  breakdown — a flattering score from a leaked eval set is caught, not
+  celebrated.</li>
+<li><strong>Judge validation</strong> (<code>scripts/bench_judge_validate.py</code>): re-grades
+  completions under the real question (not a placeholder) so an LLM
+  judge's verdicts are reproducible before you trust them.</li>
+</ul>
+<p>Run a pack directly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python<span class="w"> </span>scripts/bench_run.py<span class="w"> </span>--pack<span class="w"> </span>cybermetric-500<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span>--base-model<span class="w"> </span>models/merged/attacklm-3b-16g<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span>--output<span class="w"> </span>evals/bench_cybermetric.json
+</code></pre></div>
+<p>…or through the queue: all six packs are registered gauntlet members
+(<code>bench_*</code> task types), so a gauntlet can pair audits with capability
+benchmarks, and <code>attacklm queue compare</code> reports the Δ per benchmark
+with a 95% bootstrap CI — same as it does for audits.</p>
+<h3 id="queue-gauntlets">Queue &amp; gauntlets<a class="headerlink" href="#queue-gauntlets" title="Permanent link">&para;</a></h3>
+<p><code>attacklm queue</code> chains a training run to a gauntlet of audits so
+you can walk away and come back to reports. The headline flow:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>attacklm<span class="w"> </span>queue<span class="w"> </span>chain<span class="w"> </span>--single-model<span class="w"> </span>--then<span class="w"> </span>gauntlet<span class="w"> </span>core
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>attacklm<span class="w"> </span>queue<span class="w"> </span>start<span class="w"> </span>--follow
+</code></pre></div>
+<p>Prefer to run it in the background and check in later:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>attacklm<span class="w"> </span>queue<span class="w"> </span>start<span class="w"> </span>--detach<span class="w">            </span><span class="c1"># forks a runner, prints its PID</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>attacklm<span class="w"> </span>queue<span class="w"> </span>status<span class="w">                    </span><span class="c1"># or: attacklm queue list</span>
+</code></pre></div>
+<p>Audit an already-trained model directly (no training task needed)
+with <code>add-audit</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>attacklm<span class="w"> </span>queue<span class="w"> </span>add-audit<span class="w"> </span>--attack<span class="w"> </span><span class="m">1</span><span class="w"> </span>--base-model<span class="w"> </span>models/merged/attacklm-3b-16g
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>attacklm<span class="w"> </span>queue<span class="w"> </span>start<span class="w"> </span>--exit-when-idle
+</code></pre></div>
+<p><code>--base-model</code> may point at a merged model <strong>or</strong> at a PEFT adapter
+directory — in the latter case the base model is auto-resolved from
+the adapter's <code>adapter_config.json</code>. Reports land in
+<code>evals/queue/artifacts/&lt;task-id&gt;/</code> (gitignored, local-only).</p>
+<p>A base-model <strong>baseline</strong> is queued automatically alongside <code>chain</code>/
+<code>gauntlet</code> (opt out with <code>--no-baseline</code>) so there's always something
+to compare against.</p>
+<h4 id="did-it-get-worse">Did it get worse?<a class="headerlink" href="#did-it-get-worse" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>attacklm<span class="w"> </span>queue<span class="w"> </span>chain<span class="w"> </span>--single-model<span class="w"> </span>--then<span class="w"> </span>gauntlet<span class="w"> </span>core
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>attacklm<span class="w"> </span>queue<span class="w"> </span>start<span class="w"> </span>--exit-when-idle
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>attacklm<span class="w"> </span>queue<span class="w"> </span>compare
+</code></pre></div>
+<p><code>queue compare</code> pairs your latest run against its baseline item-by-item
+and reports Δ with a 95% bootstrap confidence interval and a verdict:</p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>n</th>
+<th>A</th>
+<th>B</th>
+<th>Δ</th>
+<th>95% CI</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>overall</td>
+<td>49</td>
+<td>0.388</td>
+<td>0.582</td>
+<td>+0.194</td>
+<td>[+0.071, +0.316]</td>
+<td><strong>WORSE</strong></td>
+</tr>
+<tr>
+<td>translation</td>
+<td>3</td>
+<td>0.667</td>
+<td>0.500</td>
+<td>−0.167</td>
+<td>[−0.500, +0.000]</td>
+<td>n&lt;5</td>
+</tr>
+</tbody>
+</table>
+<p><code>WORSE</code>/<code>BETTER</code> means the CI excludes zero on that side; <code>SAME</code> means
+it doesn't (or the interval is degenerate); <code>n&lt;5</code> means too few paired
+items for a verdict at all; <code>n/a</code> means zero items paired (nothing to
+compare, e.g. disjoint ids). Address either side by adapter path, a
+merged model's path, or leave both blank to compare the newest run
+against its baseline: <code>attacklm queue compare &lt;base-model&gt; &lt;adapter-or-merged-path&gt;</code>.
+<code>attacklm queue history [--subject X] [--jsonl PATH]</code> lists every
+completed audit, newest first, with its headline metric.</p>
+<h3 id="run-the-tui">Run the TUI<a class="headerlink" href="#run-the-tui" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>attacklm<span class="w"> </span>gui
+</code></pre></div>
+<p>A Textual-based terminal UI that runs over SSH, WSL, or headless
+servers (no X11, no browser, no GPU required). Features:</p>
+<ul>
+<li><strong>Tabbed training form</strong> — 40+ parameters across Basic, LoRA,
+  GaLore, Advanced, Hardware tabs</li>
+<li><strong>Live training monitor</strong> — loss sparkline, VRAM gauge, token
+  throughput, scrolling log</li>
+<li><strong>Built-in presets</strong> — one-click configurations for 3B/7B
+  (Q-GaLore Spectrum, QLoRA, etc.)</li>
+<li><strong>Audit screen</strong> — 2 tabs (Extraction / MIA), each form
+  constructs the <code>attacklm audit</code> CLI command with hover
+  tooltips on every field</li>
+<li><strong>Queue screen</strong> — enqueue audits/gauntlets, start/stop the
+  background runner, retry, a "Baseline" checkbox (default on;
+  unchecking appends <code>--no-baseline</code>), a "Compare latest" button
+  that streams <code>queue compare</code> into the log</li>
+<li><strong>Pause/Resume</strong> — SIGSTOP/SIGCONT the training process without
+  losing progress</li>
+<li><strong>One-click commands</strong> — Init, Balance, Infer, Build, Eval,
+  Audit, Demo all from the main menu</li>
+</ul>
+<hr />
+<h2 id="training-methods">Training methods<a class="headerlink" href="#training-methods" title="Permanent link">&para;</a></h2>
+<p>Choose by available VRAM and target quality:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Method</th>
+<th style="text-align: left;">Description</th>
+<th style="text-align: left;">VRAM</th>
+<th style="text-align: left;">Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>QLoRA</strong></td>
+<td style="text-align: left;">4-bit quantized base + LoRA adapters. Trains small adapter matrices only.</td>
+<td style="text-align: left;">Lowest (~8GB for 3B)</td>
+<td style="text-align: left;">Quick experiments, limited VRAM</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>GaLore</strong></td>
+<td style="text-align: left;">Full-parameter training with gradient low-rank projection.</td>
+<td style="text-align: left;">Medium (~16GB for 3B)</td>
+<td style="text-align: left;">Best quality on consumer GPUs</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Q-GaLore</strong></td>
+<td style="text-align: left;">GaLore with quantization.</td>
+<td style="text-align: left;">Medium-Low</td>
+<td style="text-align: left;">High quality on 16GB GPUs</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Spectrum</strong></td>
+<td style="text-align: left;">SNR-based layer freezing. Trains high-SNR layers only.</td>
+<td style="text-align: left;">Medium</td>
+<td style="text-align: left;">Reduces VRAM, speeds training</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>PiSSA</strong></td>
+<td style="text-align: left;">Principal Singular Values initialization for LoRA.</td>
+<td style="text-align: left;">Same as QLoRA</td>
+<td style="text-align: left;">Better convergence than standard LoRA</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>DeepSpeed ZeRO-3</strong></td>
+<td style="text-align: left;">Shards model across GPU + CPU RAM. Offloads params/optimizer to system memory.</td>
+<td style="text-align: left;">Lowest (model 3-5× VRAM)</td>
+<td style="text-align: left;">Training 40B+ on 16GB GPU</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>COAP</strong></td>
+<td style="text-align: left;">Compressed Optimizer Adaptive Parameterization.</td>
+<td style="text-align: left;">Ultra-Low</td>
+<td style="text-align: left;">Massive models on modest GPUs</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>FlashOptim</strong></td>
+<td style="text-align: left;">Optimized FlashAttention kernels.</td>
+<td style="text-align: left;">Low</td>
+<td style="text-align: left;">High-throughput training</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>FP8</strong></td>
+<td style="text-align: left;">Native 8-bit floating point.</td>
+<td style="text-align: left;">Medium-Low</td>
+<td style="text-align: left;">H100/Blackwell hardware</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>BitNet</strong></td>
+<td style="text-align: left;">1.58-bit quantization.</td>
+<td style="text-align: left;">Lowest</td>
+<td style="text-align: left;">Near-zero VRAM training</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>torch.compile</strong></td>
+<td style="text-align: left;">PyTorch 2.x JIT compilation. Fuses operations.</td>
+<td style="text-align: left;">10-20% less than baseline</td>
+<td style="text-align: left;">Any model, free performance</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>LOMO</strong></td>
+<td style="text-align: left;">Fuses gradient computation + parameter update. Never materializes full gradient.</td>
+<td style="text-align: left;">Lowest (7B full-param on 8GB)</td>
+<td style="text-align: left;">Full-parameter quality on tiny GPUs</td>
+</tr>
+</tbody>
+</table>
+<h3 id="hardware-reference">Hardware reference<a class="headerlink" href="#hardware-reference" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">GPU VRAM</th>
+<th style="text-align: left;">System RAM</th>
+<th style="text-align: left;">Recommended</th>
+<th style="text-align: left;">Max model</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">8 GB</td>
+<td style="text-align: left;">32 GB</td>
+<td style="text-align: left;">ZeRO-2 + CPU offload</td>
+<td style="text-align: left;">~13B</td>
+</tr>
+<tr>
+<td style="text-align: left;">16 GB</td>
+<td style="text-align: left;">64 GB</td>
+<td style="text-align: left;">ZeRO-3 + CPU offload</td>
+<td style="text-align: left;">~40B</td>
+</tr>
+<tr>
+<td style="text-align: left;">24 GB</td>
+<td style="text-align: left;">64 GB</td>
+<td style="text-align: left;">ZeRO-3 + CPU offload</td>
+<td style="text-align: left;">~70B</td>
+</tr>
+<tr>
+<td style="text-align: left;">24 GB</td>
+<td style="text-align: left;">128 GB</td>
+<td style="text-align: left;">ZeRO-3 + CPU offload</td>
+<td style="text-align: left;">~70B+</td>
+</tr>
+<tr>
+<td style="text-align: left;">H100/B100</td>
+<td style="text-align: left;">128 GB+</td>
+<td style="text-align: left;">FP8 / FlashOptim</td>
+<td style="text-align: left;">175B+</td>
+</tr>
+<tr>
+<td style="text-align: left;">Any</td>
+<td style="text-align: left;">32 GB+</td>
+<td style="text-align: left;">BitNet / COAP</td>
+<td style="text-align: left;">100B+ (extreme quant)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="deepspeed-configs">DeepSpeed configs<a class="headerlink" href="#deepspeed-configs" title="Permanent link">&para;</a></h3>
+<p>Pre-built configs live in <code>presets/deepspeed/</code>:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Config</th>
+<th style="text-align: left;">ZeRO stage</th>
+<th style="text-align: left;">CPU offload</th>
+<th style="text-align: left;">Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>zero3_cpu_offload.json</code></td>
+<td style="text-align: left;">3</td>
+<td style="text-align: left;">Params + Optimizer</td>
+<td style="text-align: left;">Single GPU, model &gt; VRAM</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>zero3_gpu_only.json</code></td>
+<td style="text-align: left;">3</td>
+<td style="text-align: left;">None</td>
+<td style="text-align: left;">Multi-GPU setups</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>zero2_cpu_offload.json</code></td>
+<td style="text-align: left;">2</td>
+<td style="text-align: left;">Optimizer only</td>
+<td style="text-align: left;">Faster, model ~2× VRAM</td>
+</tr>
+</tbody>
+</table>
+<p>Auto-generate a config (defaults to ZeRO-3 + CPU offload):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>attacklm<span class="w"> </span>train<span class="w"> </span>--<span class="w"> </span>--use-deepspeed<span class="w"> </span>--dataset<span class="w"> </span>data/balanced.jsonl<span class="w"> </span>--train
+</code></pre></div>
+<hr />
+<h2 id="dataset-provenance">Dataset &amp; provenance<a class="headerlink" href="#dataset-provenance" title="Permanent link">&para;</a></h2>
+<p>The training data lives in the separate
+<a href="https://github.com/Veedubin/attacklm-dataset">Veedubin/attacklm-dataset</a>
+package. It is <strong>not</strong> a Python wheel — it's a data bundle with a
+thin Python wrapper, distributed via a GitHub Releases tarball
+(downloaded by <code>attacklm init</code>).</p>
+<p><strong>Composition (26,459 records, 19 sources):</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Category</th>
+<th style="text-align: left;">Source examples</th>
+<th style="text-align: left;">Approx. pairs</th>
+<th style="text-align: left;">License</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Offensive</strong></td>
+<td style="text-align: left;">Metasploit, Atomic Red Team, MITRE Stockpile</td>
+<td style="text-align: left;">15,000+</td>
+<td style="text-align: left;">BSD-3 / MIT / Apache-2.0</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Defensive</strong></td>
+<td style="text-align: left;">Sigma, Elastic, Splunk, Mordor, ThreatHunter</td>
+<td style="text-align: left;">7,000+</td>
+<td style="text-align: left;">DRL-1.1 / Apache-2.0</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>AI Security</strong></td>
+<td style="text-align: left;">Garak, Promptfoo, PromptMap</td>
+<td style="text-align: left;">100+</td>
+<td style="text-align: left;">MIT / Apache-2.0</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>AI Security (ATLAS)</strong></td>
+<td style="text-align: left;">MITRE ATLAS, ATLAS Arsenal</td>
+<td style="text-align: left;">1,800+</td>
+<td style="text-align: left;">Apache-2.0</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Meta/IR</strong></td>
+<td style="text-align: left;">NIST IR, Orchestrator</td>
+<td style="text-align: left;">500+</td>
+<td style="text-align: left;">Public Domain / MIT</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Synthetic</strong></td>
+<td style="text-align: left;">LLM-generated, AttackLM synthetic, Replay</td>
+<td style="text-align: left;">2,000+</td>
+<td style="text-align: left;">GPL-3.0 / MIT</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Per-record provenance.</strong> Every record carries:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">&quot;source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;atomic-red-team&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">&quot;source_uri&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://github.com/redcanaryco/atomic-red-team&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span><span class="nt">&quot;license&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;MIT&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">  </span><span class="nt">&quot;license_uri&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://opensource.org/licenses/MIT&quot;</span><span class="p">,</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">  </span><span class="nt">&quot;rights_contact&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;see data/REMOVAL.md&quot;</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="p">}</span>
+</code></pre></div>
+<p>Three high-risk sources (RTA, infection_monkey, BPL) are excluded
+from the public dataset and live only at
+<code>archive/restricted-sources/</code> (gitignored, never re-ingested).</p>
+<p>For the full per-record attribution, see
+<a href="https://github.com/Veedubin/attacklm-dataset/blob/main/data/ATTRIBUTION.md">data/ATTRIBUTION.md</a>.
+For the legal rights statement (the "trend" DMCA-style notice),
+see
+<a href="https://github.com/Veedubin/attacklm-dataset/blob/main/RIGHTS.md">attacklm-dataset/RIGHTS.md</a>.</p>
+<hr />
+<h2 id="research-toolkit-audit">Research toolkit (audit)<a class="headerlink" href="#research-toolkit-audit" title="Permanent link">&para;</a></h2>
+<p><code>attacklm audit</code> is the privacy/security side of the package.
+It is the <strong>owner-side</strong> test for memorization — the question is
+"if I ship this model, what can an attacker extract from it?",
+which the model owner wants to know <em>before</em> shipping.</p>
+<h3 id="roadmap-rl-post-training">Roadmap: RL post-training<a class="headerlink" href="#roadmap-rl-post-training" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p>Inspired by MAI-Thinking-1 §3.1.1 (Adaptive entropy control) by The Microsoft AI Team, June 2026. Full recipe: <a href="docs/RL_RECIPE.md">docs/RL_RECIPE.md</a></p>
+</blockquote>
+<p>AttackLM currently supports SFT. Future versions will incorporate the MAI-Thinking-1 adaptive GRPO recipe to enable stable, reasoning-focused RL climbs. See the full recipe for details on entropy control and length penalties.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Prompt injection audit (Attack 1)</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>attacklm<span class="w"> </span>audit<span class="w"> </span>prompt-injection<span class="w"> </span>--base-model<span class="w"> </span>...<span class="w"> </span>--adapter<span class="w"> </span>...
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># System prompt audit (Attack 2)</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>attacklm<span class="w"> </span>audit<span class="w"> </span>system-prompt<span class="w"> </span>--base-model<span class="w"> </span>...<span class="w"> </span>--adapter<span class="w"> </span>...
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="c1"># Canary extraction audit (Attack 3)</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>attacklm<span class="w"> </span>audit<span class="w"> </span>canary-extraction<span class="w"> </span>--base-model<span class="w"> </span>...<span class="w"> </span>--adapter<span class="w"> </span>...<span class="w"> </span>--canaries<span class="w"> </span>data/canaries.jsonl
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="c1"># Calibration audit (Attack 7)</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>attacklm<span class="w"> </span>audit<span class="w"> </span>calibration<span class="w"> </span>--base-model<span class="w"> </span>...<span class="w"> </span>--adapter<span class="w"> </span>...<span class="w"> </span>--in-distribution<span class="w"> </span>...
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="c1"># Full audit (all attack classes, all MIA methods)</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>attacklm<span class="w"> </span>audit<span class="w"> </span>--attack<span class="w"> </span>all<span class="w"> </span>--mia-method<span class="w"> </span>per_token<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="w">  </span>--model<span class="w"> </span>models/attacklm-single_TIMESTAMP
+<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>
+<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="c1"># Just prefix-completion extraction</span>
+<a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>attacklm<span class="w"> </span>audit<span class="w"> </span>--attack<span class="w"> </span>extraction<span class="w"> </span>--max-records<span class="w"> </span><span class="m">100</span>
+<a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a>
+<a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a><span class="c1"># Just LiRA MIA (requires pre-computed shadow loss files)</span>
+<a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a>attacklm<span class="w"> </span>audit<span class="w"> </span>--attack<span class="w"> </span>mia<span class="w"> </span>--mia-method<span class="w"> </span>lira<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a><span class="w">  </span>--lira-params<span class="w"> </span>shadow_params.json
+<a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a>
+<a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a><span class="c1"># Dry run (stats only, no real model load)</span>
+<a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a>attacklm<span class="w"> </span>audit<span class="w"> </span>--attack<span class="w"> </span>all<span class="w"> </span>--dry-run
+</code></pre></div>
+<p>Output is <code>data/audit/&lt;date&gt;/</code> with <code>summary.json</code> (aggregate
+metrics, safe to share) and <code>inversion_results.jsonl</code> (raw
+reconstructions, chmod 0600, stay workspace-internal).</p>
+<p>The audit harness is built on the
+<a href="https://github.com/Veedubin/attacklm-dataset/tree/main/scripts/inversion">attacklm-dataset <code>scripts/inversion/</code></a>
+package. The methodology docs are maintainer-local and not
+distributed; the attack classes and canonical papers are listed in
+the <a href="https://github.com/Veedubin/attacklm-dataset#privacy-audit-research-toolkit">attacklm-dataset README</a>.</p>
+<p><strong>All attack code is for defensive, audit, and academic-research use
+only</strong> — see <a href="https://github.com/Veedubin/attacklm-dataset/blob/main/RIGHTS.md">RIGHTS.md</a>.</p>
+<hr />
+<h2 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Doc</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="docs/RL_RECIPE.md">RL Recipe</a></td>
+<td>Adaptive GRPO reinforcement learning recipe (MAI-Thinking-1 §3.1-3.4)</td>
+</tr>
+<tr>
+<td><a href="EVALUATION.md">Evaluation</a></td>
+<td>Model evaluation methodology and benchmarks</td>
+</tr>
+<tr>
+<td><a href="CONTRIBUTING.md">Contributing</a></td>
+<td>How to contribute to AttackLM</td>
+</tr>
+<tr>
+<td><a href="ATTRIBUTION.md">Attribution</a></td>
+<td>Upstream source attribution and licensing</td>
+</tr>
+<tr>
+<td><a href="CHANGELOG.md">Changelog</a></td>
+<td>Full release history</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>                     ┌─────────────────────────────────────────┐
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>                     │           attacklm (this repo)          │
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>                     ├─────────────────────────────────────────┤
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>                     │                                         │
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>                     │   ┌─────────────┐    ┌──────────────┐  │
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>                     │   │   Trainer   │    │    Audit     │  │
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>                     │   │  (train.py) │    │  (audit.py)  │  │
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>                     │   └──────┬──────┘    └──────┬───────┘  │
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>                     │          │                 │          │
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>                     │   ┌──────┴─────────────────┴───────┐  │
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>                     │   │  TUI (Textual) — attacklm gui  │  │
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>                     │   └────────────────────────────────┘  │
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>                     │                                         │
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a>                     └────────────┬────────────────────────────┘
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>                                  │ downloads tarball
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a>                                  ▼
+<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a>                     ┌─────────────────────────────────────────┐
+<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a>                     │  Veedubin/attacklm-dataset (separate)  │
+<a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a>                     ├─────────────────────────────────────────┤
+<a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a>                     │  data/datasets/buckets/sources/&lt;s&gt;/...  │
+<a id="__codelineno-13-21" name="__codelineno-13-21" href="#__codelineno-13-21"></a>                     │  scripts/inversion/{probe,scoring,     │
+<a id="__codelineno-13-22" name="__codelineno-13-22" href="#__codelineno-13-22"></a>                     │    lira,shadow_train,...}              │
+<a id="__codelineno-13-23" name="__codelineno-13-23" href="#__codelineno-13-23"></a>                     │  scripts/extract_&lt;source&gt;_to_jsonl.py  │
+<a id="__codelineno-13-24" name="__codelineno-13-24" href="#__codelineno-13-24"></a>                     └─────────────────────────────────────────┘
+</code></pre></div>
+<p>The trainer and audit live in the same repo because they share
+infrastructure: the same dataset (via <code>attacklm-dataset</code>), the same
+inference code (<code>scripts/infer.py</code>), the same model artifact format
+(adapters in <code>models/attacklm-single_TIMESTAMP/</code>). The split from
+v0.11.0 isolates the <em>data</em> and the <em>attack code</em> (which is
+defensive research) from the <em>training</em> and <em>user-facing tools</em>
+(general-purpose infrastructure).</p>
+<hr />
+<h2 id="cli-reference">CLI reference<a class="headerlink" href="#cli-reference" title="Permanent link">&para;</a></h2>
+<p><code>attacklm</code> is a tiered dispatcher. Top-level flags are handled by
+the CLI itself; flags after <code>--</code> are forwarded to the underlying
+scripts.</p>
+<h3 id="top-level-commands">Top-level commands<a class="headerlink" href="#top-level-commands" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Command</th>
+<th style="text-align: left;">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>attacklm init</code></td>
+<td style="text-align: left;">Initialize the dataset (download tarball or build from source)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm balance</code></td>
+<td style="text-align: left;">Build a balanced training subset (anti-source-bias)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm train</code></td>
+<td style="text-align: left;">Core training engine (QLoRA, GaLore, DeepSpeed, etc.)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm build</code></td>
+<td style="text-align: left;">Merge LoRA adapter, convert to GGUF, register with Ollama</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm infer</code></td>
+<td style="text-align: left;">Inference &amp; smoke testing against representative prompts</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm eval</code></td>
+<td style="text-align: left;">Retention evaluation, reference collection, regression gates</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm audit</code></td>
+<td style="text-align: left;"><strong>Research toolkit</strong> — inversion attack audit (extraction + MIA)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm steer</code></td>
+<td style="text-align: left;">Steering-vector inference (activation intervention)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm bench</code></td>
+<td style="text-align: left;">Domain + speed benchmarks (capability benchmarks live in <a href="#benchmark-model-capability">Benchmark model capability</a>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm pipeline</code></td>
+<td style="text-align: left;">Run the full pipeline (init → balance → train → build)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm gui</code></td>
+<td style="text-align: left;">Launch the TUI</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm demo</code></td>
+<td style="text-align: left;">Run the multi-agent orchestrator demo</td>
+</tr>
+</tbody>
+</table>
+<h3 id="attacklm-train-flags"><code>attacklm train</code> flags<a class="headerlink" href="#attacklm-train-flags" title="Permanent link">&para;</a></h3>
+<p><strong>Dispatcher flags</strong> (handled by the CLI):
+- <code>--all</code> — Train all buckets (multi-model or single-model combined)
+- <code>--hpo</code> — Hyperparameter optimization sweep</p>
+<p><strong>Forwarded flags</strong> (after <code>--</code>):
+- <code>--dataset &lt;path&gt;</code> — Path to JSONL dataset or <code>all</code>
+- <code>--base-model &lt;model&gt;</code> — HuggingFace model ID (default <code>Qwen/Qwen2.5-Coder-3B-Instruct</code>)
+- <code>--epochs &lt;n&gt;</code> — default 3
+- <code>--lora-r &lt;n&gt;</code>, <code>--lora-alpha &lt;n&gt;</code>, <code>--lora-dropout &lt;n&gt;</code> — LoRA config
+- <code>--use-galore</code>, <code>--use-qgalore</code>, <code>--spectrum</code>, <code>--use-pissa</code> — method toggles
+- <code>--use-deepspeed</code>, <code>--deepspeed-stage {1,2,3}</code>, <code>--deepspeed-config &lt;path&gt;</code> — DeepSpeed
+- <code>--use-lomo</code>, <code>--use-coap</code>, <code>--use-flashoptim</code>, <code>--use-fp8</code>, <code>--use-bitnet</code>, <code>--use-signround</code> — advanced optimizers
+- <code>--compile</code>, <code>--compile-mode {default,reduce-overhead,max-autotune}</code> — torch.compile
+- <code>--evolved-ratio &lt;n&gt;</code>, <code>--evolved-dir &lt;path&gt;</code> — evolved pairs
+- <code>--replay-ratio &lt;n&gt;</code>, <code>--replay-source &lt;path&gt;</code> — anti-forgetting replay
+- <code>--single-model</code> — combine all buckets into one
+- <code>--multi-gpu</code>, <code>--moe-safe-target</code>, <code>--use-unsloth</code> — hardware
+- <code>--train</code> — execute (omitting performs a dry-run with stats)
+- <code>--dry-run</code>, <code>--force</code>, <code>--resume-from-checkpoint</code> — execution</p>
+<p>Full flag list: <code>attacklm train --help</code>. See
+<a href="scripts/train_template.py">scripts/train_template.py</a> for the
+canonical training command with QLoRA/GaLore/PiSSA/Spectrum/DeepSpeed
+attribution comments.</p>
+<h3 id="attacklm-audit-flags"><code>attacklm audit</code> flags<a class="headerlink" href="#attacklm-audit-flags" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>--attack {extraction,mia,all}</code> — attack class (default <code>all</code>)</li>
+<li><code>--mia-method {reference,zlib,per_token,lira,all}</code> — MIA scoring (default <code>per_token</code>)</li>
+<li><code>--mia-threshold-mode {median,percentile,holdout_file,lrt}</code> — threshold derivation</li>
+<li><code>--mia-percentile &lt;n&gt;</code> — percentile for threshold (default 5)</li>
+<li><code>--model &lt;path&gt;</code> — model being audited</li>
+<li><code>--source-filter &lt;name&gt;</code> — restrict to specific source(s)</li>
+<li><code>--top-k &lt;n&gt;</code> — top-k candidates to evaluate</li>
+<li><code>--max-records &lt;n&gt;</code> — cap on records to audit</li>
+<li><code>--max-new-tokens &lt;n&gt;</code>, <code>--temperature &lt;n&gt;</code> — generation params</li>
+<li><code>--lira-k &lt;n&gt;</code> — number of shadow models for LiRA (default 16)</li>
+<li><code>--lira-params &lt;path&gt;</code> — path to <code>shadow_params.json</code></li>
+<li><code>--dry-run</code> — stats only, no real model load</li>
+</ul>
+<p>Full flag list: <code>attacklm audit --help</code>.</p>
+<h3 id="attacklm-queue-subcommands"><code>attacklm queue</code> subcommands<a class="headerlink" href="#attacklm-queue-subcommands" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Subcommand</th>
+<th style="text-align: left;">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>add-train</code></td>
+<td style="text-align: left;">Add a training task</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>add-audit</code></td>
+<td style="text-align: left;">Add an audit task (<code>--attack 1-7</code>, <code>--base-model</code>, <code>--adapter</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>add-holdouts</code></td>
+<td style="text-align: left;">Add a calibration-holdout generation task</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>chain</code></td>
+<td style="text-align: left;">Chain a train task followed by a gauntlet or audit</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>gauntlet</code></td>
+<td style="text-align: left;">Add a gauntlet of audit tasks (<code>core</code>/<code>full</code>/<code>quick</code>/<code>memorization</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>baseline</code></td>
+<td style="text-align: left;">Queue a base-model baseline gauntlet (<code>--preset</code>, <code>--force</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>compare</code></td>
+<td style="text-align: left;">Compare a subject vs. its baseline or another subject (<code>--preset</code>, <code>--json</code>, <code>--resamples</code>, <code>--seed</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>history</code></td>
+<td style="text-align: left;">List completed audits, newest first (<code>--subject</code>, <code>--limit</code>, <code>--jsonl</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>list</code> / <code>status</code></td>
+<td style="text-align: left;">List tasks / show queue or single-task status</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>start</code></td>
+<td style="text-align: left;">Start the runner (<code>--follow</code>, <code>--detach</code>, <code>--exit-when-idle</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>stop</code></td>
+<td style="text-align: left;">Stop the runner after the current task</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>remove</code></td>
+<td style="text-align: left;">Remove a task (refuses tasks in <code>running</code> status)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>retry</code></td>
+<td style="text-align: left;">Retry a failed/interrupted task</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>clean</code></td>
+<td style="text-align: left;">Delete completed/failed tasks (<code>--yes</code> to confirm)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>reset</code></td>
+<td style="text-align: left;">DANGER: drop and recreate the queue database</td>
+</tr>
+</tbody>
+</table>
+<p>Full flag list per subcommand: <code>attacklm queue &lt;subcommand&gt; --help</code>.</p>
+<hr />
+<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
+<p>AttackLM is <strong>defensive-tested</strong>, not just smoke-tested. As of
+v0.21.0 there are 1,061+ tests across 50+ test files, all hermetic
+(no network, no GPU required, fast enough to run in CI on every
+PR):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>tests/test_audit.py + test_attack_audit.py   (research toolkit + attack framework)
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>tests/test_bench_*.py              (20 files — capability benchmark)
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>tests/test_cli.py                  (CLI dispatcher)
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>tests/test_coap_flashoptim.py + test_memory_optimization.py   (memory optimizers)
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>tests/test_collect_reference.py + test_compare_scores.py
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>+ test_eval_*.py + test_score_candidates.py   (eval suite)
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>tests/test_domain_bench.py + test_speed_bench.py   (domain + speed benchmarks)
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>tests/test_fp8_bitnet.py + test_mixed_precision.py   (quantized training)
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>tests/test_golden_vectors.py       (regression gates)
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>tests/test_gui*.py                 (6 files — TUI smoke, presets, queue, tooltips)
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>tests/test_neuralgentics_*.py      (init flow + merge)
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>tests/test_project_root.py         (repo layout)
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>tests/test_queue*.py               (6 files — queue, baseline, compare, history, stats)
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>tests/test_steering.py             (steering vectors)
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>tests/test_training_integration.py (end-to-end on a tiny model)
+</code></pre></div>
+<p>Run them all:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[all]&quot;</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pytest<span class="w"> </span>tests/<span class="w"> </span>-v
+</code></pre></div>
+<p>The <code>test_training_integration.py::TestTrainingIntegration::test_tiny_model_one_step</code>
+test loads a 1-layer LlamaForCausalLM, runs one forward+backward pass
+through <code>attacklm.train</code> on a single 16-token example, and asserts
+the loss is finite. This is the canary for "did someone break the
+core training loop?".</p>
+<p>The <code>test_gui.py</code> tests mount the TUI under a <code>run_test()</code> pilot
+and assert every main-menu button, every tooltip key, and every
+command-form widget is present. Catches "I added a new feature
+but forgot to add a tooltip" regressions.</p>
+<hr />
+<h2 id="license-contributing">License &amp; contributing<a class="headerlink" href="#license-contributing" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Code</strong>: <a href="LICENSE">MIT</a></li>
+<li><strong>Training data</strong>: Mixed per-source — see
+  <a href="https://github.com/Veedubin/attacklm-dataset/blob/main/data/ATTRIBUTION.md">data/ATTRIBUTION.md</a>
+  and <a href="https://github.com/Veedubin/attacklm-dataset/blob/main/RIGHTS.md">RIGHTS.md</a></li>
+<li><strong>Audit / research-tool code</strong>: Defensive, audit, and academic-
+  research use only. See
+  <a href="https://github.com/Veedubin/attacklm-dataset/blob/main/RIGHTS.md">RIGHTS.md</a>
+  for the full rights statement and the canonical paper list.</li>
+</ul>
+<p><strong>Contributing</strong>: PRs welcome. For dataset changes, edit the
+extractors in
+<a href="https://github.com/Veedubin/attacklm-dataset/tree/main/scripts">attacklm-dataset/scripts/</a>
+and re-run <code>attacklm init --from-source</code>. For training-method
+additions, edit <code>scripts/train_template.py</code>. For audit additions,
+add a module to <code>attacklm-dataset/scripts/inversion/</code> and a CLI
+flag in <code>attacklm audit</code>.</p>
+<p><a href="CHANGELOG.md">CHANGELOG.md</a> — full version history.
+<a href="../TASKS.md">TASKS.md</a> — current work-in-progress.
+<a href="../HANDOFF.md">HANDOFF.md</a> — session continuity notes.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,2133 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the AttackLM red-team LLM training toolkit and dataset">
+      
+      
+        <meta name="author" content="Veedubin">
+      
+      
+      
+        <link rel="prev" href="../attacklm-dataset-readme/">
+      
+      
+        <link rel="next" href="../attacklm-dataset-provenance/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Changelog - AttackLM Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#0110-2026-09-22" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="AttackLM Documentation" class="md-header__button md-logo" aria-label="AttackLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AttackLM Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Changelog
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Veedubin/AttackLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Veedubin/AttackLM
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="AttackLM Documentation" class="md-nav__button md-logo" aria-label="AttackLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    AttackLM Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Veedubin/AttackLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Veedubin/AttackLM
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-readme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AttackLM (Training Tool)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    AttackLM (Training Tool)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-readme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-rl-recipe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RL Recipe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    attacklm-dataset
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    attacklm-dataset
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-readme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0110-2026-09-22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.11.0] — 2026-09-22
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0102-2026-09-22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.10.2] — 2026-09-22
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0101-2026-09-22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.10.1] — 2026-09-22
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0100-2026-09-22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.10.0] — 2026-09-22
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#094-2026-09-21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.9.4] — 2026-09-21
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#093-2026-09-21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.9.3] — 2026-09-21
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#092-2026-07-18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.9.2] — 2026-07-18
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#091-2026-07-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.9.1] — 2026-07-16
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#090-2026-07-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.9.0] — 2026-07-16
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#080-2026-07-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.8.0] — 2026-07-13
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#070-2026-07-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.7.0] — 2026-07-13
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#060-2026-07-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.6.0] — 2026-07-13
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#050-2026-07-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.5.0] — 2026-07-13
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unreleased-2026-07-13-lira-shadow-scoring-offline-mia-baseline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [Unreleased] — 2026-07-13 — LiRA shadow scoring &amp; Offline MIA baseline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[Unreleased] — 2026-07-13 — LiRA shadow scoring &amp; Offline MIA baseline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes-for-the-inversion-audit-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug fixes for the inversion-audit harness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#known-issues-carried-over-from-the-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known issues (carried over from the audit)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#040-2026-07-08-mia-track-2-per-token-lira-audit-screen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.4.0] — 2026-07-08 — MIA Track 2: per-token + LiRA + audit screen
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.4.0] — 2026-07-08 — MIA Track 2: per-token + LiRA + audit screen">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added-in-attacklm-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added (in attacklm-dataset)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#threat-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Threat model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#added-in-attacklmattacklm-gui-same-release-cycle-separate-package" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added (in AttackLM/attacklm-gui — same release cycle, separate package)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#drive-by-bug-fixes-not-in-the-mia-track-2-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drive-by bug fixes (not in the MIA Track 2 spec)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-state-at-session-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test state at session end
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#031-2026-07-07-inversion-audit-fixes-runner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.3.1] — 2026-07-07 — Inversion Audit Fixes + Runner
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.3.1] — 2026-07-07 — Inversion Audit Fixes + Runner">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#threat-model_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Threat model
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#020-2026-07-06-inversion-audit-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.2.0] — 2026-07-06 — Inversion Audit Harness
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.2.0] — 2026-07-06 — Inversion Audit Harness">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#010-2026-07-06-initial-release-split-from-attacklm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.1.0] — 2026-07-06 — Initial Release (Split from AttackLM)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.1.0] — 2026-07-06 — Initial Release (Split from AttackLM)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Legal
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Legal
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-provenance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-rights/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rights
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0110-2026-09-22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.11.0] — 2026-09-22
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0102-2026-09-22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.10.2] — 2026-09-22
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0101-2026-09-22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.10.1] — 2026-09-22
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0100-2026-09-22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.10.0] — 2026-09-22
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#094-2026-09-21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.9.4] — 2026-09-21
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#093-2026-09-21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.9.3] — 2026-09-21
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#092-2026-07-18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.9.2] — 2026-07-18
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#091-2026-07-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.9.1] — 2026-07-16
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#090-2026-07-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.9.0] — 2026-07-16
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#080-2026-07-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.8.0] — 2026-07-13
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#070-2026-07-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.7.0] — 2026-07-13
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#060-2026-07-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.6.0] — 2026-07-13
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#050-2026-07-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.5.0] — 2026-07-13
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unreleased-2026-07-13-lira-shadow-scoring-offline-mia-baseline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [Unreleased] — 2026-07-13 — LiRA shadow scoring &amp; Offline MIA baseline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[Unreleased] — 2026-07-13 — LiRA shadow scoring &amp; Offline MIA baseline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes-for-the-inversion-audit-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug fixes for the inversion-audit harness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#known-issues-carried-over-from-the-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known issues (carried over from the audit)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#040-2026-07-08-mia-track-2-per-token-lira-audit-screen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.4.0] — 2026-07-08 — MIA Track 2: per-token + LiRA + audit screen
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.4.0] — 2026-07-08 — MIA Track 2: per-token + LiRA + audit screen">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added-in-attacklm-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added (in attacklm-dataset)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#threat-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Threat model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#added-in-attacklmattacklm-gui-same-release-cycle-separate-package" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added (in AttackLM/attacklm-gui — same release cycle, separate package)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#drive-by-bug-fixes-not-in-the-mia-track-2-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drive-by bug fixes (not in the MIA Track 2 spec)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-state-at-session-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test state at session end
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#031-2026-07-07-inversion-audit-fixes-runner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.3.1] — 2026-07-07 — Inversion Audit Fixes + Runner
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.3.1] — 2026-07-07 — Inversion Audit Fixes + Runner">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#threat-model_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Threat model
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#020-2026-07-06-inversion-audit-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.2.0] — 2026-07-06 — Inversion Audit Harness
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.2.0] — 2026-07-06 — Inversion Audit Harness">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#010-2026-07-06-initial-release-split-from-attacklm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [0.1.0] — 2026-07-06 — Initial Release (Split from AttackLM)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="[0.1.0] — 2026-07-06 — Initial Release (Split from AttackLM)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Added
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+  <h1>Changelog</h1>
+
+<h2 id="0110-2026-09-22">[0.11.0] — 2026-09-22<a class="headerlink" href="#0110-2026-09-22" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>The <code>defensive/*</code> buckets are reachable at last.</strong> <code>resolve_dataset_spec()</code> had no way to address them — <code>grep -c defensive scripts/lib/bucket_loader.py</code> returned 0 — so <code>--dataset defensive/</code> raised <code>ValueError</code> and <code>--dataset all</code> silently resolved <strong>34 of 37 buckets</strong>, excluding <strong>7,688 pairs (29.1% of the corpus)</strong>: <code>defensive/detection_engineering</code> 7,154 (sigma-hq 3,132, elastic-rules 1,908, splunk-content 2,114), <code>defensive/threat_hunting</code> 366, <code>defensive/incident_response</code> 168. The data itself was never broken — extracted, schema-valid, in the manifest, shipped in the tarball. Only the resolver could not see it.</li>
+<li><strong><code>all</code> now genuinely means all</strong>: 34 → 37 buckets, 18,771 → 26,459 pairs. This is a deliberate behaviour change for anyone relying on <code>--dataset all</code>, and it shifts training composition substantially: the corpus goes from offence-only to 29% defensive (detection engineering, threat hunting, incident response).</li>
+<li><strong>New frozen alias <code>all-offensive</code></strong> holds exactly the 12 categories <code>all</code> contained before this release. Without it, every model trained with <code>--dataset all</code> before today would have become unreproducible, and any comparison spanning the change would have attributed a 29% composition shift to whatever variable was actually under test. <strong>It must never gain new categories.</strong></li>
+<li>Verified independently of the implementation: <code>all</code> is a strict superset of <code>all-offensive</code>; the difference is exactly the three defensive buckets; <code>all-offensive</code> contains none of them; pair counts 26,459 / 18,771 / 7,688 reconcile exactly.</li>
+<li>The combined-dataset cache is unaffected by design — <code>cache_key()</code> hashes the sorted bucket list, so 34 → 37 changes the key and a stale combined file cannot be silently reused. Checked rather than assumed.</li>
+<li>Consumers should record the <strong>resolved</strong> bucket list, not the spec string: <code>AttackLM</code> now does this via <code>train_all._export_dataset_provenance</code> → <code>state.json[dataset][resolved]</code>, carrying buckets, count, dataset version and cache key.</li>
+<li>13 new tests in <code>tests/test_bucket_loader.py</code>; suite 719 passed. No existing test weakened or deleted.</li>
+<li>No PyPI publish (attacklm-dataset is GitHub-only distribution).</li>
+</ul>
+<h2 id="0102-2026-09-22">[0.10.2] — 2026-09-22<a class="headerlink" href="#0102-2026-09-22" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Data-index staleness fix</strong>: <code>data/datasets/buckets/sources/_index.json</code> regenerated from disk. It had drifted from reality — 7 on-disk sources were missing entirely (elastic-rules 1,908 records, sigma-hq 3,132, splunk-content 2,114, mordor 339, nist-ir 168, threathunter-playbook 27, replay-general 12) and <code>attacklm-synthetic</code> was stale (index said 9,029 records / 9 buckets; disk has 380 / 1). Totals corrected: 12 → 19 sources, 27,408 → 26,459 records. Index totals now reconcile exactly with <code>manifest.json</code> (26,459 pairs / 19 sources / 37 buckets), which was already disk-truth since v0.10.0.</li>
+<li><strong>Manifest license fields cleared</strong>: the 7 source-level and 4 bucket-level <code>license: "unknown"</code> values in <code>manifest.json</code> are gone after re-running <code>scripts/rebuild_manifest.py</code>. Root cause: <code>scripts/lib/manifest_builder.py</code> derives per-source license/display/risk from <code>_index.json</code> (falling back to <code>"unknown"</code>), so the missing index entries propagated to the manifest; no builder change needed once the index was fixed.</li>
+<li><strong>Cosmetics</strong>: fixed a template artifact in <code>data/datasets/buckets/sources/mitre-atlas/LICENSE.md</code> ("e.g. <code>atomic-red-team</code>" → "<code>mitre-atlas</code>"); removed pre-existing ruff F401/F841 in <code>scripts/lib/bucket_loader.py</code> (unused <code>datetime</code> import, unused <code>except ValueError as e</code> binding).</li>
+<li>Loader verified: <code>resolve_dataset_spec('atlas/')</code> still resolves 16 buckets; full test suite green (706 passed).</li>
+<li>No PyPI publish (attacklm-dataset is GitHub-only distribution).</li>
+</ul>
+<h2 id="0101-2026-09-22">[0.10.1] — 2026-09-22<a class="headerlink" href="#0101-2026-09-22" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Docs-only</strong>: corrected two script names in the v0.10.0 CHANGELOG entry below — the MITRE ATLAS extractor is <code>scripts/extract_mitre_atlas.py</code> (not <code>scripts/extract_atlas_to_jsonl.py</code>), and the manifest builder ships as <code>scripts/rebuild_manifest.py</code> + <code>scripts/lib/manifest_builder.py</code> (not <code>scripts/build_manifest.py</code>). Caught by the final whole-branch review; no code or data changes.</li>
+<li>No PyPI publish (attacklm-dataset is GitHub-only distribution).</li>
+</ul>
+<h2 id="0100-2026-09-22">[0.10.0] — 2026-09-22<a class="headerlink" href="#0100-2026-09-22" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>New source: MITRE ATLAS</strong> (Adversarial Threat Landscape for Artificial-Intelligence Systems), vendored 2026.09 distribution YAML (Apache-2.0). New extractor <code>scripts/extract_mitre_atlas.py</code> produces training pairs from techniques, sub-techniques, mitigations (via <code>mitigates</code> inversion, with tactic routing and no-link fallback), and case studies. Result: <strong>1,807 pairs across 16 <code>atlas/*</code> buckets</strong> covering 16 ATLAS tactics, 208 techniques, 40 mitigations, and 73 case studies.</li>
+<li><strong>Resurrected manifest builder</strong> (<code>scripts/rebuild_manifest.py</code> + <code>scripts/lib/manifest_builder.py</code>): restored as an importable lib module + CLI, now with an <code>atlas</code> category; manifest + index regenerated to include the new source.</li>
+<li><strong>Loader/pipeline wiring</strong>: <code>atlas</code> category registered in the bucket loader; extractor added to the pipeline.</li>
+<li><strong>Docs fixes</strong>: removed phantom <code>stamp_and_reorg</code> references from <code>SOURCE.md</code> files (function does not exist).</li>
+<li>No PyPI publish (attacklm-dataset is GitHub-only distribution).</li>
+</ul>
+<h2 id="094-2026-09-21">[0.9.4] — 2026-09-21<a class="headerlink" href="#094-2026-09-21" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Removed the restricted-source extractors</strong>: <code>scripts/extract_rta_to_jsonl.py</code> and <code>scripts/extract_infection_monkey_to_jsonl.py</code> deleted. RTA (AGPL-3.0) and infection_monkey (GPL-3.0) have been excluded from the public dataset since v0.3.0; keeping their extractors in the public repo invited re-ingestion. The denylist in <code>scripts/inversion/provenance.py</code> and the tarball verifier in <code>scripts/package_dataset.py</code> remain as guardrails.</li>
+</ul>
+<h2 id="093-2026-09-21">[0.9.3] — 2026-09-21<a class="headerlink" href="#093-2026-09-21" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>History rewrite (compliance purge)</strong>: Full <code>git filter-repo</code> rewrite removing content that should never have been tracked, from all 38 commits and all 11 tags:</li>
+<li><code>data/.bucket_layout_backup/</code> — stale pre-v0.3.0 flat-layout backup that <strong>contained restricted RTA + infection_monkey records</strong> (policy violation; these sources are excluded from the public dataset since v0.3.0). Removed from HEAD and all history.</li>
+<li>Four upstream repo clones (<code>data/splunk-security-content/</code>, <code>data/elastic-detection-rules/</code>, <code>data/mordor/</code>, <code>data/threathunter-playbook/</code>) — ~7,900 tracked files including large binary pcaps. Repo <code>.git</code> shrunk from ~630 MB to ~6 MB. Like the other 8 sources, these are now cloned locally by the extractor scripts, never tracked.</li>
+<li><code>docs/</code> (9 internal methodology docs) — local-only per project policy; the earlier <code>docs/</code> gitignore rule never untracked them. Working copies remain local.</li>
+<li>Generated run artifacts: <code>data/datasets/combined/</code> (169 MB, incl. byte-identical duplicates), <code>data/manifests/</code>, <code>data/.cache/</code>, <code>data/validation_report.json</code>, <code>data/audit_report.json</code>, <code>data/tool_knowledge.json</code>, <code>data/datasets/buckets/acquisition_report.json</code>, <code>data/datasets/synthetic/*_raw.log</code>, <code>data/datasets/buckets/GEMINI_RESEARCH_2026-06-11.md</code> (internal research notes), <code>scripts/run_overnight_audits.sh</code> (personal runner with hardcoded local paths).</li>
+<li><strong>README</strong>: removed ~15 links to the now-undistributed <code>docs/*.md</code> files (they would 404); Documentation section now lists only the public docs (ATTRIBUTION, LEGAL, REMOVAL, PROVENANCE, RIGHTS, SECURITY). Fixed a date typo.</li>
+<li><strong>CHANGELOG</strong>: fixed a broken <code>docs/ATTACK_TAXONYMARKDOWN.md</code> reference in the v0.4.0 entry.</li>
+<li><strong>.gitignore hardening</strong>: rules for the purged artifact paths so they can't be re-tracked; added tool caches (<code>.mypy_cache/</code>, <code>.pytest_cache/</code>, <code>.ruff_cache/</code>).</li>
+<li><code>data/DATASET_EXPANSION_REPORT.md</code> (stale 2026-06-09 generated report) moved to local-only.</li>
+</ul>
+<p>The shipped release tarball was never affected: <code>scripts/package_dataset.py</code> only packages <code>data/datasets/buckets/sources/</code> + manifest and verifies no restricted sources are present. All 11 existing tags were recreated on the rewritten history (same names, same content per tag minus the purged paths).</p>
+<h2 id="092-2026-07-18">[0.9.2] — 2026-07-18<a class="headerlink" href="#092-2026-07-18" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Docs-only</strong>: README docs index, <code>MIA_THRESHOLD_CALIBRATION.md</code> refresh for the v0.9.1 <code>calibrate_threshold</code> fix, CHANGELOG update. No code changes.</li>
+</ul>
+<h2 id="091-2026-07-16">[0.9.1] — 2026-07-16<a class="headerlink" href="#091-2026-07-16" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><code>calibrate_threshold</code> FPR fix</strong>: Fixed inverted quantile in <code>scoring.py</code>. Previously <code>target_fpr=0.01</code> produced ~99% FPR; now correctly produces ~1% FPR. Function is not used in the production audit pipeline (<code>inversion_audit.py</code> uses <code>_percentile</code> directly) but was a latent footgun for anyone calling it directly.</li>
+<li><strong>BLEU-4 unification</strong>: Replaced nltk-based <code>bleu4_score</code> in <code>probe.py</code> with pure-Python epsilon-smoothed implementation matching <code>AttackLM/scripts/audit_canary_extraction.py</code>. Removed <code>nltk&gt;=3.8</code> from <code>pyproject.toml</code> inversion extras.</li>
+<li><strong>Docs</strong>: Updated README with docs index table, refreshed <code>MIA_THRESHOLD_CALIBRATION.md</code> for the corrected <code>calibrate_threshold</code> behavior.</li>
+</ul>
+<p>No PyPI publish (attacklm-dataset is GitHub-only distribution).</p>
+<h2 id="090-2026-07-16">[0.9.0] — 2026-07-16<a class="headerlink" href="#090-2026-07-16" title="Permanent link">&para;</a></h2>
+<ul>
+<li>First real defensive audit on <code>AttackLM/uncensored</code> (Qwen2.5-Coder-14B-Instruct-uncensored, non-finetuned). 51 records, 17 per source (atomic-red-team, metasploit-framework, sigma-hq), <code>--attack all --mia-method per_token --top-k 5 --max-new-tokens 128</code>. Used MIA Track 1 default threshold (<code>--mia-threshold-mode percentile --mia-percentile 5</code>). Results in <code>data/audit/2026-07-16-defensive-v1/2026-07-16/</code> (chmod 0700 parent + 0600 on <code>inversion_results.jsonl</code>).</li>
+<li><strong>Per-source metrics</strong> (per_token NLL; lower = more memorized):</li>
+<li>atomic-red-team: mean NLL/pt 1.63, mean BLEU-4 0.047, 0 exact matches, 3 flagged</li>
+<li>metasploit-framework: mean NLL/pt 2.62, mean BLEU-4 0.063, 0 exact matches, 0 flagged</li>
+<li>sigma-hq: mean NLL/pt 2.53, mean BLEU-4 0.096, 0 exact matches, 0 flagged</li>
+<li><strong>MIA threshold</strong>: -125.08 (5th percentile of 51 scores, <strong>3/51 flagged = 5.9%</strong>). This validates MIA Track 1's calibration fix — the 2026-07-07 pilot (median threshold) flagged 50% by construction.</li>
+<li><strong>Per-record evidence chain</strong>: each result includes <code>prompt_text</code>, <code>best_reconstruction</code>, <code>suffix_text</code>, per-token NLL, membership score. <code>inversion_results.jsonl</code> is self-contained per the v0.4.1 audit bug fix.</li>
+<li>No harness changes — <code>--mia-method per_token</code> (MUSE 2023 default) is the recommended single-method mode when shadow models are not available. For <code>reference</code>/<code>zlib</code>/<code>offline</code> coverage, run the audit 4 times with different <code>--mia-method</code> values.</li>
+<li>No PyPI publish (attacklm-dataset is GH-only).</li>
+</ul>
+<h2 id="080-2026-07-13">[0.8.0] — 2026-07-13<a class="headerlink" href="#080-2026-07-13" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Added held-out NLL evaluation suite (<code>scripts/split_held_out.py</code> + <code>scripts/held_out_nll.py</code>). Implements MAI-Thinking-1 §2.3-style weighted aggregate (Code/STEM/Math/General/Multilingual). New docs: <code>docs/HELD_OUT_NLL.md</code>. Backward compatible: existing training data is untouched.</li>
+<li>[Methodology] Implemented technique from MAI-Thinking-1 §2.3 (Evaluation Methodology) + §2.3.2 (Comparison of Accuracy and NLL Evaluations) by The Microsoft AI Team, June 2026. Uses the paper's weighted Eq-3 aggregate across 5 buckets.</li>
+</ul>
+<h2 id="070-2026-07-13">[0.7.0] — 2026-07-13<a class="headerlink" href="#070-2026-07-13" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Added <code>scripts/memorization_report.py</code>: per-source memorization proxy + recommended epoch caps.</li>
+<li>New <code>data/memorization_epoch_caps.json</code> (auto-generated) with default 4-tier cap table.</li>
+<li>New docs: <code>docs/MEMORIZATION.md</code>.</li>
+<li>[Methodology] Implemented technique from MAI-Thinking-1 §2.5.4 (Mid-training Data Mixture — memorization-aware epoch capping) by The Microsoft AI Team, June 2026.</li>
+</ul>
+<p>Default behavior: report-only (does NOT auto-apply caps). Caps are a recommendation for review before use.</p>
+<h2 id="060-2026-07-13">[0.6.0] — 2026-07-13<a class="headerlink" href="#060-2026-07-13" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Added <code>scripts/decontam.py</code>: 20-gram fuzzy decontamination against public evaluation sets.</li>
+<li>New <code>data/eval_sets/</code> directory with 3 fixture JSONL files (atomic-red-team, metasploit, sigma).</li>
+<li>New <code>datasketch&gt;=1.5,&lt;2.0</code> optional dependency (in <code>[inversion]</code> group).</li>
+<li>New docs: <code>docs/DECONTAM.md</code>.</li>
+<li>[Methodology] Implemented technique from MAI-Thinking-1 §2.3.1 (Public Evaluation Decontamination) and §2.4.3 (Deduplication) by The Microsoft AI Team, June 2026.</li>
+</ul>
+<p>Default behavior: report-only (no deletions). Use <code>--quarantine-output</code> to write matched records to a separate file for review.</p>
+<h2 id="050-2026-07-13">[0.5.0] — 2026-07-13<a class="headerlink" href="#050-2026-07-13" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Added <code>--audit-iter</code> flag to <code>inversion_audit.py</code> for closed-loop adversarial audits.</li>
+<li>New <code>scripts/inversion/variant_generator.py</code> (paraphrase + suffix-injection + prompt-template).</li>
+<li>New <code>scripts/inversion/attack_success_curve.py</code> (per-iteration success-rate aggregation).</li>
+<li>New docs: <code>docs/AUDIT_ITER.md</code>.</li>
+<li>[Methodology] Implemented technique from MAI-Thinking-1 §5.2 (TAP-style closed-loop adversarial audit) by The Microsoft AI Team, June 2026.</li>
+</ul>
+<p>Backward compatible: <code>--audit-iter 1</code> (default) is identical to v0.4.3 single-pass behavior.</p>
+<h2 id="unreleased-2026-07-13-lira-shadow-scoring-offline-mia-baseline">[Unreleased] — 2026-07-13 — LiRA shadow scoring &amp; Offline MIA baseline<a class="headerlink" href="#unreleased-2026-07-13-lira-shadow-scoring-offline-mia-baseline" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Added <code>scripts/score_shadow.py</code>: CLI for LiRA workflow step 2 (score a
+  shadow model on the audit set, writes <code>shadow_{K}.json</code>). Closes the
+  LiRA workflow loop — previously the user had to write this themselves.</li>
+<li>Added <code>--mia-method offline</code> to <code>inversion_audit.py</code>: white-box MIA
+  baseline using sample mean/std of audit-set NLL as the OUT distribution.
+  No shadow models required. Field names: <code>offline_z</code>, <code>offline_mu_out</code>,
+  <code>offline_sigma_out</code>, <code>offline_flagged</code>. Default threshold: -1.5,
+  configurable via <code>--offline-z-threshold</code>. Requires N &gt;= 30 records.</li>
+<li>Added <code>compute_offline_z()</code> to <code>inversion.scoring</code> (reuses
+  <code>zscore_normalize()</code> for the σ=0 guard).</li>
+<li>Added 15 new tests (10 in <code>test_score_shadow.py</code>, 5 in
+  <code>test_offline_mia.py</code>). Total tests: 475 passing, 0 skipped.</li>
+</ul>
+<h3 id="bug-fixes-for-the-inversion-audit-harness">Bug fixes for the inversion-audit harness<a class="headerlink" href="#bug-fixes-for-the-inversion-audit-harness" title="Permanent link">&para;</a></h3>
+<p>A paper-vs-code audit (memory 209 laL) found 3 blocker bugs and
+2 quality issues in scripts/inversion/. All 5 fixed in commit 4386995.</p>
+<p>Bug #1 (correctness, MUST FIX): scoring.py:162 score_record
+  was using _extract_full_text() which leaked the prompt into
+  the NLL and biased all --mia-method reference scores by prompt
+  length. Switched to _extract_assistant_turn() per MUSE 2023
+  default. (matches score_per_token behavior).</p>
+<p>Bug #2 (crash + wrong metadata, MUST FIX): lira.py:305
+  save_shadow_params hardcoded lira_k=0 in the JSON and crashed
+  with NameError on empty params. Added explicit lira_k parameter;
+  shadow_train.py now passes lira_k=len(shadow_losses).</p>
+<p>Bug #3 (evidence chain, MUST FIX): probe.py ProbeResult didn't
+  include prompt_text or best_reconstruction, so memorization
+  findings couldn't be recovered from the audit artifact without
+  re-running the probe. Added the two fields; the audit artifact
+  (inversion_results.jsonl, chmod 0600) is now self-contained.</p>
+<p>Bug #4 (performance): probe.py:144 generate_completions was
+  doing K sequential model.generate() calls. Switched to single
+  generate() with num_return_sequences. ~20x speedup on typical
+  14B + 256-token setups.</p>
+<p>Bug #5 (code smell): lira.py LiRAScore had a dead alpha field
+  "reserved for future use". Removed the field and the alpha
+  parameter from score_lira. Cleaner contract.</p>
+<p>Tests: 14 new tests in tests/test_audit_bugfixes.py. 443 -&gt; 457
+passing. Audit code is now safe to use for a real defensive run.</p>
+<hr />
+<p>Considered publishing <code>attacklm-dataset</code> to PyPI as the missing version
+after the 2026-07-09 audit caught the build-backend bug in <code>pyproject.toml</code>.
+Implemented (in commits 1229f71, 098cccc, 20a9580, 34e3621) and rolled
+back: the dataset is a <strong>data package</strong> (8,147 tracked JSONL files,
+~50MB compressed, plus a 3-file Python wrapper) and PyPI is the wrong
+place for it. A <code>pip install attacklm-dataset</code> for a 50MB data bundle
+goes against the typical "small Python library" expectation of PyPI,
+and the actual data distribution is already handled by <code>attacklm init</code>
+in the AttackLM package (which downloads <code>attacklm-dataset.tar.gz</code> from
+GitHub Releases).</p>
+<p><strong>Decision: no PyPI publish for <code>attacklm-dataset</code>.</strong></p>
+<p>What was rolled back:
+- v0.4.1 tag (was <code>e64c782</code>) and v0.4.2 tag (was <code>95c70c2</code>) — both
+  deleted from local and remote, both never reached PyPI.
+- The hatchling build-backend fix (commit 1229f71) — note: this was
+  a real bug fix (<code>setuptools.backends._legacy:_Backend</code> doesn't
+  exist in any setuptools version, blocking <code>python -m build</code>); the
+  decision to roll it back is <strong>purely</strong> about not publishing to
+  PyPI, not about whether the fix is good. If you want a
+  GitHub-Releases-only flow, the hatchling fix is still needed for
+  <code>python -m build</code> to produce the tarball. <strong>Open question</strong> for
+  the user: re-apply the build fix without bumping the version?
+- The CI workflow at <code>.github/workflows/ci.yml</code> — deleted, the
+  audit worked on the local <code>pytest tests/</code> invocation only.
+- The release workflow at <code>.github/workflows/release.yml</code> — deleted.
+  Would have failed at the trusted-publishing step anyway because the
+  PyPI trusted publisher is not configured for this project.</p>
+<p>What stays:
+- v0.4.0 tag (244cb00), which was already PUSHED before this session
+  and remains on origin. <strong>Not on PyPI</strong> (build was broken). The
+  <code>attacklm init</code> download flow in AttackLM uses the GitHub Releases
+  tarball, which is a separate artifact from the git tag.</p>
+<p>What this means for users:
+- <code>pip install attacklm-dataset</code> does not work and is <strong>not</strong> supported.
+  Use the AttackLM package's <code>attacklm init</code> command instead, or
+  <code>git clone https://github.com/Veedubin/attacklm-dataset</code>.
+- <code>pip install "attacklm[all]"</code> (AttackLM) does not pull in
+  <code>attacklm-dataset</code> from PyPI; the <code>[dataset]</code> extra in AttackLM is
+  for the <strong>GitHub Releases download</strong> path, not a PyPI dep.</p>
+<h3 id="known-issues-carried-over-from-the-audit">Known issues (carried over from the audit)<a class="headerlink" href="#known-issues-carried-over-from-the-audit" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>pyproject.toml</code> still uses <code>setuptools.backends._legacy:_Backend</code>
+  which does not exist. <code>python -m build</code> fails. Local
+  <code>pip install -e .</code> works because it doesn't go through the build
+  backend. <strong>Fix when re-applying the hatchling patch.</strong></li>
+<li><code>__version__.py</code> says "0.1.0" while <code>__init__.py</code> hardcodes
+  "0.4.0" and the v0.4.0 tag exists. Three sources of truth,
+  all disagreeing. <strong>Fix when re-applying the single-source-of-truth
+  refactor.</strong></li>
+<li><code>__init__.py</code> DATA_DIR is computed relative to
+  <code>Path(__file__).parent.parent</code> which gives the wrong root
+  (<code>src/</code> instead of repo root). Not used by any <code>scripts/</code> code
+  (they all define their own DATA_DIR from their own
+  <code>Path(__file__).parent.parent</code>), so the bug is purely cosmetic.
+  <strong>Fix when re-applying the path refactor.</strong></li>
+</ul>
+<h2 id="040-2026-07-08-mia-track-2-per-token-lira-audit-screen">[0.4.0] — 2026-07-08 — MIA Track 2: per-token + LiRA + audit screen<a class="headerlink" href="#040-2026-07-08-mia-track-2-per-token-lira-audit-screen" title="Permanent link">&para;</a></h2>
+<p>Per-token membership-inference scoring (MUSE 2023 default) and LiRA
+shadow-model MIA (Carlini 2022 §4) on the dataset side. CLI redesigned
+to attack-class-first with <code>--attack {extraction, mia, all}</code> and
+<code>--mia-method {reference, zlib, per_token, lira, all}</code>. New docs:
+<code>docs/ATTACK_TAXONOMY.md</code> and <code>docs/LIRA.md</code>. Drive-by fix:
+<code>pyproject.toml</code> was at <code>0.2.0</code> while the actual code was at <code>v0.3.1+</code>
+— now <code>0.4.0</code> matches the release. 34 new hermetic tests (13
+per_token_mia + 21 lira). All 106 tests pass.</p>
+<h3 id="added-in-attacklm-dataset">Added (in <code>attacklm-dataset</code>)<a class="headerlink" href="#added-in-attacklm-dataset" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>score_per_token()</code></strong> in <code>scripts/inversion/scoring.py</code> — per-suffix-token NLL scoring (MUSE 2023 default). Normalizes NLL by suffix token count, removing the length bias in full-record scoring. Returns a <code>PerTokenMIAScore</code> dataclass with <code>nll_per_token</code>, <code>nll_total</code>, <code>num_suffix_tokens</code>, <code>suffix_text</code>, <code>membership_score</code>, <code>alpha</code>, and <code>zlib_ratio</code>.</li>
+<li><strong><code>zscore_normalize()</code></strong> helper in <code>scripts/inversion/scoring.py</code> — Z-score normalization for cross-source MIA threshold calibration. Returns all zeros for constant distributions.</li>
+<li><strong><code>_extract_assistant_turn()</code></strong> helper in <code>scripts/inversion/scoring.py</code> — extracts the final assistant message content from a record (the MUSE 2023 suffix).</li>
+<li><strong><code>--attack {extraction,mia,all}</code></strong> CLI flag (default <code>all</code>) — replaces the binary <code>--probe-carlini</code> / <code>--probe-mia</code> flags with an attack-class-first design.</li>
+<li><strong><code>--mia-method {reference,zlib,per_token,lira,all}</code></strong> CLI flag (default <code>reference</code>) — selects which MIA scoring method to use. <code>per_token</code> writes <code>membership_score_per_token</code> and related fields to the output JSONL. <code>all</code> writes both full-record and per-token columns. <code>lira</code> now works (was exiting with an error in the v0.4.0 draft; fixed in this branch).</li>
+<li><strong>LiRA scoring module</strong> at <code>scripts/inversion/lira.py</code> — <code>LiRAScore</code>, <code>GaussianParams</code>, <code>fit_gaussian</code>, <code>fit_gaussians_per_record</code>, <code>gaussian_log_pdf</code>, <code>compute_lira_logit</code>, <code>score_lira</code>, <code>calibrate_lira_threshold</code>, <code>save_shadow_params</code>, <code>load_shadow_params</code>. LiRA is "10× more powerful at low FPR" than the reference attack per Carlini 2022 §4.4.</li>
+<li><strong><code>shadow_train.py</code></strong> CLI scaffold at <code>scripts/inversion/shadow_train.py</code> — reads precomputed shadow loss files and produces <code>shadow_params.json</code> for use with <code>--mia-method lira</code>.</li>
+<li><strong><code>--lira-k</code></strong> flag (default 16) — Number of shadow models for LiRA. K=1 = reference-model MIA, K=4 = cheap LiRA, K=16 = gold standard.</li>
+<li><strong><code>--lira-params</code></strong> flag — Path to shadow_params.json (output of <code>inversion.shadow_train</code>). Required when <code>--mia-method lira</code> is used.</li>
+<li><strong><code>--mia-threshold-mode lrt</code></strong> — Natural 0.0 threshold for LiRA (positive logit = member). No <code>holdout_file</code> needed.</li>
+<li>13 new hermetic tests in <code>tests/test_per_token_mia.py</code> (per-token scoring, z-score normalization, integration with full-record scoring).</li>
+<li>21 new hermetic tests in <code>tests/test_lira.py</code> (fit_gaussian, fit_gaussians_per_record, gaussian_log_pdf, compute_lira_logit, calibrate_lira_threshold, score_lira, save/load shadow_params, integration with inversion_audit).</li>
+<li>New doc: <code>docs/ATTACK_TAXONOMY.md</code> (~255 lines, the 3-attack taxonomy, the LLM MI=TDE collapse argument, CLI mapping, references).</li>
+<li>New doc: <code>docs/LIRA.md</code> (~155 lines, design, workflow, compute cost, K parameter guide, storage cost, threshold, references).</li>
+</ul>
+<h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>--probe-carlini</code> / <code>--probe-mia</code> / <code>--no-probe-*</code></strong> are now <strong>DEPRECATED</strong> (since this release). They still work but emit <code>DeprecationWarning</code>. They will be removed in a future major version. The deprecation block in <code>main()</code> maps legacy flags to <code>--attack</code> values.</li>
+<li><code>pyproject.toml</code> version fixed: was <code>0.2.0</code>, will become <code>0.4.0</code> at release time. The actual code is at v0.3.1+ but <code>pyproject.toml</code> was stale (HANDOFF.md 2026-07-06 flagged this).</li>
+<li><code>scripts/inversion/__init__.py</code> <code>__version__</code> will become <code>0.4.0</code> at release time (was <code>0.3.1</code>).</li>
+<li><code>src/attacklm_dataset/__init__.py</code> <code>__version__</code> will become <code>0.4.0</code> at release time (was <code>0.3.1</code>).</li>
+<li><code>docs/ATTACK_TAXONOMY.md</code> §3.4 (LiRA) is in the doc as SHIPPED (was PLANNED in the v0.4.0 draft).</li>
+<li>The CLI exit code is unchanged. Raw audit outputs (<code>inversion_results.jsonl</code>) stay workspace-internal (chmod 0600). Aggregate metrics remain safe to share.</li>
+</ul>
+<h3 id="threat-model">Threat model<a class="headerlink" href="#threat-model" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Per-token MIA scoring operates on the assistant turn only (not the full record), which is the correct unit of analysis for membership inference on generative LLMs (MUSE 2023).</li>
+<li>LiRA scoring requires precomputed shadow parameters (4 floats per record = 16 bytes). The shadow-model training is the user's responsibility and happens OUT-OF-BAND; <code>docs/LIRA.md</code> documents the workflow.</li>
+<li>LiRA audit-time compute is identical to the reference attack: 1 forward pass on the target model per record, plus 4 floats of Gaussian parameters.</li>
+</ul>
+<h3 id="added-in-attacklmattacklm-gui-same-release-cycle-separate-package">Added (in <code>AttackLM/attacklm-gui</code> — same release cycle, separate package)<a class="headerlink" href="#added-in-attacklmattacklm-gui-same-release-cycle-separate-package" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>screens/audit.py</code></strong> — new Audit screen with 2 tabs (Extraction / MIA). Each tab is a form that constructs the <code>attacklm audit</code> CLI command. TUI is a thin wrapper around the CLI (no direct <code>attacklm-dataset</code> import).</li>
+<li><strong><code>widgets/tooltips.py</code></strong> — centralized tooltip text for all TUI widgets. ~30 entries. <code>attach_tooltip(widget, key)</code> helper for one-line tooltip attachment.</li>
+<li><strong><code>attacklm audit</code> subcommand</strong> in <code>src/attacklm/cli.py</code> — bridges the TUI/CLI to <code>attacklm-dataset/scripts/inversion_audit.py</code>. Forwards all audit flags (--attack, --mia-method, --mia-threshold-mode, --mia-percentile, --model, --dataset-root, --source-filter, --top-k, --max-new-tokens, --temperature, --max-records, --dry-run).</li>
+<li><strong>Tooltips retrofit</strong> on existing TUI screens: 9 main menu buttons, all high-traffic train form inputs (epochs, batch_size, lora_r, lora_alpha, galore_rank, max_length, spectrum, use_qgalore, use_dora), and all command form Back buttons.</li>
+<li><strong>DEFAULT_CSS</strong> in <code>app.py</code> for Tooltip styling (background, border, padding, max-width).</li>
+<li><strong>App.tooltip_delay = 0.5s</strong> — hover delay before tooltips show.</li>
+<li>7 new tests in <code>attacklm-gui/tests/test_audit.py</code> (Audit screen mount, widget presence, tooltip coverage, dict-key presence, no-op attachment).</li>
+<li>2 new structural tests in <code>attacklm-gui/tests/test_gui.py::TestTooltipsRetrofit</code>.</li>
+</ul>
+<h3 id="drive-by-bug-fixes-not-in-the-mia-track-2-spec">Drive-by bug fixes (not in the MIA Track 2 spec)<a class="headerlink" href="#drive-by-bug-fixes-not-in-the-mia-track-2-spec" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>AttackLM/attacklm-gui/src/attacklm_gui/presets.py</code> — <code>FP8 (H100/Blackwell)</code> was creating an invalid filename (<code>fp8_(h100/blackwell).json</code>) on Linux because the slash survives the previous <code>lower().replace(' ', '_')</code> slugify. Now uses a proper regex slugify via a new <code>_slugify()</code> helper. Fixes a real bug that affected all users on first run.</li>
+<li><code>AttackLM/attacklm-gui/src/attacklm_gui/screens/train_form.py</code> — <code>Select(value=3)</code> for <code>deepspeed_stage</code> was silently broken under Textual 8.x (the value is silently overwritten with <code>Select.NULL</code> when options are tuples). Dropped the explicit value; the downstream code (<code>values.get("deepspeed_stage", 3)</code>) already defaults to 3.</li>
+</ul>
+<h3 id="test-state-at-session-end">Test state at session end<a class="headerlink" href="#test-state-at-session-end" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>attacklm-dataset</code>: 106/106 tests pass (47 inversion_audit + 25 probe_token_budget + 13 per_token_mia + 21 lira). Ruff clean.</li>
+<li><code>AttackLM/attacklm-gui</code>: 26/26 tests pass (7 audit + 19 gui). 1 pre-existing ruff issue in <code>train_live.py</code> (F841 unused <code>trend_class</code>) — NOT in M2 scope, left alone.</li>
+</ul>
+<h3 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Per architect plan approved 2026-07-08 (deepseek-v4-pro:cloud).</li>
+<li>Memory: <code>d4657ab9-53d4-49a4-b4bd-3de7816b3868</code> (architectural decision), <code>88c25f43-5d1d-4756-804e-4b0ad6b1dc19</code> (MIA research), <code>fb19c94e-dd7b-4e02-821c-3fb32eb1abac</code> (session summary).</li>
+<li>Branch: <code>wip/inversion-audit-track2-2026-07-08</code> in both repos. Nothing pushed. Rollback is a single <code>git reset --hard origin/main &amp;&amp; git branch -D wip/...</code> per repo.</li>
+</ul>
+<hr />
+<h2 id="031-2026-07-07-inversion-audit-fixes-runner">[0.3.1] — 2026-07-07 — Inversion Audit Fixes + Runner<a class="headerlink" href="#031-2026-07-07-inversion-audit-fixes-runner" title="Permanent link">&para;</a></h2>
+<h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>--mia-threshold-mode {median,percentile,holdout_file}</code> CLI flag (default <code>percentile</code>) and <code>--mia-percentile</code> (default 5) for MIA threshold calibration. Replaces the previous median-of-scores fallback which classified 50% of records as members by construction. See <code>docs/MIA_THRESHOLD_CALIBRATION.md</code>.</li>
+<li><code>threshold.md</code> artifact in each audit output directory, documenting the MIA threshold derivation</li>
+<li><code>scripts/run_overnight_audits.sh</code> — resume-safe runner for 1,100-record audits (~22h at K=20, ~5.5h at K=5). See <code>docs/AUDIT_RUNNER.md</code>.</li>
+<li>25 new hermetic tests in <code>tests/test_probe_token_budget.py</code> (probe adaptive cap, percentile helper, MIA threshold mode CLI)</li>
+<li>3 new docs: <code>docs/PROBE_TOKEN_BUDGET.md</code>, <code>docs/MIA_THRESHOLD_CALIBRATION.md</code>, <code>docs/AUDIT_RUNNER.md</code></li>
+</ul>
+<h3 id="changed_1">Changed<a class="headerlink" href="#changed_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>max_new_tokens</code> for Carlini probe is now adaptive: <code>min(256, max(64, 2*suffix_token_count))</code> per <code>docs/PROBE_TOKEN_BUDGET.md</code> (Carlini 2021, MUSE 2023, DecodingTrust §C.2 all use 256). Previous hard-coded 64 was smaller than the median suffix length of our audit data (75-106 tokens), suppressing real matches.</li>
+<li><code>--probe-count</code> is now per-source (was a global cap that only probed atomic-red-team by alphabetical ordering). Fixes <code>8d34ba9</code>.</li>
+</ul>
+<h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Probe truncation: <code>max_new_tokens=64</code> could not produce exact matches on suffixes &gt;64 tokens</li>
+<li>MIA threshold calibration: median-of-scores classified 75/150 = 50% of records as members by construction</li>
+<li>Per-source probing: all 3 sources now get probed equally</li>
+</ul>
+<h3 id="threat-model_1">Threat model<a class="headerlink" href="#threat-model_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Raw audit outputs (<code>inversion_results.jsonl</code>) stay workspace-internal (chmod 0600)</li>
+<li>Aggregate metrics (<code>summary.json</code>, <code>exportable_summary.json</code>, <code>threshold.md</code>) are safe to share</li>
+<li>BSD-3-Clause (Metasploit) and DRL-1.1 (Sigma) record contents must never be exported; only their per-source statistics</li>
+</ul>
+<hr />
+<h2 id="020-2026-07-06-inversion-audit-harness">[0.2.0] — 2026-07-06 — Inversion Audit Harness<a class="headerlink" href="#020-2026-07-06-inversion-audit-harness" title="Permanent link">&para;</a></h2>
+<h3 id="added_1">Added<a class="headerlink" href="#added_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Inversion-attack audit harness (<code>scripts/inversion_audit.py</code>) with Carlini prefix-completion extraction and MIA loss+zlib scoring</li>
+<li>Helper modules: <code>scripts/inversion/{provenance,model_loader,probe,scoring,reporting}.py</code></li>
+<li>Per-record license carry-through, restricted-source denylist (RTA, infection_monkey, BPL), and three-tier output classification (INTERNAL_RAW/INTERNAL_SUMMARY/EXPORTABLE_SUMMARY)</li>
+<li>Hermetic test suite (<code>tests/test_inversion_audit.py</code>) with 30+ tests, all mocked (no GPU required)</li>
+<li><code>[inversion]</code> optional dependency group in pyproject.toml (transformers, torch, nltk, llama-cpp-python)</li>
+</ul>
+<h3 id="changed_2">Changed<a class="headerlink" href="#changed_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li>No data changes; backward compatible with v0.1.0 datasets</li>
+</ul>
+<hr />
+<h2 id="010-2026-07-06-initial-release-split-from-attacklm">[0.1.0] — 2026-07-06 — Initial Release (Split from AttackLM)<a class="headerlink" href="#010-2026-07-06-initial-release-split-from-attacklm" title="Permanent link">&para;</a></h2>
+<h3 id="added_2">Added<a class="headerlink" href="#added_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Initial release of attacklm-dataset as a standalone package</li>
+<li>24,652 training pairs across 16 active security sources</li>
+<li>18 source directories (2 reserved for future: azure-pyrit, cyberark-fuzzyai)</li>
+<li>Per-record provenance with license, source URI, and attribution fields</li>
+<li>CLI with <code>init</code>, <code>balance</code>, <code>evolve</code>, <code>audit</code>, and <code>package</code> commands</li>
+<li>All extractor scripts for building from upstream sources</li>
+<li>Data tooling: bucket loader, balance engine, pair evolution, replay mixer</li>
+</ul>
+<h3 id="changed_3">Changed<a class="headerlink" href="#changed_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Split from AttackLM v0.10.1 — dataset is now an independent package</li>
+<li><code>init_pipeline.py</code>: Updated <code>DEFAULT_DATASET_URL</code> to point to <code>attacklm-dataset</code> releases</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

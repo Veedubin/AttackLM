@@ -1,0 +1,1931 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the AttackLM red-team LLM training toolkit and dataset">
+      
+      
+        <meta name="author" content="Veedubin">
+      
+      
+      
+        <link rel="prev" href="../attacklm-attribution/">
+      
+      
+        <link rel="next" href="../attacklm-dataset-changelog/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Overview - AttackLM Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#attacklm-dataset" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="AttackLM Documentation" class="md-header__button md-logo" aria-label="AttackLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AttackLM Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Overview
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Veedubin/AttackLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Veedubin/AttackLM
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="AttackLM Documentation" class="md-nav__button md-logo" aria-label="AttackLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    AttackLM Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Veedubin/AttackLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Veedubin/AttackLM
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-readme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AttackLM (Training Tool)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    AttackLM (Training Tool)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-readme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-rl-recipe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RL Recipe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    attacklm-dataset
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    attacklm-dataset
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#whats-in-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's in here
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#distribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Distribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quickstart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quickstart
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quickstart">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#as-a-data-consumer-most-users" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        As a data consumer (most users)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#as-a-researcher-audit-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        As a researcher (audit harness)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#as-a-data-contributor-extractors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        As a data contributor (extractors)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dataset-composition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dataset composition
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dataset composition">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mitre-atlas-since-v0100" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MITRE ATLAS (since v0.10.0)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#directory-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Directory layout
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#per-record-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-record provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decontamination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decontamination
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Decontamination">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#memorization-aware-epoch-capping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memorization-aware epoch capping
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#held-out-nll-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Held-out NLL evaluation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#privacy-audit-research-toolkit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Privacy audit (research toolkit)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Privacy audit (research toolkit)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#attack-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attack classes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#closed-loop-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Closed-loop audit
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#legal-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Legal &amp; provenance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Legal
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Legal
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-provenance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-rights/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rights
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#whats-in-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's in here
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#distribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Distribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quickstart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quickstart
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quickstart">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#as-a-data-consumer-most-users" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        As a data consumer (most users)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#as-a-researcher-audit-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        As a researcher (audit harness)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#as-a-data-contributor-extractors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        As a data contributor (extractors)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dataset-composition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dataset composition
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dataset composition">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mitre-atlas-since-v0100" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MITRE ATLAS (since v0.10.0)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#directory-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Directory layout
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#per-record-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-record provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decontamination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decontamination
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Decontamination">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#memorization-aware-epoch-capping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Memorization-aware epoch capping
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#held-out-nll-evaluation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Held-out NLL evaluation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#privacy-audit-research-toolkit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Privacy audit (research toolkit)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Privacy audit (research toolkit)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#attack-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attack classes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#closed-loop-audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Closed-loop audit
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#legal-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Legal &amp; provenance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="attacklm-dataset">attacklm-dataset<a class="headerlink" href="#attacklm-dataset" title="Permanent link">&para;</a></h1>
+<p><a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
+<a href="data/ATTRIBUTION.md"><img alt="Provenance: 100%" src="https://img.shields.io/badge/provenance-100%25-brightgreen.svg" /></a>
+<a href="#dataset-composition"><img alt="Sources: 19" src="https://img.shields.io/badge/sources-19-blue.svg" /></a>
+<a href="#testing"><img alt="Tests: 722" src="https://img.shields.io/badge/tests-722-brightgreen.svg" /></a>
+<a href="#distribution"><img alt="Distribution: GH-only" src="https://img.shields.io/badge/distribution-GH--only-yellow.svg" /></a></p>
+<p><strong>A MITRE ATT&amp;CK- and ATLAS-grounded security fine-tuning dataset, an
+extraction pipeline from 19 upstream security sources, and a
+privacy-audit harness (Carlini 2021 extraction + 4 MIA methods).</strong></p>
+<p>This repo is the <strong>data + research-toolkit side</strong> of the AttackLM
+project. The trainer/tuner lives in the companion package
+<a href="https://github.com/Veedubin/AttackLM">Veedubin/AttackLM</a>. The two
+split in v0.11.0 to keep the audit code (defensive research) and
+the data (license-aware) isolated from the trainer (general-purpose
+infrastructure).</p>
+<hr />
+<h2 id="whats-in-here">What's in here<a class="headerlink" href="#whats-in-here" title="Permanent link">&para;</a></h2>
+<p>Three things, in one repo:</p>
+<ol>
+<li>
+<p><strong>A 26,459-record dataset</strong> of MITRE ATT&amp;CK- and ATLAS-grounded
+   training pairs. Every record carries full provenance (source, source
+   URI, license, license URI, rights contact). 19 source directories
+   (3 high-risk sources excluded: RTA, infection_monkey, BPL).</p>
+</li>
+<li>
+<p><strong>An extraction pipeline</strong> — 20 <code>extract_*.py</code> scripts that read
+   upstream security tools (Metasploit, Atomic Red Team, Sigma,
+   Elastic, Splunk, Mordor, etc.) and write per-bucket JSONL files
+   in the <code>data/datasets/buckets/sources/&lt;source&gt;/&lt;bucket&gt;/&lt;tactic&gt;/</code>
+   layout. Re-runnable from source for upstream updates; the
+   pre-built tarball is shipped as a GitHub Release.</p>
+</li>
+<li>
+<p><strong>A privacy-audit harness</strong> (<code>scripts/inversion/</code>) for owner-
+   side model security testing. Implements:</p>
+<ul>
+<li><strong>MIA offline baseline</strong> (sample z-score, no shadow models — <code>--mia-method offline</code>)</li>
+<li><strong>Shadow scoring</strong> (<code>scripts/score_shadow.py</code> — LiRA Step 2 helper)</li>
+<li><strong>MIA LiRA</strong> (likelihood ratio, Carlini 2022 §4)</li>
+<li><strong>MIA per-token loss</strong> (MUSE 2024 default)</li>
+<li><strong>MIA reference attack</strong> (loss on assistant turn + zlib entropy, Carlini 2022)</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="distribution">Distribution<a class="headerlink" href="#distribution" title="Permanent link">&para;</a></h2>
+<p><strong>This is a GitHub-only distribution. It is not on PyPI.</strong></p>
+<p>The reason: this is a <strong>data bundle</strong> (8,147 tracked JSONL files,
+~50MB compressed), not a Python library. A 50MB <code>pip install
+attacklm-dataset</code> goes against the typical "small Python library"
+expectation of PyPI, and the data distribution is already handled
+by <code>attacklm init</code> in the AttackLM package (which downloads
+<code>attacklm-dataset.tar.gz</code> from GitHub Releases).</p>
+<p>Users get the data in one of three ways:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># (Recommended) Through the AttackLM trainer</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;attacklm[all]&quot;</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>attacklm<span class="w"> </span>init<span class="w"> </span>--yes<span class="w">   </span><span class="c1"># downloads the GitHub Releases tarball</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Or as a git clone (gives you the data + the extractors + the audit harness)</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Veedubin/attacklm-dataset.git
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="nb">cd</span><span class="w"> </span>attacklm-dataset
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Or as a Python wrapper only (no data — use this for the CLI tools)</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>attacklm-dataset<span class="w"> </span>--help
+</code></pre></div>
+<p>The <code>attacklm-dataset</code> Python wrapper is small (3 source files, ~8KB).
+The data is what makes the package large, and the data lives at
+<code>data/datasets/buckets/sources/&lt;source&gt;/&lt;bucket&gt;/&lt;tactic&gt;/data.jsonl</code>
+in this repo.</p>
+<hr />
+<h2 id="quickstart">Quickstart<a class="headerlink" href="#quickstart" title="Permanent link">&para;</a></h2>
+<h3 id="as-a-data-consumer-most-users">As a data consumer (most users)<a class="headerlink" href="#as-a-data-consumer-most-users" title="Permanent link">&para;</a></h3>
+<p>Just use the AttackLM trainer. It downloads the pre-built tarball
+and sets up the bucket layout for you:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;attacklm[all]&quot;</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>attacklm<span class="w"> </span>init<span class="w"> </span>--yes<span class="w">                          </span><span class="c1"># downloads + organizes</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>attacklm<span class="w"> </span>balance<span class="w"> </span>--profile<span class="w"> </span>7b-16gb<span class="w">          </span><span class="c1"># builds a balanced subset</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>attacklm<span class="w"> </span>train<span class="w"> </span>--<span class="w"> </span>--dataset<span class="w"> </span>data/datasets/balanced/balanced_7b-16gb.jsonl<span class="w"> </span>--epochs<span class="w"> </span><span class="m">10</span><span class="w"> </span>--train
+</code></pre></div>
+<h3 id="as-a-researcher-audit-harness">As a researcher (audit harness)<a class="headerlink" href="#as-a-researcher-audit-harness" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Veedubin/attacklm-dataset.git
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">cd</span><span class="w"> </span>attacklm-dataset
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[inversion]&quot;</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1"># Audit a model (e.g., your trained AttackLM)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>attacklm-dataset<span class="w"> </span>audit<span class="w"> </span>--model<span class="w"> </span>/path/to/model<span class="w"> </span>--attack<span class="w"> </span>all<span class="w"> </span>--mia-method<span class="w"> </span>per_token<span class="w"> </span>--mia-threshold-mode<span class="w"> </span>percentile<span class="w"> </span>--mia-percentile<span class="w"> </span><span class="m">5</span>
+</code></pre></div>
+<h3 id="as-a-data-contributor-extractors">As a data contributor (extractors)<a class="headerlink" href="#as-a-data-contributor-extractors" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Veedubin/attacklm-dataset.git
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">cd</span><span class="w"> </span>attacklm-dataset
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[extract]&quot;</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># Build from upstream sources (clones ~6GB of Metasploit, Sigma, etc.)</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>attacklm-dataset<span class="w"> </span>init<span class="w"> </span>--from-source
+</code></pre></div>
+<p>See <a href="scripts/"><code>scripts/</code></a> for the 20 per-source extractors. Each
+has a docstring with the source URI, license, and a usage example.</p>
+<hr />
+<h2 id="cli-reference">CLI reference<a class="headerlink" href="#cli-reference" title="Permanent link">&para;</a></h2>
+<p><code>attacklm-dataset</code> is a thin CLI wrapper that dispatches to the
+scripts in <a href="scripts/"><code>scripts/</code></a>:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Command</th>
+<th style="text-align: left;">What it runs</th>
+<th style="text-align: left;">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>attacklm-dataset init</code></td>
+<td style="text-align: left;"><code>scripts/init_pipeline.py</code></td>
+<td style="text-align: left;">Download pre-built tarball OR build from upstream sources</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm-dataset balance</code></td>
+<td style="text-align: left;"><code>scripts/balance_buckets.py</code></td>
+<td style="text-align: left;">Build a balanced training subset (anti-source-bias)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm-dataset evolve</code></td>
+<td style="text-align: left;"><code>scripts/evolve_pairs.py</code></td>
+<td style="text-align: left;">Synthetically expand short pairs into complex reasoning examples</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm-dataset audit</code></td>
+<td style="text-align: left;"><code>scripts/audit_dataset.py</code></td>
+<td style="text-align: left;">Run the privacy-audit harness on a model</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>attacklm-dataset package</code></td>
+<td style="text-align: left;"><code>scripts/package_dataset.py</code></td>
+<td style="text-align: left;">Package the dataset for distribution (the GitHub Release tarball)</td>
+</tr>
+</tbody>
+</table>
+<p>Each command has its own flag set; <code>attacklm-dataset &lt;cmd&gt; --help</code>
+shows them. The analysis tools — decontamination, memorization
+reporting, held-out NLL, shadow scoring — are run directly as scripts
+(<code>python scripts/&lt;tool&gt;.py ...</code>); see the sections below.</p>
+<hr />
+<h2 id="dataset-composition">Dataset composition<a class="headerlink" href="#dataset-composition" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Category</th>
+<th style="text-align: left;">Source examples</th>
+<th style="text-align: left;">Approx. pairs</th>
+<th style="text-align: left;">License</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Offensive</strong></td>
+<td style="text-align: left;">Metasploit, Atomic Red Team, MITRE Stockpile</td>
+<td style="text-align: left;">15,000+</td>
+<td style="text-align: left;">BSD-3 / MIT / Apache-2.0</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Defensive</strong></td>
+<td style="text-align: left;">Sigma, Elastic, Splunk, Mordor, ThreatHunter</td>
+<td style="text-align: left;">7,000+</td>
+<td style="text-align: left;">DRL-1.1 / Apache-2.0</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>AI Security</strong></td>
+<td style="text-align: left;">Garak, Promptfoo, PromptMap</td>
+<td style="text-align: left;">100+</td>
+<td style="text-align: left;">MIT / Apache-2.0</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>AI Security (ATLAS)</strong></td>
+<td style="text-align: left;">MITRE ATLAS, ATLAS Arsenal</td>
+<td style="text-align: left;">1,800+</td>
+<td style="text-align: left;">Apache-2.0</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Meta/IR</strong></td>
+<td style="text-align: left;">NIST IR, Orchestrator</td>
+<td style="text-align: left;">500+</td>
+<td style="text-align: left;">Public Domain / MIT</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Synthetic</strong></td>
+<td style="text-align: left;">LLM-generated, AttackLM synthetic, Replay</td>
+<td style="text-align: left;">2,000+</td>
+<td style="text-align: left;">GPL-3.0 / MIT</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Total</strong>: 26,459 records across 19 source directories (azure-pyrit
+and cyberark-fuzzyai are reserved and currently empty; 3 high-risk
+sources in the <code>archive/restricted-sources/</code> dir are gitignored and
+never re-ingested).</p>
+<h3 id="mitre-atlas-since-v0100">MITRE ATLAS (since v0.10.0)<a class="headerlink" href="#mitre-atlas-since-v0100" title="Permanent link">&para;</a></h3>
+<p><a href="https://atlas.mitre.org/">MITRE ATLAS</a> (Adversarial Threat Landscape
+for Artificial-Intelligence Systems) is MITRE's threat matrix for AI
+systems — the AI-security sibling of ATT&amp;CK. The <code>mitre-atlas</code> source
+contributes <strong>1,807 case-study-grounded training pairs</strong> across 16
+ATLAS tactics (from <code>ai_attack_adaptation</code> and <code>ai_model_access</code>
+through <code>impact</code> and <code>resource_development</code>), extracted from the
+upstream <a href="https://github.com/mitre-atlas/atlas-data">mitre-atlas/atlas-data</a>
+repository (Apache-2.0, © The MITRE Corporation) by
+<code>scripts/extract_mitre_atlas.py</code>. The companion <code>mitre-atlas-arsenal</code>
+source covers ATLAS Arsenal — MITRE's catalogue of real-world
+AI-attack tools — with 20 pairs. In the bucket loader, <code>atlas</code> is its
+own category alongside the ATT&amp;CK-tactic and defensive categories
+(see <a href="CHANGELOG.md">CHANGELOG.md</a> v0.10.0–v0.11.0).</p>
+<h3 id="directory-layout">Directory layout<a class="headerlink" href="#directory-layout" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>data/datasets/buckets/sources/
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  &lt;source&gt;/                    # 19 source directories
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    LICENSE.md                 # License excerpt + URI
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    SOURCE.md                  # Source description + URI
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    &lt;bucket&gt;/                  # Training bucket
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>      &lt;tactic&gt;/                # MITRE TAxxxx
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        data.jsonl             # Human-sourced pairs
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>        data_llm.jsonl         # LLM-generated pairs
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        data_synth.jsonl       # Deterministic templates
+</code></pre></div>
+<h3 id="per-record-provenance">Per-record provenance<a class="headerlink" href="#per-record-provenance" title="Permanent link">&para;</a></h3>
+<p>Every record in the dataset carries these fields:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;atomic-red-team&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;source_uri&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://github.com/redcanaryco/atomic-red-team&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">&quot;license&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;MIT&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">&quot;license_uri&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://opensource.org/licenses/MIT&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">&quot;rights_contact&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;see data/REMOVAL.md&quot;</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="p">}</span>
+</code></pre></div>
+<p>For the full per-record attribution (which record came from which
+file in which upstream repo), see
+<a href="data/ATTRIBUTION.md">data/ATTRIBUTION.md</a>.</p>
+<h2 id="decontamination">Decontamination<a class="headerlink" href="#decontamination" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>Inspired by MAI-Thinking-1 §2.3.1 + §2.4.3 (Public Evaluation Decontamination + Deduplication) by The Microsoft AI Team, June 2026.</p>
+</blockquote>
+<p>Identify and isolate training data that overlaps with public evaluation benchmarks using 20-gram fuzzy matching to prevent data leakage.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python<span class="w"> </span>scripts/decontam.py<span class="w"> </span>--eval-set-dir<span class="w"> </span>data/eval_sets/<span class="w"> </span>--quarantine-output<span class="w"> </span>data/quarantine.jsonl
+</code></pre></div>
+<h3 id="memorization-aware-epoch-capping">Memorization-aware epoch capping<a class="headerlink" href="#memorization-aware-epoch-capping" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p>Inspired by MAI-Thinking-1 §2.5.4 (Mid-training Data Mixture — memorization-aware epoch capping) by The Microsoft AI Team, June 2026.</p>
+</blockquote>
+<p>Analyze training data for verbatim memorization and structural repetition using a per-token NLL proxy to recommend optimal epoch caps per source.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>python<span class="w"> </span>scripts/memorization_report.py<span class="w"> </span>--model<span class="w"> </span>/path/to/model
+</code></pre></div>
+<h2 id="held-out-nll-evaluation">Held-out NLL evaluation<a class="headerlink" href="#held-out-nll-evaluation" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>Inspired by MAI-Thinking-1 §2.3 + §2.3.2 (Evaluation Methodology + Comparison of Accuracy and NLL Evaluations) by The Microsoft AI Team, June 2026.</p>
+</blockquote>
+<p>Compute a cheap, contamination-resistant signal for model improvement using held-out Negative Log-Likelihood (NLL) across 5 weighted buckets.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>python<span class="w"> </span>scripts/held_out_nll.py<span class="w"> </span>--model<span class="w"> </span>/path/to/model<span class="w"> </span>--aggregation-formula<span class="w"> </span>mimic_mai
+</code></pre></div>
+<hr />
+<h2 id="privacy-audit-research-toolkit">Privacy audit (research toolkit)<a class="headerlink" href="#privacy-audit-research-toolkit" title="Permanent link">&para;</a></h2>
+<p>The <code>scripts/inversion/</code> package is the <strong>owner-side model security
+test</strong>. The question is "if I ship this model, what can an attacker
+extract from it?" — which the model owner wants to know <em>before</em>
+shipping.</p>
+<h3 id="attack-classes">Attack classes<a class="headerlink" href="#attack-classes" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Attack class</th>
+<th style="text-align: left;">Paper</th>
+<th style="text-align: left;">What it measures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Prefix-completion extraction</strong></td>
+<td style="text-align: left;">Carlini et al. 2021 (<a href="https://arxiv.org/abs/2012.07805">arXiv:2012.07805</a>)</td>
+<td style="text-align: left;">Whether the model can regenerate verbatim training data given a prefix.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>MIA reference attack (loss on assistant turn + zlib)</strong></td>
+<td style="text-align: left;">Carlini et al. 2022 (<a href="https://arxiv.org/abs/2112.03570">arXiv:2112.03570</a>)</td>
+<td style="text-align: left;">Whether per-record loss is lower on members than on non-members.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>MIA per-token loss</strong></td>
+<td style="text-align: left;">Shi et al. (MUSE) 2024 (<a href="https://arxiv.org/abs/2407.06460">arXiv:2407.06460</a>)</td>
+<td style="text-align: left;">Same idea, normalized by suffix-token count (removes length bias).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>MIA offline baseline (sample z-score)</strong></td>
+<td style="text-align: left;">Carlini et al. 2022 §3.2 (<a href="https://arxiv.org/abs/2112.03570">arXiv:2112.03570</a>)</td>
+<td style="text-align: left;">No shadow models; uses sample mean/std of audit-set NLL. Requires N ≥ 30.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>MIA LiRA (likelihood ratio)</strong></td>
+<td style="text-align: left;">Carlini et al. 2022 §4 (<a href="https://arxiv.org/abs/2112.03570">arXiv:2112.03570</a>)</td>
+<td style="text-align: left;">The "10× more powerful at low FPR" MIA. Requires K shadow-model loss files.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="closed-loop-audit">Closed-loop audit<a class="headerlink" href="#closed-loop-audit" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p>Inspired by MAI-Thinking-1 §5.2 (TAP closed-loop) by The Microsoft AI Team, June 2026.</p>
+</blockquote>
+<p>Perform iterative adversarial auditing to detect brittle memorization by generating semantic variants of fooling records.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>attacklm-dataset<span class="w"> </span>audit<span class="w"> </span>--model<span class="w"> </span>&lt;path&gt;<span class="w"> </span>--audit-iter<span class="w"> </span><span class="m">3</span><span class="w"> </span>--variant-strategies<span class="w"> </span>suffix,template
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># From the AttackLM trainer</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>attacklm<span class="w"> </span>audit<span class="w"> </span>--attack<span class="w"> </span>all<span class="w"> </span>--mia-method<span class="w"> </span>per_token<span class="w"> </span>--mia-threshold-mode<span class="w"> </span>percentile<span class="w"> </span>--mia-percentile<span class="w"> </span><span class="m">5</span><span class="w"> </span>--model<span class="w"> </span>&lt;path&gt;
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Or directly from this repo</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>attacklm-dataset<span class="w"> </span>audit<span class="w"> </span>--model<span class="w"> </span>&lt;path&gt;<span class="w"> </span>--attack<span class="w"> </span>all<span class="w"> </span>--mia-method<span class="w"> </span>per_token<span class="w"> </span>--mia-threshold-mode<span class="w"> </span>percentile<span class="w"> </span>--mia-percentile<span class="w"> </span><span class="m">5</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># Just prefix-completion extraction, 100 probes</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>attacklm<span class="w"> </span>audit<span class="w"> </span>--attack<span class="w"> </span>extraction<span class="w"> </span>--max-records<span class="w"> </span><span class="m">100</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="c1"># Just LiRA MIA (requires pre-computed shadow loss files)</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>attacklm<span class="w"> </span>audit<span class="w"> </span>--attack<span class="w"> </span>mia<span class="w"> </span>--mia-method<span class="w"> </span>lira<span class="w"> </span>--lira-params<span class="w"> </span>shadow_params.json
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="c1"># Quick offline MIA baseline (no shadow models, needs N &gt;= 30 records)</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>attacklm<span class="w"> </span>audit<span class="w"> </span>--attack<span class="w"> </span>mia<span class="w"> </span>--mia-method<span class="w"> </span>offline<span class="w"> </span>--offline-z-threshold<span class="w"> </span>-1.5
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="c1"># Score a shadow model on the audit set (LiRA Step 2)</span>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a>python<span class="w"> </span>scripts/score_shadow.py<span class="w"> </span>--model<span class="w"> </span>models/shadow_0<span class="w"> </span>--records<span class="w"> </span>data/audit_set.jsonl<span class="w"> </span>--output-dir<span class="w"> </span>losses/<span class="w"> </span>--shadow-index<span class="w"> </span><span class="m">0</span>
+</code></pre></div>
+<p><strong>Output structure</strong> is <code>data/audit/&lt;date&gt;/</code> with:
+- <code>summary.json</code> — high-level aggregate metrics (safe to share)
+- <code>threshold.md</code> — documentation of the MIA threshold derivation
+- <code>inversion_results.jsonl</code> — raw record-level reconstructions, including <code>prompt_text</code> and <code>best_reconstruction</code> fields for a self-contained evidence chain (<strong>chmod 0600</strong>, stay workspace-internal; training data carries
+  BSD-3, DRL-1.1, and other terms that may not allow redistribution
+  of raw samples)</p>
+<h2 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h2>
+<p>The internal methodology and design docs (attack taxonomy, audit
+runner plans, MIA threshold calibration, LiRA design, decontamination,
+memorization capping, held-out NLL, closed-loop audit, probe token
+budget) are <strong>not distributed</strong> in the public repo — they are
+maintainer-local working documents. The public documentation is:</p>
+<table>
+<thead>
+<tr>
+<th>Doc</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="data/ATTRIBUTION.md">data/ATTRIBUTION.md</a></td>
+<td>Per-source attribution and record counts</td>
+</tr>
+<tr>
+<td><a href="data/LEGAL.md">data/LEGAL.md</a></td>
+<td>License terms per source</td>
+</tr>
+<tr>
+<td><a href="data/REMOVAL.md">data/REMOVAL.md</a></td>
+<td>Takedown / removal process</td>
+</tr>
+<tr>
+<td><a href="PROVENANCE.md">PROVENANCE.md</a></td>
+<td>Per-file provenance template for the audit code</td>
+</tr>
+<tr>
+<td><a href="RIGHTS.md">RIGHTS.md</a></td>
+<td>Rights/usage statement, upstream authors, contact</td>
+</tr>
+<tr>
+<td><a href="SECURITY.md">SECURITY.md</a></td>
+<td>Security reporting</td>
+</tr>
+</tbody>
+</table>
+<p>The attack classes and their canonical papers are listed in the
+"Privacy audit" section above; the implementations are clean-room
+reimplementations with per-file provenance blocks in
+<code>scripts/inversion/</code>.</p>
+<p><strong>Hermetic design.</strong> The audit harness is hermetic — no network
+calls, no GPU required, runs on a CPU laptop in minutes. Mocked
+model loaders mean you can test the audit pipeline in CI without
+owning a real model.</p>
+<hr />
+<h2 id="legal-provenance">Legal &amp; provenance<a class="headerlink" href="#legal-provenance" title="Permanent link">&para;</a></h2>
+<p>This project implements privacy auditing techniques (training-data
+extraction and membership-inference attacks) derived from published
+academic research. All attack code is for <strong>defensive, audit, and
+academic-research use only</strong>.</p>
+<ul>
+<li><strong><a href="RIGHTS.md">RIGHTS.md</a></strong> — full rights statement, the canonical
+  paper list (8 papers), per-source data attribution table, and the
+  takedown-request process. This is the "trend" DMCA-style notice
+  the user requested.</li>
+<li><strong><a href="PROVENANCE.md">PROVENANCE.md</a></strong> — per-file attribution template
+  used by every Python file in this repo. Every attack code file
+  has a <code>PROVENANCE</code> block at the top naming the paper, full author
+  list, year/venue, arXiv URL, and rights-claim contact.</li>
+<li><strong><a href="SECURITY.md">SECURITY.md</a></strong> — security policy and vulnerability reporting.</li>
+<li><strong><a href="data/ATTRIBUTION.md">ATTRIBUTION.md</a></strong> — per-record
+  attribution for every record in the dataset.</li>
+<li><strong><a href="data/REMOVAL.md">data/REMOVAL.md</a></strong> — how to file a removal
+  request if you're a rights-holder of one of the upstream sources.</li>
+</ul>
+<p><strong>Rights-claim contact:</strong> <code>veedubin.legal@example.com</code> (placeholder
+— replace before public release).</p>
+<hr />
+<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
+<p>As of v0.11.0 there are 722 tests across 19 test files, all hermetic:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>tests/test_inversion_audit.py      (full audit harness, MIA + extraction)
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>tests/test_audit_iter.py           (closed-loop adversarial audit)
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>tests/test_offline_mia.py          (offline MIA baseline)
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>tests/test_lira.py                 (LiRA scoring + shadow params)
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>tests/test_per_token_mia.py        (per-token MIA scoring)
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>tests/test_probe_token_budget.py   (probe length calibration)
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>tests/test_audit_bugfixes.py       (regression for commit 4386995)
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>tests/test_shadow_train.py + test_score_shadow.py   (LiRA shadow models)
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>tests/test_extract_mitre_atlas.py  (ATLAS extractor)
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>tests/test_bucket_loader.py        (bucket layout + atlas/defensive categories)
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>tests/test_manifest_builder.py     (index + manifest generation)
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>tests/test_decontam.py             (MinHash decontamination)
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>tests/test_memorization_report.py  (epoch-cap proxy)
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>tests/test_held_out_nll.py         (held-out NLL evaluation)
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>tests/test_data_schema.py + test_lib_imports.py + test_scripts_smoke.py
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>+ test_cli.py                      (schema / imports / smoke / CLI)
+</code></pre></div>
+<p>Run them all:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Veedubin/attacklm-dataset.git
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nb">cd</span><span class="w"> </span>attacklm-dataset
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[inversion]&quot;</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>pytest<span class="w"> </span>tests/<span class="w"> </span>-v
+</code></pre></div>
+<p>The tests use <code>MagicMock</code> for the model and tokenizer, so the full
+audit pipeline (Carlini probe, MIA scoring, LiRA scoring, threshold
+derivation, JSONL output) can be exercised without a real model
+or GPU. This is the regression net for "did someone break the audit
+harness?".</p>
+<hr />
+<h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><a href="https://github.com/Veedubin/AttackLM">Veedubin/AttackLM</a></strong> —
+  the trainer/tuner/TUI that consumes this dataset</li>
+<li><strong><a href="RIGHTS.md">RIGHTS.md</a></strong> — full rights statement + canonical paper list</li>
+<li><strong><a href="PROVENANCE.md">PROVENANCE.md</a></strong> — per-file attribution template</li>
+<li><strong><a href="CHANGELOG.md">CHANGELOG.md</a></strong> — full version history</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

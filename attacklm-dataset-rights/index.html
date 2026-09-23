@@ -1,0 +1,1311 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the AttackLM red-team LLM training toolkit and dataset">
+      
+      
+        <meta name="author" content="Veedubin">
+      
+      
+      
+        <link rel="prev" href="../attacklm-dataset-provenance/">
+      
+      
+        <link rel="next" href="../attacklm-dataset-security/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Rights - AttackLM Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#rights-and-usage-statement-attacklm-dataset" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="AttackLM Documentation" class="md-header__button md-logo" aria-label="AttackLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AttackLM Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Rights
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Veedubin/AttackLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Veedubin/AttackLM
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="AttackLM Documentation" class="md-nav__button md-logo" aria-label="AttackLM Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    AttackLM Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Veedubin/AttackLM" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Veedubin/AttackLM
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-readme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AttackLM (Training Tool)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    AttackLM (Training Tool)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-readme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-rl-recipe/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RL Recipe
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-evaluation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    attacklm-dataset
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    attacklm-dataset
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-readme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Legal
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Legal
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-provenance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rights
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rights
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-what-is-in-this-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. What is in this repository
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-authoritative-sources-canonical-papers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Authoritative sources (canonical papers)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-third-party-data-sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Third-party data sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-permitted-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Permitted use
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-rights-claims-and-takedown-requests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Rights claims and takedown requests
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-license" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. License
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-disclaimer-of-warranty" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Disclaimer of warranty
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-contact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Contact
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attacklm-dataset-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-what-is-in-this-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. What is in this repository
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-authoritative-sources-canonical-papers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Authoritative sources (canonical papers)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-third-party-data-sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Third-party data sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-permitted-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Permitted use
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-rights-claims-and-takedown-requests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Rights claims and takedown requests
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-license" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. License
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-disclaimer-of-warranty" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Disclaimer of warranty
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-contact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Contact
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="rights-and-usage-statement-attacklm-dataset">Rights and Usage Statement — <code>attacklm-dataset</code><a class="headerlink" href="#rights-and-usage-statement-attacklm-dataset" title="Permanent link">&para;</a></h1>
+<p><strong>Effective:</strong> 2026-07-09
+<strong>Repository:</strong> https://github.com/Veedubin/attacklm-dataset
+<strong>Maintainer:</strong> Veedubin (GitHub) — <code>veedubin.legal@example.com</code> (replace before any public release; current address is a placeholder)</p>
+<p>This document establishes the legal and ethical framework for the <code>attacklm-dataset</code> repository and its associated software. The primary purpose of this project is to facilitate <strong>defensive privacy auditing</strong> and <strong>membership-inference attack (MIA) research</strong> on language models that the user owns or has explicit authorization to audit. By providing standardized implementations of known attack vectors, this project enables model developers to quantify the leakage of training data and implement robust defenses to protect user privacy.</p>
+<p>This statement supplements (does not replace) the existing <code>data/ATTRIBUTION.md</code>, <code>data/LEGAL.md</code>, and <code>data/REMOVAL.md</code> files. In case of conflict, the per-source attribution in <code>data/ATTRIBUTION.md</code> takes precedence for the specific record(s) in question.</p>
+<hr />
+<h2 id="1-what-is-in-this-repository">1. What is in this repository<a class="headerlink" href="#1-what-is-in-this-repository" title="Permanent link">&para;</a></h2>
+<p>This repository contains a suite of tools, data, and documentation designed for AI security research, specifically:</p>
+<ul>
+<li><strong>Attack implementations</strong> — Python code implementing membership-inference and training-data extraction attacks. The two primary attack classes are (a) <strong>training-data extraction</strong> (Carlini et al. 2021) and (b) <strong>membership-inference attacks</strong> (Carlini et al. 2022). See Section 2 for the canonical citations.</li>
+<li><strong>Dataset ingest pipelines</strong> — Scripts that collect, clean, deduplicate, bucketize, and license-tag data from openly-licensed upstream security corpora.</li>
+<li><strong>Audit harnesses</strong> — Evaluation frameworks that score the success of attacks against a target model and emit three-tier reporting (internal-raw, internal-summary, exportable-summary).</li>
+<li><strong>Provenance metadata</strong> — Per-record attribution records for every JSONL training pair, every audit-output record, and every source-file in <code>scripts/</code>.</li>
+</ul>
+<hr />
+<h2 id="2-authoritative-sources-canonical-papers">2. Authoritative sources (canonical papers)<a class="headerlink" href="#2-authoritative-sources-canonical-papers" title="Permanent link">&para;</a></h2>
+<p>The attack implementations in this repository are derived from the following academic research:</p>
+<table>
+<thead>
+<tr>
+<th>Attack class</th>
+<th>Paper</th>
+<th>Year</th>
+<th>Authors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Training-data extraction</td>
+<td><a href="https://arxiv.org/abs/2012.07805">Extracting Training Data from Large Language Models</a></td>
+<td>2021</td>
+<td>N. Carlini, F. Tramer, E. Wallace, M. Jagielski, A. Herbert-Voss, K. Lee, A. Roberts, T. Brown, D. Song, U. Erlingsson, A. Oprea, C. Raffel</td>
+</tr>
+<tr>
+<td>Membership-inference (loss)</td>
+<td><a href="https://arxiv.org/abs/2112.03570">Membership Inference Attacks From First Principles</a> (IEEE S&amp;P 2022)</td>
+<td>2022</td>
+<td>N. Carlini, S. Chien, M. Nasr, S. Song, A. Terzis, F. Tramer</td>
+</tr>
+<tr>
+<td>LiRA (likelihood-ratio MIA)</td>
+<td>Same paper, §4</td>
+<td>2022</td>
+<td>(same as above)</td>
+</tr>
+<tr>
+<td>zlib baseline</td>
+<td>Same paper, §3</td>
+<td>2022</td>
+<td>(same as above)</td>
+</tr>
+<tr>
+<td>Reference attack baseline</td>
+<td>Same paper, §3</td>
+<td>2022</td>
+<td>(same as above)</td>
+</tr>
+<tr>
+<td>Production extraction</td>
+<td><a href="https://arxiv.org/abs/2311.17035">Scalable Extraction of Training Data from (Production) LLMs</a></td>
+<td>2023</td>
+<td>M. Nasr, N. Carlini, J. Hayase, M. Jagielski, A. F. Cooper, D. Ippolito, C. A. Choquette-Choo, E. Wallace, F. Tramèr, K. Lee</td>
+</tr>
+<tr>
+<td>MUSE eval framework</td>
+<td><a href="https://arxiv.org/abs/2407.06460">MUSE: Machine Unlearning Six-Way Evaluation</a> (ICLR 2025)</td>
+<td>2024</td>
+<td>W. Shi, J. Lee, Y. Huang, S. Malladi, J. Zhao, A. Holtzman, D. Liu, L. Zettlemoyer, N. A. Smith, C. Zhang</td>
+</tr>
+<tr>
+<td>Original MIA (shadow model)</td>
+<td><a href="https://arxiv.org/abs/1610.05820">Membership Inference Attacks against Machine Learning Models</a> (IEEE S&amp;P 2017)</td>
+<td>2017</td>
+<td>R. Shokri, M. Stronati, C. Song, V. Shmatikov</td>
+</tr>
+<tr>
+<td>Per-example loss attack</td>
+<td><a href="https://arxiv.org/abs/1709.01604">Privacy Risk in Machine Learning: Analyzing the Connection to Overfitting</a></td>
+<td>2018</td>
+<td>S. Yeom, I. Giacomelli, M. Fredrikson, S. Jha</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note on official code:</strong> None of the four Carlini/Nasr papers above released official author-maintained code. The implementations in this repository are <strong>clean-room reimplementations</strong> based on the published paper text. The MUSE repository is the exception (Shi et al. 2024 has an official repo at https://github.com/woooooda/MUSE_unlearning); we reuse the Carlini 2021 verbatim-memorization test as defined in that repo.</p>
+<p><strong>Note on the original papers' license terms:</strong> Academic papers themselves are typically licensed under the default academic-copyright regime (all rights reserved by the authors / their publishers). The <em>ideas and algorithms</em> in the papers are not copyrightable in the US/EU; the <em>text and figures</em> are. The implementations in this repository do not reproduce paper text or figures — they translate the algorithms from pseudocode into Python.</p>
+<hr />
+<h2 id="3-third-party-data-sources">3. Third-party data sources<a class="headerlink" href="#3-third-party-data-sources" title="Permanent link">&para;</a></h2>
+<p>All data ingested by this project is drawn from <strong>openly-licensed</strong> upstream sources. Each source has its own <code>LICENSE.md</code> and <code>SOURCE.md</code> in its per-source directory under <code>data/datasets/buckets/sources/&lt;source&gt;/</code>. The full list lives in <code>data/ATTRIBUTION.md</code> and is regenerated by <code>scripts/rebuild_manifest.py</code>.</p>
+<p>The eleven primary sources, grouped by license, are:</p>
+<ul>
+<li><strong>BSD-3-Clause</strong>: Metasploit Framework (https://github.com/rapid7/metasploit-framework)</li>
+<li><strong>DRL-1.1</strong> (Detection Rule License): Sigma Rules (https://github.com/SigmaHQ/sigma)</li>
+<li><strong>Apache-2.0</strong>: Atomic Red Team (https://github.com/redcanaryco/atomic-red-team), Elastic Detection Rules (https://github.com/elastic/detection-rules), Splunk Security Content (https://github.com/splunk/security_content), Mordor (https://github.com/OTRF/Security-Datasets), ThreatHunter-Playbook (https://github.com/hunters-forge/ThreatHunter-Playbook), Caldera Plugins (https://github.com/mitre/caldera-plugins), Stockpile (https://github.com/mitre/stockpile), AI Tools corpus, CyberLLMInstruct, NYU CTF Bench</li>
+<li><strong>MIT</strong>: Primus-Seed (https://huggingface.co/datasets/trendmicro-ailab/Primus-Seed), AI tools (Garak, Promptfoo, PromptMap)</li>
+<li><strong>Public Domain</strong>: NIST IR documents</li>
+<li><strong>Restricted (NOT publicly distributed)</strong>: RTA (Red Team Automation), Infection Monkey, BPL (Binary Playground Library) — these are denylisted from the public dataset and live only at <code>archive/restricted-sources/</code> (gitignored)</li>
+</ul>
+<p>The user must comply with each source's license when redistributing the resulting derived data. See <code>data/ATTRIBUTION.md</code> and <code>data/LEGAL.md</code> for the per-record and per-source license metadata.</p>
+<hr />
+<h2 id="4-permitted-use">4. Permitted use<a class="headerlink" href="#4-permitted-use" title="Permanent link">&para;</a></h2>
+<p>The software and datasets provided here are intended strictly for <strong>defensive, audit, and academic-research</strong> purposes.</p>
+<ul>
+<li><strong>Permitted:</strong></li>
+<li>Auditing your own models for training-data leakage.</li>
+<li>Testing defenses against membership-inference and extraction attacks.</li>
+<li>Academic study of LLM privacy, memorization, and unlearning.</li>
+<li>Building benchmark datasets for unlearning research (the MUSE 2024 use case).</li>
+<li>
+<p>Reproducing published research results in a controlled lab environment.</p>
+</li>
+<li>
+<p><strong>Prohibited:</strong></p>
+</li>
+<li>Using these tools to attack models you do not own or do not have explicit written authorization to audit.</li>
+<li>Attempting to extract private data from third-party proprietary services.</li>
+<li>Any offensive application of these techniques against production systems.</li>
+<li>Removing attribution or license metadata from derived datasets.</li>
+<li>Republishing data from sources with <code>no-redistribution</code> clauses (e.g., RTA, Infection Monkey, BPL — see Section 3).</li>
+</ul>
+<p>The maintainer disclaims all liability for misuse of the code or data in this repository.</p>
+<hr />
+<h2 id="5-rights-claims-and-takedown-requests">5. Rights claims and takedown requests<a class="headerlink" href="#5-rights-claims-and-takedown-requests" title="Permanent link">&para;</a></h2>
+<p>The maintainers of this project respect the intellectual property rights of all contributors and data providers. If you are a rights-holder and believe that any material in this repository violates your copyright or license terms, please contact us immediately.</p>
+<p><strong>Contact:</strong> <code>veedubin.legal@example.com</code> (placeholder — replace before public release)</p>
+<p>Upon receipt of a valid request, the maintainer commits to:</p>
+<ol>
+<li><strong>Acknowledge</strong> the request within 7 calendar days.</li>
+<li><strong>Investigate</strong> the claim and verify it against the per-record provenance in <code>data/ATTRIBUTION.md</code>.</li>
+<li><strong>Act</strong> within 30 calendar days:</li>
+<li>If the claim is valid, <strong>remove</strong> the offending records from the public dataset.</li>
+<li>If the claim is valid, <strong>re-attribute</strong> the records to the correct author/license (if the issue is mis-attribution, not wrongful inclusion).</li>
+<li>If the claim is invalid, <strong>document</strong> the reason for the rejection and offer to discuss further.</li>
+<li><strong>Audit</strong> the removal across all derived artifacts (audit reports, training checkpoints if any, model weights if any).</li>
+</ol>
+<p>If you are unable to reach the maintainer by email, please open a GitHub issue at https://github.com/Veedubin/attacklm-dataset/issues with the tag <code>rights-claim</code>. GitHub issues are public by default — if your claim is sensitive, please use the email channel.</p>
+<hr />
+<h2 id="6-license">6. License<a class="headerlink" href="#6-license" title="Permanent link">&para;</a></h2>
+<p>This repository's own code is licensed under the <strong>MIT License</strong> (see <code>LICENSE</code>). The third-party data ingested by this project is licensed under its original upstream license (see <code>data/ATTRIBUTION.md</code>).</p>
+<p>The maintainer makes no claim of authorship over:
+- The attack algorithms themselves (they are mathematical ideas, not copyrightable expression).
+- The upstream data ingested by the pipeline (each source has its own author and license).
+- The academic papers cited in Section 2 (those are the works of their respective authors and publishers).</p>
+<p>The maintainer claims authorship only over:
+- The specific Python implementation of the algorithms (the code in <code>scripts/</code> and <code>src/</code>).
+- The audit harness, the three-tier reporting logic, and the threshold-calibration logic.
+- The documentation, design decisions, and architectural choices captured in <code>docs/</code>.</p>
+<hr />
+<h2 id="7-disclaimer-of-warranty">7. Disclaimer of warranty<a class="headerlink" href="#7-disclaimer-of-warranty" title="Permanent link">&para;</a></h2>
+<p>THE SOFTWARE AND DATASETS IN THIS REPOSITORY ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<hr />
+<h2 id="8-contact">8. Contact<a class="headerlink" href="#8-contact" title="Permanent link">&para;</a></h2>
+<p>For questions about this document, contact the maintainer via the email address above or open a GitHub issue.</p>
+<p><strong>Last reviewed:</strong> 2026-07-09
+<strong>Next review:</strong> 2026-10-09 (quarterly)</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
