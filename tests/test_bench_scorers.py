@@ -464,3 +464,52 @@ def test_attack_mixed_acceptable_shape_raises():
     item = _ate(acceptable=["T1190", ["T1059"]])
     with pytest.raises(ValueError, match="mix"):
         score_item(item, "T1190", ScoreConfig())
+
+
+# --- code-review fixes: prose-bleed (#3) and options beyond D (#4) ---
+
+def _mcq_with_options(answer, n_options):
+    """A single-choice item whose question actually lists n_options options."""
+    opts = "\n".join(f"{chr(65+i)}. option {i}" for i in range(n_options))
+    return BenchItem(
+        "q1", "net", "mcq",
+        [{"role": "user", "content": f"Question?\n\n{opts}"}],
+        {"type": "mcq_choice", "answer": answer}, {},
+    )
+
+
+def test_multi_rationale_after_answer_does_not_bleed():
+    """'Answer: A' + a rationale starting with a B/C/D word must not add letters."""
+    s = score_item(
+        _multi(("A",)),
+        "Answer: A\n\nBecause the attacker used phishing.",
+        ScoreConfig(),
+    )
+    assert s.extracted == "A" and s.score == 1.0
+
+
+def test_multi_rationale_same_line_does_not_bleed():
+    s = score_item(
+        _multi(("A", "C")),
+        "Answer: A, C. Because Deep packet inspection was bypassed.",
+        ScoreConfig(),
+    )
+    assert s.extracted == "AC" and s.score == 1.0
+
+
+def test_multi_supports_options_beyond_d():
+    """Options run past D; a correct A/E answer must extract E, not drop it."""
+    s = score_item(_multi(("A", "E")), "The answer is A and E.", ScoreConfig())
+    assert s.extracted == "AE" and s.score == 1.0
+
+
+def test_single_choice_supports_option_e():
+    """A 5-option single-choice item must be able to extract E."""
+    s = score_item(_mcq_with_options("E", 5), "The answer is E.", ScoreConfig())
+    assert s.score == 1.0 and s.extracted == "E"
+
+
+def test_single_choice_stray_e_ignored_on_four_option_item():
+    """On a 4-option item, a stray 'E' in prose must not create ambiguity."""
+    s = score_item(_mcq_with_options("A", 4), "The answer is A (see E-mail logs).", ScoreConfig())
+    assert s.score == 1.0

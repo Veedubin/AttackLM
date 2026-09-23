@@ -20,15 +20,30 @@ INVALID_POLICIES = ("count_wrong", "exclude", "fail_run")
 MULTI_SELECT_MODES = ("exact", "partial")
 SUBTECHNIQUE_POLICIES = ("strip", "keep", "either")
 
-# Ordered most-explicit first: an <xml>D</xml> or "Answer: D" beats a stray
-# capital letter elsewhere in the prose.
-_MCQ_PATTERNS = (
-    r"<xml>\s*([A-Da-d])\s*</xml>",
-    r"(?:answer|option|choice)\s*(?:is|:|=)\s*\(?([A-Da-d])\)?",
-    r"^\s*\(?([A-Da-d])\)?\s*[.):]?\s*$",
-)
-# Fallback sweep, used to detect ambiguity rather than to guess.
-_ANY_LETTER = r"(?<![A-Za-z])([A-D])(?![A-Za-z])"
+# The option alphabet is bounded PER ITEM (see _option_letters): a 4-option
+# question extracts only A-D, a 6-option one A-F, so a stray "E" in prose is
+# ignored on the former while a real "E" answer stays reachable on the latter.
+_DEFAULT_LETTERS = "ABCD"
+# An option label as written in a question stem: "A." / "(B)" / "C:" .
+_OPTION_LABEL = re.compile(r"(?m)^\s*\(?([A-Fa-f])[.):]")
+
+
+def _option_letters(item: "BenchItem", gold: set[str] | None = None) -> str:
+    """The option alphabet for one item, as a contiguous A..max range.
+
+    Always offers at least A-D; extends up to the furthest option label the
+    question actually presents (or the furthest gold letter, so a correct
+    answer stays extractable even when the option lines cannot be parsed).
+    Keeping it contiguous means a question that lists A-E but whose model
+    answer is a bare "C" still resolves against the same A-E alphabet.
+    """
+    text = "\n".join(m.get("content", "") for m in item.messages)
+    present = {c.upper() for c in _OPTION_LABEL.findall(text)}
+    if gold:
+        present |= {g.upper() for g in gold}
+    present &= set("ABCDEF")
+    hi = max(present | {"D"})
+    return "".join(chr(c) for c in range(ord("A"), ord(hi) + 1))
 
 # T1059 (technique) or T1059.003 (sub-technique), as they appear in prose,
 # markdown bold, parentheses or comma-separated lists. The lookbehind and the
@@ -74,19 +89,29 @@ class ItemScore:
     valid: bool
 
 
-def _extract_mcq(completion: str, answer_regex: str | None) -> str | None:
+def _extract_mcq(
+    completion: str, answer_regex: str | None, letters: str = _DEFAULT_LETTERS
+) -> str | None:
     if answer_regex:
         m = re.search(answer_regex, completion)
         return m.group(1).upper() if m else None
 
-    for pattern in _MCQ_PATTERNS:
+    cls = f"[{letters or _DEFAULT_LETTERS}]"
+    # Ordered most-explicit first: an <xml>D</xml> or "Answer: D" beats a stray
+    # option letter elsewhere in the prose.
+    for pattern in (
+        rf"<xml>\s*({cls})\s*</xml>",
+        rf"(?:answer|option|choice)\s*(?:is|:|=)\s*\(?({cls})\)?",
+        rf"^\s*\(?({cls})\)?\s*[.):]?\s*$",
+    ):
         m = re.search(pattern, completion, re.IGNORECASE | re.MULTILINE)
         if m:
             return m.group(1).upper()
 
     # Nothing explicit. A single lone letter is an answer; several distinct
     # ones are ambiguous, and guessing the first would invent a score.
-    found = {m.group(1) for m in re.finditer(_ANY_LETTER, completion.upper())}
+    any_letter = rf"(?<![A-Za-z])({cls})(?![A-Za-z])"
+    found = {m.group(1).upper() for m in re.finditer(any_letter, completion, re.IGNORECASE)}
     if len(found) == 1:
         return found.pop()
     return None
@@ -102,12 +127,13 @@ def _invalid(item: BenchItem, cfg: ScoreConfig) -> ItemScore:
 
 
 def _score_mcq_choice(item: BenchItem, completion: str, cfg: ScoreConfig) -> ItemScore:
-    extracted = _extract_mcq(completion, cfg.answer_regex)
-    if extracted is None:
-        return _invalid(item, cfg)
-
     acceptable = item.ground_truth.get("acceptable") or [item.ground_truth["answer"]]
     acceptable = [str(a).upper() for a in acceptable]
+
+    letters = _option_letters(item, set(acceptable))
+    extracted = _extract_mcq(completion, cfg.answer_regex, letters)
+    if extracted is None:
+        return _invalid(item, cfg)
     return ItemScore(
         item.question_id,
         item.category,
@@ -264,35 +290,46 @@ def _score_attack_technique_set(
 
 
 
+# The answer marker, capturing only the REST OF ITS LINE. Bounding to the line
+# is what stops a rationale on the next line ("...\n\nBecause...") from bleeding
+# its leading letter into the answer set.
 _MULTI_MARKER = re.compile(
-    # The separator is OPTIONAL: models write "ABC" as often as "A, B and C",
-    # and requiring one silently truncated every adjacent-letter answer to its
-    # first letter -- scoring a correct multi-select answer 0.0.
-    r"(?:answer|answers|options|choices)\s*(?:are|is|:|=)\s*"
-    r"([A-Da-d](?:\s*(?:,|and|/|&)?\s*[A-Da-d])*)",
+    r"(?:answer|answers|options|choices)\s*(?:are|is|:|=)\s*([^\n]*)",
     re.IGNORECASE,
 )
 
 
-def _extract_mcq_multi(completion: str, answer_regex: str | None) -> set[str]:
+def _extract_mcq_multi(
+    completion: str, answer_regex: str | None, letters: str = _DEFAULT_LETTERS
+) -> set[str]:
     """Every option letter the answer selects.
 
     Unlike the single-choice extractor, several letters are the EXPECTED shape
     here, so a set of them is a valid answer rather than an ambiguity.
     """
+    lset = letters or _DEFAULT_LETTERS
     if answer_regex:
         m = re.search(answer_regex, completion)
-        return set(re.findall(r"[A-Da-d]", m.group(1).upper())) if m else set()
+        return set(re.findall(f"[{lset}]", m.group(1).upper())) if m else set()
 
-    m = _MULTI_MARKER.search(completion)
-    if m:
-        # Strip connector WORDS before pulling letters out: the "d" in "and"
-        # is itself a valid option letter, so "A, B and C" would otherwise
-        # yield a spurious D.
-        span = re.sub(r"\b(?:and|or)\b", " ", m.group(1), flags=re.IGNORECASE)
-        return set(re.findall(r"[A-D]", span.upper()))
+    # A run made ENTIRELY of option letters that stands as its own token --
+    # "A", "AC", "ABC" -- is an answer; a prose word like "Because" is not,
+    # because it holds letters outside the option alphabet, so no maximal
+    # all-option run of it is ever a standalone token. This is what keeps the
+    # "d" in "and" and the "B" in "Because" out of the extracted set.
+    run = re.compile(rf"(?<![A-Za-z])([{lset}]+)(?![A-Za-z])", re.IGNORECASE)
+    marker = _MULTI_MARKER.search(completion)
+    if marker:
+        picked: set[str] = set()
+        for t in run.finditer(marker.group(1)):
+            picked.update(t.group(1).upper())
+        if picked:
+            return picked
 
-    return {m.group(1) for m in re.finditer(_ANY_LETTER, completion.upper())}
+    # No marker: fall back to standalone SINGLE option letters anywhere, which
+    # cannot pick up a multi-letter prose word.
+    single = re.compile(rf"(?<![A-Za-z])([{lset}])(?![A-Za-z])", re.IGNORECASE)
+    return {m.group(1).upper() for m in single.finditer(completion)}
 
 
 def _score_mcq_multi(item: BenchItem, completion: str, cfg: ScoreConfig) -> ItemScore:
@@ -321,7 +358,8 @@ def _score_mcq_multi(item: BenchItem, completion: str, cfg: ScoreConfig) -> Item
     if not gold:
         raise ValueError(f"{item.question_id}: empty answer key for mcq_multi")
 
-    predicted = _extract_mcq_multi(completion, cfg.answer_regex)
+    letters = _option_letters(item, gold)
+    predicted = _extract_mcq_multi(completion, cfg.answer_regex, letters)
     if not predicted:
         return _invalid(item, cfg)
 
