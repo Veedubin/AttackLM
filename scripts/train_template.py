@@ -370,7 +370,7 @@ Examples:
         action="store_true",
         default=False,
         help=(
-            "Live learning rate adjustment: reduce LR by 50% when loss "
+            "Live learning rate adjustment: reduce LR by 50%% when loss "
             "plateaus (same detection as early stopping). Restarts from "
             "best checkpoint on each reduction. Default: OFF."
         ),
@@ -753,7 +753,7 @@ Examples:
         default=False,
         help=(
             "Use COAP optimizer (Correlation-Aware Gradient Projection). "
-            "Replaces GaLore with 81% optimizer memory reduction (with 8-bit), "
+            "Replaces GaLore with 81%% optimizer memory reduction (with 8-bit), "
             "4x faster. Projects gradients into low-rank spaces accounting "
             "for inter-projection correlation. Compatible with DeepSpeed. "
             "Mutually exclusive with --use-galore, --use-qgalore, and --use-lomo. "
@@ -776,7 +776,7 @@ Examples:
         action="store_true",
         default=False,
         help=(
-            "Enable 8-bit quantization for COAP (81% optimizer memory "
+            "Enable 8-bit quantization for COAP (81%% optimizer memory "
             "reduction vs standard Adam). Only meaningful with --use-coap."
         ),
     )
@@ -788,7 +788,7 @@ Examples:
         default=False,
         help=(
             "Use FlashOptim optimizer. Unifies gradient accumulation with "
-            "momentum, removing dedicated optimizer memory for 50% memory "
+            "momentum, removing dedicated optimizer memory for 50%% memory "
             "reduction. Compatible with gradient checkpointing. Mutually "
             "exclusive with --use-galore, --use-qgalore, and --use-lomo. "
             "Requires: pip install flashoptim. "
@@ -809,7 +809,7 @@ Examples:
         help=(
             "Enable BitNet b1.58 mode for ternary-weight models. "
             "BitNet uses ternary weights (-1, 0, +1) = 1.58 bits/weight, "
-            "achieving 60-75% VRAM savings vs equivalent FP16 models. "
+            "achieving 60-75%% VRAM savings vs equivalent FP16 models. "
             "Requires a natively trained BitNet base model (e.g. "
             "microsoft/bitnet-b1.58-2B4T). Cannot convert existing models "
             "to BitNet — the base must be trained from scratch with "
