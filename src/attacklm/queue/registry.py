@@ -46,6 +46,23 @@ class TaskSpec:
 # read in opposite directions -- see compare.HIGHER_IS_WORSE.
 # ---------------------------------------------------------------------------
 
+# Args every bench_* task shares, so the CLI contract is exposed identically
+# across packs (decontam included, so a queue/gauntlet run can produce a
+# score_clean for the Phase-4 A/B, not only a hand-run CLI invocation).
+_BENCH_ARGS: dict[str, dict] = {
+    "pack": {"type": "string", "required": False},
+    "questions": {"type": "string", "required": False},
+    "output": {"type": "string", "required": False},
+    "base_model": {"type": "string", "required": False},
+    "adapter": {"type": "string", "required": False},
+    "rung": {"type": "integer", "required": False},
+    "backend": {"type": "string", "required": False},
+    "max_tokens": {"type": "integer", "required": False},
+    "invalid_policy": {"type": "string", "required": False},
+    "training_records": {"type": "string", "required": False},
+    "decontam_threshold": {"type": "number", "required": False},
+}
+
 REGISTRY: dict[str, TaskSpec] = {
     "train": TaskSpec(
         type="train",
@@ -83,17 +100,7 @@ REGISTRY: dict[str, TaskSpec] = {
         runner_mode="subprocess",
         produces_artifact="report",
         consumes_artifact="adapter",
-        arg_schema={
-            "pack": {"type": "string", "required": False},
-            "questions": {"type": "string", "required": False},
-            "output": {"type": "string", "required": False},
-            "base_model": {"type": "string", "required": False},
-            "adapter": {"type": "string", "required": False},
-            "rung": {"type": "integer", "required": False},
-            "backend": {"type": "string", "required": False},
-            "max_tokens": {"type": "integer", "required": False},
-            "invalid_policy": {"type": "string", "required": False},
-        },
+        arg_schema={**_BENCH_ARGS},
         default_timeout_s=3600,
         gauntlet_member=True,
         implemented=True,
@@ -106,17 +113,7 @@ REGISTRY: dict[str, TaskSpec] = {
         runner_mode="subprocess",
         produces_artifact="report",
         consumes_artifact="adapter",
-        arg_schema={
-            "pack": {"type": "string", "required": False},
-            "questions": {"type": "string", "required": False},
-            "output": {"type": "string", "required": False},
-            "base_model": {"type": "string", "required": False},
-            "adapter": {"type": "string", "required": False},
-            "rung": {"type": "integer", "required": False},
-            "backend": {"type": "string", "required": False},
-            "max_tokens": {"type": "integer", "required": False},
-            "invalid_policy": {"type": "string", "required": False},
-        },
+        arg_schema={**_BENCH_ARGS},
         default_timeout_s=7200,
         gauntlet_member=True,
         implemented=True,
@@ -129,17 +126,7 @@ REGISTRY: dict[str, TaskSpec] = {
         runner_mode="subprocess",
         produces_artifact="report",
         consumes_artifact="adapter",
-        arg_schema={
-            "pack": {"type": "string", "required": False},
-            "questions": {"type": "string", "required": False},
-            "output": {"type": "string", "required": False},
-            "base_model": {"type": "string", "required": False},
-            "adapter": {"type": "string", "required": False},
-            "rung": {"type": "integer", "required": False},
-            "backend": {"type": "string", "required": False},
-            "max_tokens": {"type": "integer", "required": False},
-            "invalid_policy": {"type": "string", "required": False},
-        },
+        arg_schema={**_BENCH_ARGS},
         default_timeout_s=3600,
         gauntlet_member=True,
         implemented=True,
@@ -152,17 +139,7 @@ REGISTRY: dict[str, TaskSpec] = {
         runner_mode="subprocess",
         produces_artifact="report",
         consumes_artifact="adapter",
-        arg_schema={
-            "pack": {"type": "string", "required": False},
-            "questions": {"type": "string", "required": False},
-            "output": {"type": "string", "required": False},
-            "base_model": {"type": "string", "required": False},
-            "adapter": {"type": "string", "required": False},
-            "rung": {"type": "integer", "required": False},
-            "backend": {"type": "string", "required": False},
-            "max_tokens": {"type": "integer", "required": False},
-            "invalid_policy": {"type": "string", "required": False},
-        },
+        arg_schema={**_BENCH_ARGS},
         default_timeout_s=3600,
         gauntlet_member=True,
         implemented=True,
@@ -175,17 +152,7 @@ REGISTRY: dict[str, TaskSpec] = {
         runner_mode="subprocess",
         produces_artifact="report",
         consumes_artifact="adapter",
-        arg_schema={
-            "pack": {"type": "string", "required": False},
-            "questions": {"type": "string", "required": False},
-            "output": {"type": "string", "required": False},
-            "base_model": {"type": "string", "required": False},
-            "adapter": {"type": "string", "required": False},
-            "rung": {"type": "integer", "required": False},
-            "backend": {"type": "string", "required": False},
-            "max_tokens": {"type": "integer", "required": False},
-            "invalid_policy": {"type": "string", "required": False},
-        },
+        arg_schema={**_BENCH_ARGS},
         default_timeout_s=7200,
         gauntlet_member=True,
         implemented=True,
@@ -199,15 +166,7 @@ REGISTRY: dict[str, TaskSpec] = {
         produces_artifact="report",
         consumes_artifact="adapter",
         arg_schema={
-            "pack": {"type": "string", "required": False},
-            "questions": {"type": "string", "required": False},
-            "output": {"type": "string", "required": False},
-            "base_model": {"type": "string", "required": False},
-            "adapter": {"type": "string", "required": False},
-            "rung": {"type": "integer", "required": False},
-            "backend": {"type": "string", "required": False},
-            "max_tokens": {"type": "integer", "required": False},
-            "invalid_policy": {"type": "string", "required": False},
+            **_BENCH_ARGS,
             # Posture judge knobs (optional). Omitted -> deterministic posture
             # only (refused/answered/evaded). Set judge_model to grade
             # taught/overshared via a second harness pass.

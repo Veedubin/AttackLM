@@ -454,3 +454,54 @@ def test_no_judge_model_keeps_posture_deterministic(tmp_path):
     assert rh.call_count == 1
     rep = json.loads(out.read_text())
     assert "taught_rate" not in rep["summary"]["posture"]
+
+
+# --------------------------------------------------------------------------
+# scorer knobs exposed on the CLI (no longer hardcoded to defaults)
+# --------------------------------------------------------------------------
+
+
+def test_scorer_knob_defaults():
+    args = bench_run.parse_args(["--pack", "p", "--base-model", "m"])
+    assert args.multi_select == "exact"
+    assert args.attack_id_subtechniques == "strip"
+
+
+def test_scorer_knobs_flow_into_resolved_config(tmp_path):
+    out = tmp_path / "report.json"
+    items = _items_file(tmp_path, n=2)
+    parsed = [
+        ParsedSample("q0", "C", None, None, None, False, {}),
+        ParsedSample("q1", "C", None, None, None, False, {}),
+    ]
+    with patch.object(bench_run, "_run_harness", return_value=parsed):
+        bench_run.main([
+            "--pack", "demo", "--packs-dir", str(_local_pack(tmp_path)),
+            "--questions", str(items), "--base-model", "m", "--output", str(out),
+            "--no-decontam", "--attack-id-subtechniques", "keep", "--multi-select", "partial",
+        ])
+    rc = json.loads(out.read_text())["metadata"]["resolved_config"]
+    assert rc["attack_id_subtechniques"] == "keep"
+    assert rc["multi_select"] == "partial"
+
+
+def test_attack_subtechnique_knob_changes_scoring(tmp_path):
+    """`keep` must actually reach the scorer: T1059.001 vs a gold T1059 is a
+    match under strip but a miss under keep."""
+    out = tmp_path / "report.json"
+    items = tmp_path / "items.jsonl"
+    items.write_text(json.dumps({
+        "question_id": "q0", "category": "ate", "tier": "ate",
+        "messages": [{"role": "user", "content": "?"}],
+        "ground_truth": {"type": "attack_technique_set", "answer": ["T1059"]},
+        "metadata": {},
+    }))
+    parsed = [ParsedSample("q0", "It is T1059.001.", None, None, None, False, {})]
+    for policy, expected in [("strip", 1.0), ("keep", 0.0)]:
+        with patch.object(bench_run, "_run_harness", return_value=parsed):
+            bench_run.main([
+                "--pack", "demo", "--packs-dir", str(_local_pack(tmp_path)),
+                "--questions", str(items), "--base-model", "m", "--output", str(out),
+                "--no-decontam", "--attack-id-subtechniques", policy,
+            ])
+        assert json.loads(out.read_text())["summary"]["score_raw"]["score"] == expected

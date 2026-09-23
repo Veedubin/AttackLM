@@ -59,6 +59,8 @@ from attacklm.bench.posture import (  # noqa: E402
 from attacklm.bench.report import build_report  # noqa: E402
 from attacklm.bench.scorers import (  # noqa: E402
     INVALID_POLICIES,
+    MULTI_SELECT_MODES,
+    SUBTECHNIQUE_POLICIES,
     InvalidResponseError,
     ItemScore,
     ScoreConfig,
@@ -101,6 +103,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     sc = p.add_argument_group("scoring")
     sc.add_argument("--answer-regex", help="override answer extraction (local_scored)")
     sc.add_argument("--invalid-policy", default="count_wrong", choices=list(INVALID_POLICIES))
+    sc.add_argument("--multi-select", default="exact", choices=list(MULTI_SELECT_MODES),
+                    help="mcq_multi scoring: 'exact' set match (comparable to published "
+                         "numbers) or 'partial' Jaccard (more forgiving, not comparable)")
+    sc.add_argument("--attack-id-subtechniques", default="strip",
+                    choices=list(SUBTECHNIQUE_POLICIES),
+                    help="technique-set scoring: 'strip' normalises sub-techniques to "
+                         "their parent, 'keep' compares as written, 'either' matches a "
+                         "parent/child pair")
 
     jd = p.add_argument_group("posture judge (taught vs overshared)")
     jd.add_argument("--judge-model",
@@ -118,8 +128,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     dc.add_argument("--decontam-threshold", type=float, default=DEFAULT_THRESHOLD,
                     help="Jaccard at or above which an item counts as contaminated")
     dc.add_argument("--training-records",
-                    help="JSONL of training records to check against; "
-                         "defaults to the attacklm-dataset corpus when present")
+                    help="JSONL of training records to check items against. Required "
+                         "to produce a score_clean: without it the overlap check cannot "
+                         "run and the report's score_clean is null (no auto-discovery -- "
+                         "decontaminating against the wrong corpus is worse than not)")
 
     p.add_argument("--keep-logs", help="copy the harness log here instead of discarding it")
     return p.parse_args(argv)
@@ -322,7 +334,12 @@ def main(argv: list[str] | None = None) -> int:
         scores = _score_local_mode(
             items,
             samples,
-            ScoreConfig(answer_regex=args.answer_regex, invalid_policy=args.invalid_policy),
+            ScoreConfig(
+                answer_regex=args.answer_regex,
+                invalid_policy=args.invalid_policy,
+                multi_select=args.multi_select,
+                attack_id_subtechniques=args.attack_id_subtechniques,
+            ),
         )
 
     # Posture is scored over the SAME completions (Phase 3). Only local_scored
@@ -362,6 +379,8 @@ def main(argv: list[str] | None = None) -> int:
             "top_p": args.top_p, "seed": args.seed, "stop": list(args.stop),
             "sample_seed": args.sample_seed, "rung": args.rung,
             "num_shots": args.num_shots, "answer_regex": args.answer_regex,
+            "multi_select": args.multi_select,
+            "attack_id_subtechniques": args.attack_id_subtechniques,
             "invalid_policy": args.invalid_policy, "backend": args.backend,
             "base_url": args.base_url, "model_args": list(args.model_args),
             "pack_revision": pack.source.revision,
