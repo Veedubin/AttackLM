@@ -205,11 +205,17 @@ def main(argv: list[str] | None = None) -> int:
 
     items = []
     if pack.mode == "local_scored":
-        if not args.questions:
+        # --questions wins; otherwise an authored (source.kind == local) pack
+        # names its own in-repo item file via source.repo, so it is
+        # self-contained without the operator repeating the path.
+        questions = args.questions
+        if not questions and pack.source.kind == "local" and pack.source.repo:
+            questions = pack.source.repo
+        if not questions:
             raise SystemExit(
                 f"pack {pack.name!r} is local_scored; --questions is required"
             )
-        items = sample_items(load_items(Path(args.questions)), args.rung, seed=args.sample_seed)
+        items = sample_items(load_items(Path(questions)), args.rung, seed=args.sample_seed)
 
     with tempfile.TemporaryDirectory(prefix="attacklm-bench-") as tmp:
         log_dir = Path(tmp)

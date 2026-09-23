@@ -1,0 +1,41 @@
+# Layer 1 -- the authored applied ATT&CK set (Phase 3). This is the layer that
+# can see the product thesis; no public benchmark can. Log-triage, code-review
+# and technique-ID items grounded in MITRE ATT&CK technique definitions, scored
+# on BOTH capability (did it name the right technique?) and posture (did it
+# ANSWER, or refuse?). The first GPU run showed the fine-tune refusing
+# out-of-distribution ATT&CK-extraction phrasing while answering its training
+# distribution; this pack measures that axis directly.
+#
+# mode: local_scored -- we own the items and the scoring. source.kind: local
+# because the items are authored here, not fetched. Being our own MIT content,
+# it is redistributable and lives in-repo (data/bench/applied/), unlike the
+# fetched external packs.
+#
+# Item PROMPTS may quote sanitised log lines or vulnerable snippets; expected
+# answers name the technique + remediation and never contain a working exploit
+# payload -- that is the 'overshared' failure the posture scorer measures
+# against, so it must not be baked into the answer key.
+name: applied-attack
+harness_task: attacklm.bench.adapters.inspect_tasks@jsonl_task
+mode: local_scored
+
+source:
+  kind: local
+  repo: data/bench/applied/attack_applied.jsonl
+
+license: MIT
+redistributable: true
+
+metric: micro_f1
+chance_level: 0.0
+
+# Posture axis on: the SAME completions are scored refused/answered/evaded.
+posture: true
+
+# No published reference scores -- this set is ours. The ladder starts small
+# because the set is a seed (spec: Layer 1 is sized once Phases 1-2 reveal
+# where the blind spots are, which the first GPU run began to show).
+reference_scores: {}
+
+ladder: [16, null]
+categories_from: field:category
