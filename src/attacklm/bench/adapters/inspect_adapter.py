@@ -89,6 +89,22 @@ class ParsedSample:
     metadata: dict
 
 
+def bench_env() -> dict[str, str]:
+    """Environment for the harness subprocess.
+
+    Inspect's vLLM provider starts a `vllm` CONSOLE SCRIPT, not a module, so
+    the harness venv's bin/ must be on PATH. Pointing ATTACKLM_BENCH_PYTHON at
+    a venv without this yields "No such file or directory: 'vllm'".
+    """
+    env = dict(os.environ)
+    # NOT .resolve(): a venv's `python` is a symlink to the real interpreter,
+    # so resolving it yields the base install's bin/ and the venv's own console
+    # scripts (vllm, inspect) stay invisible. absolute() keeps the venv path.
+    bin_dir = str(Path(resolve_bench_python()).absolute().parent)
+    env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
+    return env
+
+
 def resolve_bench_python() -> str:
     """Interpreter that has inspect_ai installed.
 
@@ -153,6 +169,10 @@ def _score_of(sample: dict) -> tuple[float | None, str | None, bool]:
         return float(value), answer, True
 
     return None, answer, False
+
+
+class HarnessRunError(RuntimeError):
+    """The harness ran but did not produce a usable result."""
 
 
 class InspectAdapter:
@@ -223,9 +243,21 @@ class InspectAdapter:
             raise FileNotFoundError(f"no Inspect JSON log found in {log_dir}")
 
         data = json.loads(logs[0].read_text())
+        samples = data.get("samples") or []
+
+        # A harness that died writes a log with no samples and a non-success
+        # status. Returning [] would yield a report of all-invalid items --
+        # indistinguishable from a model that refused every question, i.e. a
+        # failure flattering itself as data. Refuse instead. A run that DID
+        # produce samples is still usable, so only the empty case raises.
+        status = data.get("status")
+        if status and status != "success" and not samples:
+            error = (data.get("error") or {}).get("message") or status
+            raise HarnessRunError(f"harness run did not succeed ({status}): {error}")
+
         parsed: list[ParsedSample] = []
 
-        for idx, sample in enumerate(data.get("samples") or []):
+        for idx, sample in enumerate(samples):
             score, answer, valid = _score_of(sample)
             metadata = sample.get("metadata") or {}
             parsed.append(

@@ -138,3 +138,48 @@ def test_noanswer_value_is_invalid(tmp_path):
     (tmp_path / "log.json").write_text(json.dumps(data))
     p = InspectAdapter().parse_log(tmp_path)[0]
     assert p.score is None and p.valid is False
+
+
+# --------------------------------------------------------------------------
+# a failed harness run must not masquerade as data
+# --------------------------------------------------------------------------
+
+
+def test_failed_run_raises_rather_than_reporting_all_invalid(tmp_path):
+    """A dead harness produced a report of invalid=N, which reads exactly like
+    a model that refused every question. That is a failure flattering itself
+    as data, so parse_log refuses instead."""
+    from attacklm.bench.adapters.inspect_adapter import HarnessRunError
+
+    data = json.loads(FIXTURE.read_text())
+    data["status"] = "error"
+    data["samples"] = []
+    data["error"] = {"message": "Failed to start vLLM server"}
+    (tmp_path / "log.json").write_text(json.dumps(data))
+
+    with pytest.raises(HarnessRunError, match="vLLM"):
+        InspectAdapter().parse_log(tmp_path)
+
+
+def test_successful_run_with_samples_is_unaffected(log_dir):
+    assert len(InspectAdapter().parse_log(log_dir)) == 3
+
+
+def test_partial_run_keeps_the_samples_it_got(tmp_path):
+    """An interrupted run that DID produce samples is still usable data."""
+    data = json.loads(FIXTURE.read_text())
+    data["status"] = "error"
+    data["samples"] = data["samples"][:1]
+    (tmp_path / "log.json").write_text(json.dumps(data))
+    assert len(InspectAdapter().parse_log(tmp_path)) == 1
+
+
+def test_bench_env_puts_the_harness_venv_bin_on_path(monkeypatch, tmp_path):
+    """Inspect's vLLM provider starts a `vllm` console script, not a module."""
+    from attacklm.bench.adapters.inspect_adapter import bench_env
+
+    fake = tmp_path / "venv" / "bin" / "python"
+    fake.parent.mkdir(parents=True)
+    fake.touch()
+    monkeypatch.setenv("ATTACKLM_BENCH_PYTHON", str(fake))
+    assert bench_env()["PATH"].split(os.pathsep)[0] == str(fake.parent)

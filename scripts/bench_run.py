@@ -111,9 +111,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def _run_harness(pack: Pack, cfg: RunConfig, adapter: InspectAdapter) -> list[ParsedSample]:
     """Invoke the harness and parse its log. Patched out in tests."""
+    from attacklm.bench.adapters.inspect_adapter import bench_env
+
     argv = adapter.build_argv(pack, cfg)
     print("harness:", " ".join(argv), flush=True)
-    subprocess.run(argv, check=True)
+    subprocess.run(argv, check=True, env=bench_env())
     return adapter.parse_log(cfg.log_dir)
 
 
