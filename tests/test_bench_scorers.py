@@ -415,3 +415,52 @@ def test_multi_empty_key_raises():
 def test_multi_bad_mode_raises():
     with pytest.raises(ValueError, match="nonsense"):
         score_item(_multi(), "Answer: A", ScoreConfig(multi_select="nonsense"))
+
+
+# --- attack_technique_set: alternate acceptable answer-SETS -----------------
+# For items whose vuln->ATT&CK mapping is legitimately non-unique, `acceptable`
+# may be a LIST OF LISTS: several acceptable answer-sets, any one of which,
+# fully named, scores 1.0. A flat list of id strings keeps its old meaning
+# (a single required answer-set).
+
+
+def test_attack_alternate_answer_sets_score_best_match():
+    item = _ate(acceptable=[["T1190"], ["T1059"]])
+    assert score_item(item, "This is T1190.", ScoreConfig()).score == 1.0
+    assert score_item(item, "This is T1059.", ScoreConfig()).score == 1.0
+
+
+def test_attack_alternate_sets_reject_a_wrong_technique():
+    item = _ate(acceptable=[["T1190"], ["T1059"]])
+    assert score_item(item, "This is T1055.", ScoreConfig()).score == 0.0
+
+
+def test_attack_alternate_set_naming_one_is_not_penalised_for_the_other():
+    # Naming T1190 fully must score 1.0 -- NOT recall 0.5 as a union gold
+    # {T1190,T1059} would give. That difference is the whole point.
+    item = _ate(acceptable=[["T1190"], ["T1059"]])
+    assert score_item(item, "Only T1190 here.", ScoreConfig()).score == 1.0
+
+
+def test_attack_multi_id_alternate_set_still_requires_its_members():
+    # An acceptable set with two ids requires both of THAT set to score 1.0,
+    # while a different single-id set remains a full-credit alternative.
+    item = _ate(acceptable=[["T1059", "T1027"], ["T1204"]])
+    assert score_item(item, "T1059 and T1027.", ScoreConfig()).score == 1.0
+    assert score_item(item, "T1204.", ScoreConfig()).score == 1.0
+    # naming only one of the two-id set scores its F1 (2*.5*.5/... vs the
+    # T1204 alternate = 0), max = 0.6667
+    assert score_item(item, "T1059 only.", ScoreConfig()).score == pytest.approx(2 / 3)
+
+
+def test_attack_flat_acceptable_is_still_a_single_required_set():
+    # BACKWARD COMPAT: a flat list means one gold set where all are required.
+    item = _ate(acceptable=["T1190", "T1059"])
+    assert score_item(item, "T1190 and T1059.", ScoreConfig()).score == 1.0
+    assert score_item(item, "T1190 only.", ScoreConfig()).score == pytest.approx(2 / 3)
+
+
+def test_attack_mixed_acceptable_shape_raises():
+    item = _ate(acceptable=["T1190", ["T1059"]])
+    with pytest.raises(ValueError, match="mix"):
+        score_item(item, "T1190", ScoreConfig())

@@ -127,25 +127,15 @@ def _extract_attack_ids(completion: str) -> set[str]:
     return {m.group(0).upper() for m in _ATTACK_ID.finditer(completion)}
 
 
-def _gold_attack_ids(item: BenchItem) -> set[str]:
-    # Key precedence matches _score_mcq_choice above -- `acceptable` wins when
-    # present, else `answer`. One convention across the file: a reader who
-    # learns it from one scorer must not be surprised by the other.
-    raw = item.ground_truth.get("acceptable")
-    if raw is None:
-        raw = item.ground_truth.get("answer")
-    if isinstance(raw, str):
-        raw = [raw]
-
+def _one_gold_set(item: BenchItem, entries: list) -> set[str]:
     gold: set[str] = set()
-    for entry in raw or []:
+    for entry in entries:
         technique_id = str(entry).strip().upper()
         if not _ATTACK_ID_EXACT.match(technique_id):
             raise ValueError(
                 f"{item.question_id}: malformed technique id {entry!r} in the answer key"
             )
         gold.add(technique_id)
-
     # An item with no correct answer is a broken item, not a zero score: every
     # prediction would be a false positive and the f1 would be a fact about the
     # dataset rather than about the model.
@@ -154,6 +144,49 @@ def _gold_attack_ids(item: BenchItem) -> set[str]:
             f"{item.question_id}: attack_technique_set answer key is empty"
         )
     return gold
+
+
+def _gold_attack_id_sets(item: BenchItem) -> list[set[str]]:
+    """The acceptable answer-SETS for a technique-set item.
+
+    Key precedence matches _score_mcq_choice -- `acceptable` wins when present,
+    else `answer`. Two shapes are allowed:
+
+      answer/acceptable = ["T1190", "T1059"]        -> ONE set, all required
+      acceptable        = [["T1190"], ["T1059"]]    -> SEVERAL acceptable sets
+
+    The list-of-lists form is for items whose vuln->ATT&CK mapping is
+    legitimately non-unique (the QCRI-style trap of a debatable key): the item
+    scores the BEST micro-F1 over the candidate sets, so fully naming any one
+    acceptable mapping earns 1.0 rather than being docked for not naming the
+    others. A flat list keeps its meaning: a single set where every id counts.
+    """
+    raw = item.ground_truth.get("acceptable")
+    if raw is None:
+        raw = item.ground_truth.get("answer")
+    if raw is None:
+        raw = []
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, list):
+        raise ValueError(f"{item.question_id}: technique answer key must be a list")
+    if not raw:
+        raise ValueError(
+            f"{item.question_id}: attack_technique_set answer key is empty"
+        )
+
+    list_elems = [isinstance(c, list) for c in raw]
+    if all(list_elems):
+        candidates = raw
+    elif not any(list_elems):
+        candidates = [raw]
+    else:
+        raise ValueError(
+            f"{item.question_id}: 'acceptable' mixes id strings and answer-sets; "
+            f"use either a flat list of ids or a list of id-lists"
+        )
+
+    return [_one_gold_set(item, cand) for cand in candidates]
 
 
 def _either_matches(predicted: str, gold: str) -> bool:
@@ -204,7 +237,7 @@ def _score_attack_technique_set(
 
     # The answer key is validated before the completion is judged: a broken
     # item is a broken item whatever the model said.
-    gold = _gold_attack_ids(item)
+    gold_sets = _gold_attack_id_sets(item)
 
     predicted = _extract_attack_ids(completion)
     if not predicted:
@@ -213,12 +246,17 @@ def _score_attack_technique_set(
 
     if cfg.attack_id_subtechniques == "strip":
         predicted = {_parent_technique(t) for t in predicted}
-        gold = {_parent_technique(t) for t in gold}
+        gold_sets = [{_parent_technique(t) for t in g} for g in gold_sets]
+
+    # Best match over the acceptable answer-sets: a single-set item has one
+    # candidate, so this is the plain score; a multi-set item rewards fully
+    # naming any one acceptable mapping.
+    score = max(_micro_f1(predicted, g, cfg.attack_id_subtechniques) for g in gold_sets)
 
     return ItemScore(
         item.question_id,
         item.category,
-        _micro_f1(predicted, gold, cfg.attack_id_subtechniques),
+        score,
         ",".join(sorted(predicted)),
         True,
     )
