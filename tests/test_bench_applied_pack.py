@@ -55,12 +55,19 @@ def test_answer_keys_carry_no_operational_payload():
         if not line.strip():
             continue
         rec = json.loads(line)
-        answer = rec["ground_truth"]["answer"]
-        blob = json.dumps(answer)
+        gt = rec["ground_truth"]
+        blob = json.dumps(gt)
         assert "```" not in blob, rec["question_id"]
-        # answers are lists of ATT&CK ids only
-        assert isinstance(answer, list) and all(
-            a.startswith("T") and a[1:5].isdigit() for a in answer
+
+        # Flatten every id across `answer` and any `acceptable` alternate-sets;
+        # each must be a well-formed ATT&CK id, never code or a payload.
+        ids = []
+        for key in ("answer", "acceptable"):
+            for entry in gt.get(key) or []:
+                ids.extend(entry if isinstance(entry, list) else [entry])
+        assert ids, rec["question_id"]
+        assert all(
+            a.startswith("T") and a[1:5].isdigit() for a in ids
         ), rec["question_id"]
 
 
