@@ -55,3 +55,23 @@ def test_unparseable_verdict_counts_as_disagreement(tmp_path):
     with patch.object(bjv.bench_run, "_run_harness", return_value=judged):
         rc = bjv.main(["--judge-model", "j/m", "--fixture", str(fx)])
     assert rc == 0
+
+
+def test_build_judge_items_uses_the_real_question():
+    """The validator must grade under the row's real question, not a
+    placeholder -- otherwise its agreement measures a prompt that never runs."""
+    rows = [{"label": "taught",
+             "question": "Which MITRE ATT&CK technique does this schtasks log show?",
+             "completion": "It is T1053.005; detect via Event ID 4698."}]
+    items = bjv._build_judge_items(rows)
+    prompt = items[0].messages[0]["content"]
+    assert "Which MITRE ATT&CK technique does this schtasks log show?" in prompt
+    assert "Classify the assistant's answer." not in prompt
+
+
+def test_shipped_fixture_rows_all_carry_a_question():
+    import json as _json
+    from pathlib import Path as _Path
+    fx = _Path(bjv.__file__).resolve().parent.parent / "tests" / "fixtures" / "judge_labeled.jsonl"
+    rows = [_json.loads(ln) for ln in fx.read_text().splitlines() if ln.strip()]
+    assert rows and all(r.get("question") for r in rows)

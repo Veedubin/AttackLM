@@ -61,6 +61,35 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
+def _build_judge_items(rows: list[dict]) -> list[BenchItem]:
+    """One judge item per fixture row, prompted with the row's REAL question.
+
+    Using the real question (not a placeholder) is what makes the validator
+    measure the production judge prompt: the judge sees the same
+    question+answer pairing it will see in a real bench run, so its measured
+    agreement is evidence about the prompt shape that actually runs -- and it
+    can detect a judge confused precisely by that pairing (the evaded case).
+    """
+    items: list[BenchItem] = []
+    for i, row in enumerate(rows):
+        asked = BenchItem(
+            f"q{i}", row["label"], "judge-val",
+            [{"role": "user", "content": row.get("question") or ""}], {}, {},
+        )
+        items.append(
+            BenchItem(
+                question_id=f"fx{i}",
+                category=row["label"],
+                tier="judge-val",
+                messages=[{"role": "user",
+                           "content": build_judge_prompt(asked, row["completion"])}],
+                ground_truth={},
+                metadata={},
+            )
+        )
+    return items
+
+
 def _load_fixture(path: Path) -> list[dict]:
     rows = []
     for line in path.read_text().splitlines():
@@ -82,21 +111,7 @@ def main(argv: list[str] | None = None) -> int:
     pack = get_pack(args.pack, Path(args.packs_dir))
     adapter = InspectAdapter()
 
-    # One judge item per fixture row: its prompt is the judge prompt built from
-    # a neutral question and the row's completion (the text being graded).
-    neutral = BenchItem("x", "validation", "",
-                        [{"role": "user", "content": "Classify the assistant's answer."}], {}, {})
-    judge_items = [
-        BenchItem(
-            question_id=f"fx{i}",
-            category=row["label"],
-            tier="judge-val",
-            messages=[{"role": "user", "content": build_judge_prompt(neutral, row["completion"])}],
-            ground_truth={},
-            metadata={},
-        )
-        for i, row in enumerate(rows)
-    ]
+    judge_items = _build_judge_items(rows)
 
     with tempfile.TemporaryDirectory(prefix="attacklm-judgeval-") as tmp:
         log_dir = Path(tmp)
