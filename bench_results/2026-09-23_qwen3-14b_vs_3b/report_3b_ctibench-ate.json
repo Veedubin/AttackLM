@@ -1,0 +1,580 @@
+{
+  "metadata": {
+    "pack": "ctibench-ate",
+    "mode": "local_scored",
+    "metric": "micro_f1",
+    "chance_level": 0.0,
+    "timestamp": "2026-09-23T16:08:14.596807+00:00",
+    "model": "models/merged/attacklm-3b-16g",
+    "tag": "3b-ate",
+    "generation": "transformers+bnb4bit-direct"
+  },
+  "summary": {
+    "score_raw": {
+      "score": 0.0987,
+      "n": 60,
+      "invalid": 0
+    },
+    "by_category": {
+      "Enterprise": {
+        "score": 0.0873,
+        "n": 47
+      },
+      "Mobile": {
+        "score": 0.14,
+        "n": 13
+      }
+    },
+    "score_clean": null,
+    "score_clean_reason": "no contamination check run",
+    "posture": {
+      "n": 60,
+      "judged": false,
+      "refusal_rate": 0.0,
+      "evaded_rate": 0.0,
+      "answered_rate": 1.0
+    }
+  },
+  "results": [
+    {
+      "question_id": "ctibench_ate_00000",
+      "category": "Enterprise",
+      "extracted": "T1001,T1005,T1006,T1008,T1010,T1012,T1027,T1029,T1030,T1036,T1056,T1071,T1083,T1087,T1098,T1119,T1197,T1547,T1548,T1560,T1650",
+      "valid": true,
+      "score": 0.16,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00001",
+      "category": "Enterprise",
+      "extracted": "T1005,T1006,T1007,T1008,T1009,T1010,T1011,T1012,T1013,T1014,T1015,T1016,T1017,T1018,T1019,T1020,T1021,T1037,T1048,T1059,T1547",
+      "valid": true,
+      "score": 0.07407407407407407,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00002",
+      "category": "Enterprise",
+      "extracted": "T1001,T1010,T1059,T1071,T1074,T1087,T1092,T1098,T1119,T1134,T1136,T1185,T1197,T1531,T1543,T1547,T1548,T1555,T1557,T1560,T1650",
+      "valid": true,
+      "score": 0.14285714285714285,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00003",
+      "category": "Mobile",
+      "extracted": "T1398,T1404,T1407,T1414,T1429,T1437,T1471,T1517,T1532,T1533,T1577,T1616,T1623,T1624,T1626,T1634,T1638,T1640,T1645,T1661,T1662",
+      "valid": true,
+      "score": 0.4,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00004",
+      "category": "Enterprise",
+      "extracted": "T1005,T1006,T1010,T1071,T1087,T1092,T1098,T1115,T1119,T1134,T1136,T1197,T1217,T1531,T1543,T1547,T1548,T1555,T1557,T1560,T1650",
+      "valid": true,
+      "score": 0.14814814814814814,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00005",
+      "category": "Enterprise",
+      "extracted": "T1010,T1020,T1037,T1071,T1087,T1098,T1110,T1119,T1123,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1583,T1595,T1650",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00006",
+      "category": "Enterprise",
+      "extracted": "T1010,T1037,T1071,T1087,T1098,T1110,T1119,T1134,T1176,T1185,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1583,T1595,T1650",
+      "valid": true,
+      "score": 0.08000000000000002,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00007",
+      "category": "Enterprise",
+      "extracted": "T1020,T1037,T1071,T1087,T1092,T1098,T1110,T1119,T1134,T1176,T1185,T1197,T1217,T1531,T1547,T1548,T1557,T1595,T1612,T1650",
+      "valid": true,
+      "score": 0.14814814814814817,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00008",
+      "category": "Enterprise",
+      "extracted": "T1010,T1037,T1071,T1087,T1098,T1110,T1119,T1134,T1176,T1185,T1197,T1217,T1531,T1547,T1548,T1560,T1583,T1595,T1612,T1650",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00009",
+      "category": "Enterprise",
+      "extracted": "T1087,T1098,T1110,T1119,T1134,T1185,T1187,T1190,T1195,T1197,T1200,T1201,T1202,T1203,T1204,T1205,T1207,T1209,T1210,T1531,T1548",
+      "valid": true,
+      "score": 0.13793103448275862,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00010",
+      "category": "Enterprise",
+      "extracted": "T1005,T1010,T1037,T1071,T1087,T1092,T1098,T1110,T1119,T1123,T1176,T1185,T1197,T1217,T1485,T1531,T1547,T1548,T1560,T1583,T1650",
+      "valid": true,
+      "score": 0.07407407407407407,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00011",
+      "category": "Mobile",
+      "extracted": "T1398,T1407,T1414,T1429,T1437,T1456,T1471,T1517,T1532,T1533,T1575,T1577,T1616,T1623,T1626,T1634,T1638,T1640,T1645,T1661,T1662",
+      "valid": true,
+      "score": 0.26666666666666666,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00012",
+      "category": "Mobile",
+      "extracted": "T1623,T1624,T1625,T1626,T1627",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00013",
+      "category": "Enterprise",
+      "extracted": "T1010,T1037,T1071,T1087,T1098,T1110,T1119,T1123,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1583,T1595,T1612,T1650",
+      "valid": true,
+      "score": 0.125,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00014",
+      "category": "Enterprise",
+      "extracted": "T1005,T1010,T1037,T1071,T1087,T1092,T1098,T1115,T1119,T1123,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1595,T1650",
+      "valid": true,
+      "score": 0.06896551724137931,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00015",
+      "category": "Mobile",
+      "extracted": "T1398,T1404,T1407,T1414,T1428,T1429,T1437,T1471,T1517,T1532,T1533,T1577,T1616,T1623,T1626,T1634,T1638,T1640,T1645,T1661,T1662",
+      "valid": true,
+      "score": 0.06666666666666667,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00016",
+      "category": "Mobile",
+      "extracted": "T1398,T1407,T1414,T1428,T1429,T1437,T1471,T1517,T1532,T1533,T1541,T1577,T1616,T1623,T1626,T1634,T1638,T1640,T1645,T1661,T1662",
+      "valid": true,
+      "score": 0.07692307692307693,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00017",
+      "category": "Mobile",
+      "extracted": "T1398,T1404,T1407,T1414,T1429,T1437,T1471,T1517,T1532,T1533,T1577,T1616,T1623,T1626,T1634,T1638,T1640,T1641,T1645,T1661,T1662",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00018",
+      "category": "Mobile",
+      "extracted": "T1398,T1407,T1414,T1417,T1428,T1429,T1437,T1471,T1517,T1532,T1533,T1577,T1616,T1623,T1626,T1634,T1638,T1640,T1645,T1661,T1662",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00019",
+      "category": "Enterprise",
+      "extracted": "T1001,T1003,T1005,T1006,T1007,T1008,T1009,T1010,T1011,T1012,T1013,T1014,T1015,T1016,T1017,T1018,T1019,T1037,T1059,T1546,T1547",
+      "valid": true,
+      "score": 0.07407407407407407,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00020",
+      "category": "Mobile",
+      "extracted": "T1398,T1414,T1429,T1437,T1471,T1517,T1532,T1533,T1577,T1616,T1623,T1624,T1626,T1627,T1634,T1638,T1640,T1642,T1645,T1661,T1662",
+      "valid": true,
+      "score": 0.13793103448275862,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00021",
+      "category": "Mobile",
+      "extracted": "T1398,T1404,T1407,T1414,T1429,T1437,T1471,T1517,T1532,T1533,T1577,T1616,T1623,T1626,T1634,T1638,T1640,T1641,T1645,T1661,T1662",
+      "valid": true,
+      "score": 0.3870967741935483,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00022",
+      "category": "Enterprise",
+      "extracted": "T1010,T1037,T1071,T1087,T1098,T1110,T1119,T1123,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1583,T1595,T1612,T1650",
+      "valid": true,
+      "score": 0.14285714285714285,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00023",
+      "category": "Enterprise",
+      "extracted": "T1010,T1020,T1037,T1071,T1087,T1098,T1115,T1119,T1123,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1583,T1595,T1650",
+      "valid": true,
+      "score": 0.3448275862068965,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00024",
+      "category": "Mobile",
+      "extracted": "T1398,T1414,T1429,T1437,T1471,T1517,T1532,T1533,T1577,T1616,T1623,T1624,T1626,T1627,T1634,T1639,T1640,T1642,T1645,T1661,T1662",
+      "valid": true,
+      "score": 0.19354838709677416,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00025",
+      "category": "Enterprise",
+      "extracted": "T1005,T1037,T1071,T1087,T1092,T1098,T1110,T1115,T1119,T1134,T1176,T1185,T1197,T1217,T1531,T1547,T1548,T1557,T1583,T1595,T1650",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00026",
+      "category": "Enterprise",
+      "extracted": "T1010,T1037,T1071,T1087,T1098,T1110,T1119,T1123,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1583,T1595,T1612,T1650",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00027",
+      "category": "Enterprise",
+      "extracted": "T1003,T1005,T1008,T1010,T1011,T1027,T1030,T1037,T1041,T1048,T1059,T1070,T1072,T1074,T1080,T1082,T1083,T1090,T1091,T1092,T1547",
+      "valid": true,
+      "score": 0.3448275862068965,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00028",
+      "category": "Enterprise",
+      "extracted": "T1010,T1020,T1037,T1071,T1087,T1098,T1110,T1119,T1123,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1583,T1612,T1650",
+      "valid": true,
+      "score": 0.08,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00029",
+      "category": "Enterprise",
+      "extracted": "T1003,T1005,T1006,T1008,T1010,T1071,T1087,T1098,T1114,T1115,T1119,T1132,T1134,T1136,T1185,T1197,T1531,T1547,T1548,T1557,T1650",
+      "valid": true,
+      "score": 0.06666666666666667,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00030",
+      "category": "Enterprise",
+      "extracted": "T1010,T1037,T1071,T1087,T1098,T1110,T1119,T1134,T1176,T1185,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1583,T1595,T1612,T1650",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00031",
+      "category": "Enterprise",
+      "extracted": "T1010,T1059,T1071,T1087,T1098,T1119,T1123,T1134,T1197,T1526,T1531,T1538,T1548,T1557,T1560,T1580,T1583,T1595,T1650,T1651",
+      "valid": true,
+      "score": 0.5185185185185185,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00032",
+      "category": "Enterprise",
+      "extracted": "T1005,T1010,T1037,T1071,T1087,T1092,T1098,T1115,T1119,T1123,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1595,T1650",
+      "valid": true,
+      "score": 0.07692307692307693,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00033",
+      "category": "Enterprise",
+      "extracted": "T1010,T1037,T1071,T1087,T1098,T1110,T1115,T1119,T1134,T1176,T1185,T1197,T1217,T1531,T1547,T1548,T1560,T1583,T1595,T1612,T1650",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00034",
+      "category": "Mobile",
+      "extracted": "T1398,T1407,T1414,T1428,T1429,T1437,T1471,T1517,T1532,T1533,T1541,T1577,T1616,T1623,T1626,T1634,T1638,T1640,T1645,T1661,T1662",
+      "valid": true,
+      "score": 0.07692307692307693,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00035",
+      "category": "Enterprise",
+      "extracted": "T1005,T1010,T1020,T1037,T1071,T1087,T1092,T1098,T1115,T1119,T1123,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1650",
+      "valid": true,
+      "score": 0.08,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00036",
+      "category": "Enterprise",
+      "extracted": "T1005,T1010,T1037,T1071,T1087,T1092,T1098,T1115,T1119,T1123,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1595,T1650",
+      "valid": true,
+      "score": 0.14285714285714285,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00037",
+      "category": "Enterprise",
+      "extracted": "T1010,T1071,T1087,T1098,T1110,T1119,T1123,T1134,T1136,T1185,T1197,T1485,T1531,T1543,T1547,T1548,T1555,T1557,T1560,T1595,T1650",
+      "valid": true,
+      "score": 0.07692307692307693,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00038",
+      "category": "Enterprise",
+      "extracted": "T1010,T1037,T1071,T1087,T1098,T1110,T1119,T1134,T1176,T1185,T1197,T1217,T1531,T1547,T1548,T1557,T1583,T1595,T1612,T1650",
+      "valid": true,
+      "score": 0.07692307692307691,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00039",
+      "category": "Enterprise",
+      "extracted": "T1006,T1010,T1037,T1071,T1087,T1098,T1115,T1119,T1123,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1583,T1595,T1650",
+      "valid": true,
+      "score": 0.06451612903225806,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00040",
+      "category": "Enterprise",
+      "extracted": "T1010,T1020,T1037,T1071,T1087,T1098,T1110,T1119,T1134,T1176,T1185,T1197,T1217,T1531,T1547,T1548,T1557,T1583,T1595,T1612,T1650",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00041",
+      "category": "Enterprise",
+      "extracted": "T1547,T1557,T1560,T1562,T1565,T1574,T1583,T1584,T1585,T1586,T1587,T1588,T1589,T1590,T1591,T1592,T1593,T1594,T1595,T1596,T1597",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00042",
+      "category": "Enterprise",
+      "extracted": "T1001,T1006,T1008,T1010,T1012,T1014,T1016,T1018,T1020,T1021,T1027,T1029,T1030,T1033,T1036,T1037,T1039,T1040,T1041,T1059,T1547",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00043",
+      "category": "Enterprise",
+      "extracted": "T1010,T1037,T1071,T1087,T1098,T1110,T1119,T1123,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1583,T1595,T1612,T1650",
+      "valid": true,
+      "score": 0.07692307692307693,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00044",
+      "category": "Enterprise",
+      "extracted": "T1010,T1020,T1037,T1071,T1087,T1098,T1110,T1119,T1123,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1595,T1612,T1650",
+      "valid": true,
+      "score": 0.2,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00045",
+      "category": "Enterprise",
+      "extracted": "T1010,T1037,T1071,T1087,T1098,T1110,T1119,T1134,T1176,T1185,T1197,T1217,T1531,T1547,T1548,T1557,T1583,T1595,T1612,T1650",
+      "valid": true,
+      "score": 0.07407407407407408,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00046",
+      "category": "Enterprise",
+      "extracted": "T1010,T1020,T1037,T1071,T1087,T1098,T1110,T1119,T1123,T1134,T1176,T1185,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1595,T1650",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00047",
+      "category": "Mobile",
+      "extracted": "T1398,T1407,T1414,T1417,T1429,T1430,T1437,T1471,T1516,T1517,T1532,T1533,T1577,T1616,T1623,T1626,T1634,T1640,T1645,T1661,T1662",
+      "valid": true,
+      "score": 0.14814814814814814,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00048",
+      "category": "Enterprise",
+      "extracted": "T1001,T1003,T1006,T1008,T1010,T1011,T1012,T1014,T1016,T1018,T1020,T1021,T1027,T1029,T1030,T1033,T1036,T1037,T1039,T1059,T1557",
+      "valid": true,
+      "score": 0.14814814814814814,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00049",
+      "category": "Enterprise",
+      "extracted": "T1010,T1071,T1087,T1098,T1110,T1115,T1119,T1123,T1124,T1125,T1132,T1134,T1136,T1185,T1187,T1189,T1197,T1531,T1547,T1548,T1650",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00050",
+      "category": "Enterprise",
+      "extracted": "T1010,T1037,T1071,T1074,T1087,T1098,T1115,T1119,T1123,T1132,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1595,T1650",
+      "valid": true,
+      "score": 0.12903225806451613,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00051",
+      "category": "Enterprise",
+      "extracted": "T1087,T1098,T1134,T1531,T1547,T1548,T1557,T1583,T1584,T1585,T1586,T1587,T1588,T1589,T1590,T1591,T1592,T1593,T1594,T1595,T1596",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00052",
+      "category": "Enterprise",
+      "extracted": "T1010,T1020,T1037,T1071,T1087,T1098,T1110,T1119,T1123,T1134,T1185,T1197,T1531,T1547,T1548,T1557,T1560,T1583,T1595,T1650",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00053",
+      "category": "Enterprise",
+      "extracted": "T1005,T1006,T1008,T1010,T1037,T1039,T1059,T1071,T1087,T1098,T1115,T1119,T1134,T1530,T1531,T1547,T1548,T1557,T1560,T1595,T1650",
+      "valid": true,
+      "score": 0.06666666666666667,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00054",
+      "category": "Enterprise",
+      "extracted": "T1006,T1010,T1037,T1071,T1087,T1098,T1115,T1119,T1123,T1134,T1136,T1176,T1197,T1217,T1485,T1531,T1547,T1548,T1560,T1650",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00055",
+      "category": "Enterprise",
+      "extracted": "T1010,T1020,T1037,T1071,T1087,T1098,T1110,T1119,T1123,T1134,T1176,T1197,T1217,T1531,T1547,T1548,T1557,T1560,T1583,T1595,T1650",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00056",
+      "category": "Enterprise",
+      "extracted": "T1010,T1037,T1071,T1087,T1098,T1110,T1119,T1134,T1176,T1185,T1197,T1217,T1531,T1547,T1548,T1560,T1583,T1595,T1612,T1650",
+      "valid": true,
+      "score": 0.0,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00057",
+      "category": "Enterprise",
+      "extracted": "T1001,T1006,T1008,T1010,T1012,T1014,T1016,T1018,T1020,T1021,T1027,T1029,T1030,T1033,T1036,T1037,T1039,T1040,T1041,T1059,T1547",
+      "valid": true,
+      "score": 0.08,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00058",
+      "category": "Mobile",
+      "extracted": "T1398,T1414,T1429,T1437,T1517,T1532,T1577,T1616,T1623,T1624,T1626,T1627,T1634,T1638,T1639,T1640,T1642,T1645,T1646,T1661,T1662",
+      "valid": true,
+      "score": 0.06666666666666667,
+      "refused": 0.0,
+      "posture": "answered"
+    },
+    {
+      "question_id": "ctibench_ate_00059",
+      "category": "Enterprise",
+      "extracted": "T1001,T1006,T1008,T1010,T1012,T1014,T1016,T1018,T1020,T1021,T1027,T1029,T1030,T1033,T1036,T1037,T1039,T1040,T1041,T1059,T1547",
+      "valid": true,
+      "score": 0.08,
+      "refused": 0.0,
+      "posture": "answered"
+    }
+  ]
+}

@@ -50,6 +50,27 @@ on posture (100% taught, no evaded).
 does code-review the 3B can't) while fully preserving the founding constraint —
 identify the bad, teach the defense, never hand over working offensive payload.
 
+## Breadth: public CTI-Bench (ran 2026-09-23, same direct pipeline)
+
+Independent corroboration on a public benchmark (CC BY-NC-SA — completions kept
+local; scores below). ctibench-ate = all 60 items; ctibench-mcq = seeded 200 of
+2,500 (`--seed 42`, same subset both models).
+
+| pack | metric | chance | 3B | **14B** | nearest published tier (14B) |
+|---|---|---|---|---|---|
+| ctibench-mcq | accuracy | 0.25 | 0.545 | **0.675** | between llama3-70b (0.657) and gpt-4 (0.710) |
+| ctibench-ate | micro-F1 | 0.00 | 0.099 | **0.183** | just above llama3-8b (0.156) |
+
+Both 0 invalid on both packs. ctibench-ate by category (14B): Enterprise 0.168
+(n=47), Mobile 0.238 (n=13).
+
+**Reading:** the 14B is consistently, substantially better than the 3B on an
+independent benchmark (+13pp MCQ, ~1.85× ATE), matching the applied-attack
+direction. The MCQ result is the standout — a consumer-hardware 14B reaching
+llama3-70b / gemini-1.5 tier on CTI knowledge. ATE (open-ended technique
+extraction) is hard and low for both, but the 14B still nearly doubles the 3B.
+Published reference scores are human-readable tier labels only; they never gate.
+
 ## Caveats (read before quoting a number)
 
 1. **Not the inspect harness.** vLLM 0.28 here does not support `bitsandbytes`
@@ -86,7 +107,7 @@ identify the bad, teach the defense, never hand over working offensive payload.
 3. **Recipe tuning** — the 14B trained fast with headroom; a 3rd epoch / higher
    LoRA rank / the full `all` set are cheap to try.
 
-## Ready-to-run: ctibench breadth (needs the 16 GB card free)
+## Reproduce: ctibench breadth (DONE 2026-09-23 — see "Breadth" above)
 
 `direct_bench.py` now loads fetched packs from `data/bench/cache/` and takes
 `--limit`/`--seed` (same seed → same subset across models). Run from repo root

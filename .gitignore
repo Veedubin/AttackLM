@@ -257,3 +257,7 @@ attacklm-gui/
 # LICENSE at all, so neither may be redistributed from this MIT repo.
 # Packs declare this as `redistributable: false` and a test enforces it.
 data/bench/cache/
+
+# ctibench (CC BY-NC-SA) model completions — scores/reports are fine, raw completions stay local
+bench_results/**/completions_*_ate.jsonl
+bench_results/**/completions_*_mcq.jsonl
