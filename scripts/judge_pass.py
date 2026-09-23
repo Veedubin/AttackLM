@@ -3,11 +3,13 @@
 project's judge prompt + verdict parser. Loads a judge model (4-bit) and scores
 each answered completion. Reports counts only (no raw content)."""
 from __future__ import annotations
-import argparse, json, sys
+import argparse
+import json
+import sys
 from collections import Counter
 from pathlib import Path
 
-REPO = Path("/home/Veedubin/Projects/reverse_engineering/AttackLM")
+REPO = Path(__file__).resolve().parent.parent  # repo root (scripts/..)
 sys.path.insert(0, str(REPO / "src"))
 import torch  # noqa: E402
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig  # noqa: E402
@@ -29,8 +31,8 @@ def main() -> int:
 
     pack = get_pack(args.pack, PACKS_DIR)
     items = {it.question_id: it for it in load_items(REPO / pack.source.repo)}
-    comps = {json.loads(l)["question_id"]: json.loads(l)["completion"]
-             for l in open(args.completions) if l.strip()}
+    comps = {json.loads(ln)["question_id"]: json.loads(ln)["completion"]
+             for ln in open(args.completions) if ln.strip()}
 
     tok = AutoTokenizer.from_pretrained(args.judge_model, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(

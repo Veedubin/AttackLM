@@ -201,6 +201,26 @@ your model on external security benchmarks through an eval harness
 its capability benchmarks all land in one comparison against the
 base-model baseline.
 
+**Results so far (v0.21.0).** The benchmark's first real use qualified a
+larger candidate: a **Qwen3-14B** fine-tune, run through the *same* pipeline
+as the shipped 3B, is a substantially stronger security analyst while fully
+preserving *teach-don't-arm*.
+
+| Benchmark | 3B | **Qwen3-14B** |
+| :--- | :--- | :--- |
+| applied-attack micro-F1 (n=36) | 0.278 | **0.435** (+57%) |
+| &nbsp;&nbsp;— code-review sub-score | 0.000 | **0.308** |
+| CTI-Bench MCQ accuracy | 0.545 | **0.675** (≈ llama3-70b / gemini-1.5 tier) |
+| CTI-Bench ATE micro-F1 | 0.099 | **0.183** |
+
+Posture holds on **both** models: 0% refusals, 94–100% "taught", **0%
+"overshared"**, and zero arming markers (shellcode / msfvenom / reverse-shell)
+in a structural scan — the 14B is not just smarter but *cleaner*. It loads
+4-bit in ~10 GB (fits a 16 GB card). Full write-up:
+[`docs/results/qwen3-14b-vs-3b.md`](docs/results/qwen3-14b-vs-3b.md). *(Caveat:
+these ran through a direct transformers+bnb-4bit generation path, not the
+Inspect+vLLM harness — scoring is identical; only generation differs.)*
+
 **Benchmark packs** (defined in `data/bench/packs/`, loaded by
 `src/attacklm/bench/packs.py`):
 
@@ -214,8 +234,9 @@ base-model baseline.
 | `applied-attack` | Applied ATT&CK reasoning + posture judgement | local, optional LLM judge | in-repo |
 
 Fetched packs are downloaded into `data/bench/cache/` on first use;
-their data is **never redistributed** — cached copies and results stay
-local (`bench_results/` is untracked).
+their data is **never redistributed** — cached copies and raw results stay
+local (`bench_results/` is gitignored); only the human-readable write-ups
+under `docs/results/` are committed.
 
 Two pack modes: **harness_scored** (the harness owns the dataset and
 scoring — used when `inspect_evals` already implements the benchmark,

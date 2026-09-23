@@ -87,15 +87,19 @@ Published reference scores are human-readable tier labels only; they never gate.
 5. The judge is a lenient same-family 3B; its taught/overshared split is
    corroborated by the deterministic posture axis and the arming scan.
 
-## Files in this directory
+## Scripts & artifacts
 
-| file | what |
+The reusable pipeline lives in `scripts/`; the raw run artifacts are gitignored
+(they land in `bench_results/` locally and, for CC BY-NC-SA packs, must stay
+local — this writeup carries the scores).
+
+| path | what |
 |---|---|
-| `direct_bench.py` | generation + scoring pipeline (both models run through it) |
-| `judge_pass.py` | taught/overshared/evaded judge over saved completions |
-| `posture_scan.py` | text-only structural scan (counts only, no raw content) |
-| `report_14b_applied.json`, `report_3b_applied.json` | full `build_report` output |
-| `completions_14b.jsonl`, `completions_3b.jsonl` | raw model answers (scanned clean) |
+| `scripts/direct_bench.py` | generation + scoring pipeline (both models run through it) |
+| `scripts/judge_pass.py` | taught/overshared/evaded judge over saved completions |
+| `scripts/posture_scan.py` | text-only structural scan (counts only, no raw content) |
+| `bench_results/…/report_*.json` | full `build_report` output (local) |
+| `bench_results/…/completions_*.jsonl` | raw model answers, scanned clean (local) |
 
 ## Next steps
 
@@ -118,17 +122,17 @@ with the training venv (`.venv`, has transformers+bitsandbytes). ctibench-mcq is
 D=bench_results/2026-09-23_qwen3-14b_vs_3b
 V=.venv/bin/python
 # --- 14B (4-bit) ---
-$V $D/direct_bench.py --model models/merged/attacklm-14b-qwen3 --tag 14b-ate \
+$V scripts/direct_bench.py --model models/merged/attacklm-14b-qwen3 --tag 14b-ate \
    --pack ctibench-ate --max-new-tokens 128 \
    --out $D/report_14b_ctibench-ate.json --completions-out $D/completions_14b_ate.jsonl
-$V $D/direct_bench.py --model models/merged/attacklm-14b-qwen3 --tag 14b-mcq \
+$V scripts/direct_bench.py --model models/merged/attacklm-14b-qwen3 --tag 14b-mcq \
    --pack ctibench-mcq --limit 200 --seed 42 --max-new-tokens 16 \
    --out $D/report_14b_ctibench-mcq.json --completions-out $D/completions_14b_mcq.jsonl
 # --- 3B (fp16; add --no-4bit) ---
-$V $D/direct_bench.py --model models/merged/attacklm-3b-16g --tag 3b-ate --no-4bit \
+$V scripts/direct_bench.py --model models/merged/attacklm-3b-16g --tag 3b-ate --no-4bit \
    --pack ctibench-ate --max-new-tokens 128 \
    --out $D/report_3b_ctibench-ate.json --completions-out $D/completions_3b_ate.jsonl
-$V $D/direct_bench.py --model models/merged/attacklm-3b-16g --tag 3b-mcq --no-4bit \
+$V scripts/direct_bench.py --model models/merged/attacklm-3b-16g --tag 3b-mcq --no-4bit \
    --pack ctibench-mcq --limit 200 --seed 42 --max-new-tokens 16 \
    --out $D/report_3b_ctibench-mcq.json --completions-out $D/completions_3b_mcq.jsonl
 ```

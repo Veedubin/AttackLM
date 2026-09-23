@@ -1,5 +1,4 @@
 import json
-import os
 from openai import OpenAI
 
 # Point this to your local LLM server (Ollama, LMStudio, vLLM)

@@ -12,19 +12,19 @@ Usage:
     export HF_TOKEN="hf_..."
 
     # Push to public repo (default)
-    python hf/scripts/push_to_hf.py
+    python scripts/hf/push_to_hf.py
 
     # Push to private repo
-    python hf/scripts/push_to_hf.py --private
+    python scripts/hf/push_to_hf.py --private
 
     # Specify token via flag
-    python hf/scripts/push_to_hf.py --token hf_...
+    python scripts/hf/push_to_hf.py --token hf_...
 
     # Custom repo name
-    python hf/scripts/push_to_hf.py --repo-id myorg/my-attacklm-dataset
+    python scripts/hf/push_to_hf.py --repo-id myorg/my-attacklm-dataset
 
     # Custom data directory
-    python hf/scripts/push_to_hf.py --data-dir hf/data
+    python scripts/hf/push_to_hf.py --data-dir scripts/hf/data
 """
 
 from __future__ import annotations
@@ -33,6 +33,10 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # `datasets` is imported lazily at call time (optional heavy dep)
+    from datasets import DatasetDict
 
 # ---------------------------------------------------------------------------
 # Validation
@@ -270,8 +274,8 @@ def main() -> None:
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=Path("hf/data"),
-        help="Directory containing attacklm-train.jsonl and attacklm-test.jsonl (default: hf/data)",
+        default=Path("scripts/hf/data"),
+        help="Directory containing attacklm-train.jsonl and attacklm-test.jsonl (default: scripts/hf/data)",
     )
     parser.add_argument(
         "--private",

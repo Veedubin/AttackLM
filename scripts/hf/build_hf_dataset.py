@@ -6,9 +6,9 @@ metadata (mitre_ids, source, license, bucket path, category), creates a
 stratified 90/10 train/test split, and writes the result as JSONL files.
 
 Usage:
-    python hf/scripts/build_hf_dataset.py --output hf/data
-    python hf/scripts/build_hf_dataset.py --output hf/data --seed 42
-    python hf/scripts/build_hf_dataset.py --output hf/data --split-ratio 0.9
+    python scripts/hf/build_hf_dataset.py --output scripts/hf/data
+    python scripts/hf/build_hf_dataset.py --output scripts/hf/data --seed 42
+    python scripts/hf/build_hf_dataset.py --output scripts/hf/data --split-ratio 0.9
 """
 
 from __future__ import annotations
@@ -257,8 +257,8 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("hf/data"),
-        help="Output directory for train/test JSONL files (default: hf/data)",
+        default=Path("scripts/hf/data"),
+        help="Output directory for train/test JSONL files (default: scripts/hf/data)",
     )
     parser.add_argument(
         "--buckets-dir",
@@ -345,7 +345,7 @@ def main() -> None:
     stats = compute_statistics(train, test, records_by_bucket)
 
     print(f"\n{'=' * 60}")
-    print(f"AttackLM Dataset Statistics")
+    print("AttackLM Dataset Statistics")
     print(f"{'=' * 60}")
     print(f"Total records:     {stats['total']:,}")
     print(f"Train records:     {stats['train']:,} ({stats['train_ratio']:.1%})")
@@ -353,7 +353,7 @@ def main() -> None:
     print(f"Num buckets:       {stats['num_buckets']}")
     print(f"MITRE techniques:  {stats['num_mitre_techniques']}")
 
-    print(f"\n--- Per-bucket split ---")
+    print("\n--- Per-bucket split ---")
     for bucket, counts in sorted(
         stats["buckets"].items(), key=lambda x: -x[1]["total"]
     ):
@@ -362,15 +362,15 @@ def main() -> None:
             f"total={counts['total']:5d}"
         )
 
-    print(f"\n--- By source ---")
+    print("\n--- By source ---")
     for source, count in sorted(stats["sources"].items(), key=lambda x: -x[1]):
         print(f"  {source:30s}  {count:5d}")
 
-    print(f"\n--- By license ---")
+    print("\n--- By license ---")
     for license_name, count in sorted(stats["licenses"].items(), key=lambda x: -x[1]):
         print(f"  {license_name:20s}  {count:5d}")
 
-    print(f"\n--- By category ---")
+    print("\n--- By category ---")
     for cat, count in sorted(stats["categories"].items(), key=lambda x: -x[1]):
         print(f"  {cat:20s}  {count:5d}")
 

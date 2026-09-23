@@ -258,6 +258,10 @@ attacklm-gui/
 # Packs declare this as `redistributable: false` and a test enforces it.
 data/bench/cache/
 
-# ctibench (CC BY-NC-SA) model completions — scores/reports are fine, raw completions stay local
-bench_results/**/completions_*_ate.jsonl
-bench_results/**/completions_*_mcq.jsonl
+# Run/output dirs — recreated by scripts (train_all, hpo_runner); never tracked
+logs/
+hpo_runs/
+
+# Experiment results — the human-readable writeup lives in docs/results/;
+# raw completions & machine reports (incl. CC BY-NC-SA ctibench outputs) stay local
+bench_results/

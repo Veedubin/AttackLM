@@ -27,7 +27,7 @@ shipped 3B while preserving teach-don't-arm.
   `all`).
 
 **Models / results** (RTX 4080 SUPER 16 GB; direct transformers+bnb-4bit
-generation, project scorers — see `bench_results/2026-09-23_qwen3-14b_vs_3b/`):
+generation, project scorers — see `docs/results/qwen3-14b-vs-3b.md`):
 - Fine-tuned **Qwen3-14B** (QLoRA, balanced 6,502-pair set),
   `models/merged/attacklm-14b-qwen3`, loads 4-bit in 10.1 GB.
 - Applied-attack (n=36): **14B micro-F1 0.435 vs 3B 0.278** (+57%); does

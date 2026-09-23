@@ -8,10 +8,13 @@ comparison is clean, and note this is not the inspect harness.
     python direct_bench.py --model models/merged/attacklm-14b-qwen3 --tag qwen3-14b
 """
 from __future__ import annotations
-import argparse, json, sys, time
+import argparse
+import json
+import sys
+import time
 from pathlib import Path
 
-REPO = Path("/home/Veedubin/Projects/reverse_engineering/AttackLM")
+REPO = Path(__file__).resolve().parent.parent  # repo root (scripts/..)
 sys.path.insert(0, str(REPO / "src"))
 
 import torch  # noqa: E402
