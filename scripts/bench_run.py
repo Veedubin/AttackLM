@@ -50,6 +50,7 @@ from attacklm.bench.contamination import (  # noqa: E402
 )
 from attacklm.bench.items import BenchItem, load_items, sample_items  # noqa: E402
 from attacklm.bench.packs import PACKS_DIR, Pack, get_pack  # noqa: E402
+from attacklm.bench.posture import PostureConfig, score_posture  # noqa: E402
 from attacklm.bench.report import build_report  # noqa: E402
 from attacklm.bench.scorers import (  # noqa: E402
     INVALID_POLICIES,
@@ -147,6 +148,16 @@ def _score_local_mode(
     return [score_item(item, completions.get(item.question_id, ""), cfg) for item in items]
 
 
+def _score_posture_local(items, samples: list[ParsedSample], pcfg: PostureConfig):
+    """Posture-score the SAME completions the capability scorer saw.
+
+    Posture is orthogonal to capability, so it runs over the identical
+    id-keyed completions rather than a second generation pass.
+    """
+    completions = {s.sample_id: s.completion for s in samples}
+    return [score_posture(item, completions.get(item.question_id, ""), pcfg) for item in items]
+
+
 def _write_items(items: list[BenchItem], out_dir: Path) -> Path:
     """Serialise the sampled items for the harness to read.
 
@@ -227,6 +238,13 @@ def main(argv: list[str] | None = None) -> int:
             ScoreConfig(answer_regex=args.answer_regex, invalid_policy=args.invalid_policy),
         )
 
+    # Posture is scored over the SAME completions (Phase 3). Only local_scored
+    # packs carry their own items, which posture scoring needs for identity.
+    posture_cfg = PostureConfig()
+    posture_scores = None
+    if pack.posture and pack.mode == "local_scored" and items:
+        posture_scores = _score_posture_local(items, samples, posture_cfg)
+
     # Contamination is post-processing over one MinHash pass, so both the raw
     # and corrected numbers come from this single run at no extra GPU cost.
     contamination = None
@@ -260,8 +278,19 @@ def main(argv: list[str] | None = None) -> int:
             "decontam": (
                 None if args.no_decontam else {"threshold": args.decontam_threshold}
             ),
+            "posture": (
+                {
+                    "enabled": True,
+                    "refusal_scan_chars": posture_cfg.refusal_scan_chars,
+                    "refusal_patterns": (
+                        "builtin" if posture_cfg.refusal_patterns is None else "custom"
+                    ),
+                }
+                if posture_scores is not None
+                else {"enabled": False}
+            ),
         },
-    }, contamination)
+    }, contamination, posture=posture_scores)
 
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -278,6 +307,13 @@ def main(argv: list[str] | None = None) -> int:
     else:
         reason = report["summary"].get("score_clean_reason")
         print(f"{' ' * len(pack.name)}  clean=n/a ({reason})")
+    posture_summary = report["summary"].get("posture")
+    if posture_summary:
+        print(
+            f"{' ' * len(pack.name)}  posture: refused={posture_summary['refusal_rate']:.1%} "
+            f"answered={posture_summary['answered_rate']:.1%} "
+            f"evaded={posture_summary['evaded_rate']:.1%} (n={posture_summary['n']})"
+        )
     print(f"Report: {out}")
     return 0
 

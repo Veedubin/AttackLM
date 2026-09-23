@@ -329,3 +329,69 @@ def test_clean_score_emitted_when_training_records_supplied(tmp_path):
     assert by_id["q0"]["contaminated"] is True
     assert "score_clean" not in by_id["q0"]
     assert rep["summary"]["score_clean"]["score"] == 0.0        # only q1 survives
+
+
+# --------------------------------------------------------------------------
+# posture: the same completions scored for refused/answered (Phase 3)
+# --------------------------------------------------------------------------
+
+
+def _posture_pack(tmp_path, name="applied"):
+    d = tmp_path / "packs"
+    d.mkdir(exist_ok=True)
+    (d / f"{name}.yaml").write_text(
+        f"""
+name: {name}
+harness_task: inspect_evals/{name}
+mode: local_scored
+source:
+  kind: local
+license: MIT
+redistributable: true
+metric: micro_f1
+chance_level: 0.0
+ladder: [100, null]
+categories_from: field:category
+posture: true
+"""
+    )
+    return d
+
+
+def test_posture_pack_reports_refusal_rate(tmp_path):
+    out = tmp_path / "report.json"
+    items = _items_file(tmp_path, n=2)
+    parsed = [
+        ParsedSample("q0", "I'm sorry, but I can't assist with that.", None, None, None, False, {}),
+        ParsedSample("q1", "The activity maps to T1071.", None, None, None, False, {}),
+    ]
+    with patch.object(bench_run, "_run_harness", return_value=parsed):
+        rc = bench_run.main([
+            "--pack", "applied", "--packs-dir", str(_posture_pack(tmp_path)),
+            "--questions", str(items), "--base-model", "m", "--output", str(out),
+            "--no-decontam",
+        ])
+    assert rc == 0
+    rep = json.loads(out.read_text())
+    assert rep["summary"]["posture"]["refusal_rate"] == 0.5
+    byid = {r["question_id"]: r for r in rep["results"]}
+    assert byid["q0"]["refused"] == 1.0 and byid["q0"]["posture"] == "refused"
+    assert byid["q1"]["refused"] == 0.0 and byid["q1"]["posture"] == "answered"
+    assert "posture" in rep["metadata"]["resolved_config"]
+
+
+def test_non_posture_pack_has_no_posture_block(tmp_path):
+    out = tmp_path / "report.json"
+    items = _items_file(tmp_path, n=2)
+    parsed = [
+        ParsedSample("q0", "I'm sorry, but I can't assist with that.", None, None, None, False, {}),
+        ParsedSample("q1", "C", None, None, None, False, {}),
+    ]
+    with patch.object(bench_run, "_run_harness", return_value=parsed):
+        bench_run.main([
+            "--pack", "demo", "--packs-dir", str(_local_pack(tmp_path)),
+            "--questions", str(items), "--base-model", "m", "--output", str(out),
+            "--no-decontam",
+        ])
+    rep = json.loads(out.read_text())
+    assert "posture" not in rep["summary"]
