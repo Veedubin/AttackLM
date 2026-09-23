@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/attacklm.svg?label=version&color=blue)](https://pypi.org/project/attacklm/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://docs.python.org/3.10/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests: 737+](https://img.shields.io/badge/tests-737%2B-brightgreen.svg)](#testing)
+[![Tests: 1061+](https://img.shields.io/badge/tests-1061%2B-brightgreen.svg)](#testing)
 [![GH release: v0.20.0](https://img.shields.io/badge/release-v0.20.0-blue.svg)](https://github.com/Veedubin/AttackLM/releases)
 
 **A security-AI fine-tuning platform and research toolkit.**
@@ -12,7 +12,7 @@ AttackLM is two things in one package:
 
 1. **A fine-tuning pipeline** for MITRE ATT&CK-grounded security LLMs.
    Trains Qwen2.5-Coder, DeepSeek, and other open models on a curated
-   security corpus (24K+ training pairs, 18 sources) using parameter-
+   security corpus (26K+ training pairs, 19 sources) using parameter-
    efficient methods (QLoRA, GaLore, PiSSA, Spectrum) and full-parameter
    methods (DeepSpeed ZeRO-3 + CPU offload, LOMO, FP8, BitNet).
 
@@ -39,6 +39,7 @@ or guides you to install it.
 - [What you can do](#what-you-can-do)
   - [Train a security LLM](#train-a-security-llm)
   - [Audit a model for memorized data](#audit-a-model-for-memorized-data)
+  - [Benchmark model capability](#benchmark-model-capability)
   - [Queue & gauntlets](#queue--gauntlets)
   - [Run the TUI](#run-the-tui)
 - [Training methods](#training-methods)
@@ -121,9 +122,9 @@ pip install -e ".[all]"
 ### Verify
 
 ```bash
-attacklm --version       # 0.19.0
+attacklm --version       # 0.20.0
 attacklm --help
-pytest tests/ -q         # 652+ passed
+pytest tests/ -q         # 1061+ passed
 ```
 
 **Note on the audit harness**: AttackLM wraps
@@ -190,6 +191,69 @@ The audit harness is **hermetic** — it does not call out to any
 network, does not require GPU, runs on a CPU laptop in minutes.
 Mocked model loaders mean you can test the audit pipeline in CI
 without owning a real model.
+
+### Benchmark model capability
+
+Since v0.19.0, AttackLM ships a **capability benchmark** that scores
+your model on external security benchmarks through an eval harness
+(Inspect AI). Results are normalised into the same report schema
+`queue compare` consumes, so a training run, its privacy audits, and
+its capability benchmarks all land in one comparison against the
+base-model baseline.
+
+**Benchmark packs** (defined in `data/bench/packs/`, loaded by
+`src/attacklm/bench/packs.py`):
+
+| Pack | What it measures | Scoring | Data |
+| :--- | :--- | :--- | :--- |
+| `cybermetric-500` | Cybersecurity knowledge MCQ (CyberMetric-500) | harness-owned (`inspect_evals`) | via Inspect AI |
+| `ctibench-mcq` | CTI knowledge MCQ | local `mcq_choice` | CC BY-NC-SA, fetched at run time |
+| `ctibench-ate` | MITRE ATT&CK technique-ID extraction | local `attack_technique_set` | CC BY-NC-SA, fetched at run time |
+| `secbench-en` | English security knowledge MCQ | local `mcq_choice` | MIT, fetched at run time |
+| `seceval` | Multi-select security MCQ | local `mcq_choice` | CC BY-NC-SA, fetched at run time |
+| `applied-attack` | Applied ATT&CK reasoning + posture judgement | local, optional LLM judge | in-repo |
+
+Fetched packs are downloaded into `data/bench/cache/` on first use;
+their data is **never redistributed** — cached copies and results stay
+local (`bench_results/` is untracked).
+
+Two pack modes: **harness_scored** (the harness owns the dataset and
+scoring — used when `inspect_evals` already implements the benchmark,
+so we inherit its validated prompt and answer extraction) and
+**local_scored** (we own the items and scoring; the harness only
+generates completions).
+
+Scorer and judge knobs worth knowing:
+
+- `mcq_choice`: per-item bounded option alphabet (a 4-option question
+  extracts only A–D, a 6-option one A–F), invalid-completion policies
+  (`count_wrong` / `exclude` / `fail_run`), multi-select modes
+  (`exact` / `partial`).
+- `attack_technique_set` (backs CTI-Bench's ATE task): sub-technique
+  policy `strip` (default — compare parent techniques only) / `keep` /
+  `either`, scored as per-item micro-F1.
+- **Contamination check** (`src/attacklm/bench/contamination.py`):
+  every local-scored run can be checked against your training records
+  with 20-gram MinHash Jaccard (default gate 0.80), plus a sensitivity
+  curve at 1.0 / 0.9 / 0.8 / 0.7 / 0.5 and a per-source overlap
+  breakdown — a flattering score from a leaked eval set is caught, not
+  celebrated.
+- **Judge validation** (`scripts/bench_judge_validate.py`): re-grades
+  completions under the real question (not a placeholder) so an LLM
+  judge's verdicts are reproducible before you trust them.
+
+Run a pack directly:
+
+```bash
+python scripts/bench_run.py --pack cybermetric-500 \
+    --base-model models/merged/attacklm-3b-16g \
+    --output evals/bench_cybermetric.json
+```
+
+…or through the queue: all six packs are registered gauntlet members
+(`bench_*` task types), so a gauntlet can pair audits with capability
+benchmarks, and `attacklm queue compare` reports the Δ per benchmark
+with a 95% bootstrap CI — same as it does for audits.
 
 ### Queue & gauntlets
 
@@ -311,7 +375,7 @@ Choose by available VRAM and target quality:
 
 ### DeepSpeed configs
 
-Pre-built configs live in `presets/deepspeed same asL/`:
+Pre-built configs live in `presets/deepspeed/`:
 
 | Config | ZeRO stage | CPU offload | Best for |
 | :--- | :--- | :--- | :--- |
@@ -335,13 +399,14 @@ package. It is **not** a Python wheel — it's a data bundle with a
 thin Python wrapper, distributed via a GitHub Releases tarball
 (downloaded by `attacklm init`).
 
-**Composition (24,652 records, 18 sources, 11 active):**
+**Composition (26,459 records, 19 sources):**
 
 | Category | Source examples | Approx. pairs | License |
 | :--- | :--- | :--- | :--- |
 | **Offensive** | Metasploit, Atomic Red Team, MITRE Stockpile | 15,000+ | BSD-3 / MIT / Apache-2.0 |
 | **Defensive** | Sigma, Elastic, Splunk, Mordor, ThreatHunter | 7,000+ | DRL-1.1 / Apache-2.0 |
 | **AI Security** | Garak, Promptfoo, PromptMap | 100+ | MIT / Apache-2.0 |
+| **AI Security (ATLAS)** | MITRE ATLAS, ATLAS Arsenal | 1,800+ | Apache-2.0 |
 | **Meta/IR** | NIST IR, Orchestrator | 500+ | Public Domain / MIT |
 | **Synthetic** | LLM-generated, AttackLM synthetic, Replay | 2,000+ | GPL-3.0 / MIT |
 
@@ -373,7 +438,7 @@ see
 
 `attacklm audit` is the privacy/security side of the package.
 It is the **owner-side** test for memorization — the question is
-"if I ship this model, what can an attacker extract from itLL?",
+"if I ship this model, what can an attacker extract from it?",
 which the model owner wants to know *before* shipping.
 
 ### Roadmap: RL post-training
@@ -468,7 +533,7 @@ only** — see [RIGHTS.md](https://github.com/Veedubin/attacklm-dataset/blob/mai
 The trainer and audit live in the same repo because they share
 infrastructure: the same dataset (via `attacklm-dataset`), the same
 inference code (`scripts/infer.py`), the same model artifact format
-(adapters in `models/attacklm-single_TIMESTAMPបង្កើត/`). The split from
+(adapters in `models/attacklm-single_TIMESTAMP/`). The split from
 v0.11.0 isolates the *data* and the *attack code* (which is
 defensive research) from the *training* and *user-facing tools*
 (general-purpose infrastructure).
@@ -493,7 +558,7 @@ scripts.
 | `attacklm eval` | Retention evaluation, reference collection, regression gates |
 | `attacklm audit` | **Research toolkit** — inversion attack audit (extraction + MIA) |
 | `attacklm steer` | Steering-vector inference (activation intervention) |
-| `attacklm bench` | Domain-specific + speed benchmarks |
+| `attacklm bench` | Domain + speed benchmarks (capability benchmarks live in [Benchmark model capability](#benchmark-model-capability)) |
 | `attacklm pipeline` | Run the full pipeline (init → balance → train → build) |
 | `attacklm gui` | Launch the TUI |
 | `attacklm demo` | Run the multi-agent orchestrator demo |
@@ -569,29 +634,26 @@ Full flag list per subcommand: `attacklm queue <subcommand> --help`.
 ## Testing
 
 AttackLM is **defensive-tested**, not just smoke-tested. As of
-v0.19.0 there are 652+ tests across 26+ test files, all hermetic
+v0.20.0 there are 1,061+ tests across 50+ test files, all hermetic
 (no network, no GPU required, fast enough to run in CI on every
 PR):
 
 ```
-tests/test_audit.py                  (research toolkit)
-tests/test_cli.py                    (CLI dispatcher)
-tests/test_coap_flashoptim.py        (memory optimizers)
-tests/test_collect_reference.py       (eval suite)
-tests/test_compare_scores.py         (eval suite)
-tests/test_domain_bench.py           (benchmarks)
-tests/test_eval_loader.py            (eval suite)
-tests/test_eval_retention.py         (eval suite)
-tests/test_fp8_bitnet.py             (quantized training)
-tests/test_golden_vectors.py         (regression gates)
-tests/test_gui.py                    (TUI smoke + tooltip coverage)
-tests/test_memory_optimization.py    (memory optimizers)
-tests/test_mixed_precision.py        (FP8/BF16)
-tests/test_neuralgentics_init.py     (init flow)
-tests/test_score_candidates.py       (eval suite)
-tests/test_speed_bench.py            (benchmarks)
-tests/test_steering.py               (steering vectors)
-tests/test_training_integration.py   (end-to-end on a tiny model)
+tests/test_audit.py + test_attack_audit.py   (research toolkit + attack framework)
+tests/test_bench_*.py              (20 files — capability benchmark)
+tests/test_cli.py                  (CLI dispatcher)
+tests/test_coap_flashoptim.py + test_memory_optimization.py   (memory optimizers)
+tests/test_collect_reference.py + test_compare_scores.py
++ test_eval_*.py + test_score_candidates.py   (eval suite)
+tests/test_domain_bench.py + test_speed_bench.py   (domain + speed benchmarks)
+tests/test_fp8_bitnet.py + test_mixed_precision.py   (quantized training)
+tests/test_golden_vectors.py       (regression gates)
+tests/test_gui*.py                 (6 files — TUI smoke, presets, queue, tooltips)
+tests/test_neuralgentics_*.py      (init flow + merge)
+tests/test_project_root.py         (repo layout)
+tests/test_queue*.py               (6 files — queue, baseline, compare, history, stats)
+tests/test_steering.py             (steering vectors)
+tests/test_training_integration.py (end-to-end on a tiny model)
 ```
 
 Run them all:
