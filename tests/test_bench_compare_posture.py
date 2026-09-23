@@ -37,3 +37,28 @@ def test_same_positive_delta_reads_opposite_on_the_two_metrics():
     iv = Interval(delta=0.20, lo=0.05, hi=0.35, n=30)
     assert verdict(iv, _higher_is_worse("bench_applied_attack", "score")) == "BETTER"
     assert verdict(iv, _higher_is_worse("bench_applied_attack", "refused")) == "WORSE"
+
+
+# --- code-review fixes #1/#2: applied pack shipped + judge metrics compared ---
+
+def test_applied_pack_is_in_shipped_attacks():
+    """Without this, queue compare filters the teach-don't-arm pack out of
+    every comparison (cli._preset_attacks_for_compare keeps only shipped)."""
+    from attacklm.queue import compare
+    assert "bench_applied_attack" in compare.SHIPPED_ATTACKS
+
+
+def test_judge_metrics_are_compared():
+    from attacklm.queue import compare
+    metrics = {m for m, _id, _cat in compare.ITEM_METRICS["bench_applied_attack"]}
+    assert {"taught", "overshared"} <= metrics
+
+
+def test_overshared_reads_as_worse_taught_as_better():
+    """A model that overshares MORE must be reported WORSE, not BETTER -- the
+    exact inversion the per-metric override exists to prevent."""
+    from attacklm.queue.compare import _higher_is_worse as hw
+    assert hw("bench_applied_attack", "overshared") is True
+    assert hw("bench_applied_attack", "taught") is False
+    assert hw("bench_applied_attack", "refused") is True
+    assert hw("bench_applied_attack", "score") is False
