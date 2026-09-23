@@ -717,6 +717,6 @@ add a module to `attacklm-dataset/scripts/inversion/` and a CLI
 flag in `attacklm audit`.
 
 [CHANGELOG.md](CHANGELOG.md) — full version history.
-[TASKS.md](../TASKS.md) — current work-in-progress.
-[HANDOFF.md](../HANDOFF.md) — session continuity notes.
+For roadmap, bugs, and feature requests, open an issue on
+[GitHub Issues](https://github.com/Veedubin/AttackLM/issues).
 
