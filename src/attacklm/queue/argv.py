@@ -123,6 +123,28 @@ def _find_base_model_in_deps(depends_on: list[int], db: QueueDB) -> str | None:
     return None
 
 
+# Canonical pack manifest for each bench task when the caller passes no
+# explicit `pack`. Manifests are hyphenated and some carry a size suffix
+# (cybermetric-500), so the name cannot be recovered from the underscored task
+# type by string munging alone -- an explicit map keeps `queue add
+# bench_<x>` (no pack arg) from dying in get_pack on an unknown pack.
+_BENCH_DEFAULT_PACK = {
+    "bench_cybermetric": "cybermetric-500",
+    "bench_ctibench_mcq": "ctibench-mcq",
+    "bench_ctibench_ate": "ctibench-ate",
+    "bench_secbench_en": "secbench-en",
+    "bench_seceval": "seceval",
+    "bench_applied_attack": "applied-attack",
+}
+
+
+def _default_bench_pack(task_type: str) -> str:
+    """Default pack manifest name for a bench task type."""
+    return _BENCH_DEFAULT_PACK.get(
+        task_type, task_type.removeprefix("bench_").replace("_", "-")
+    )
+
+
 def _resolve_argv(task: Task, spec: TaskSpec, db: QueueDB) -> list[str] | None:
     """Build the full argv for executing a task, resolving deps at runtime.
 
@@ -194,7 +216,7 @@ def _resolve_argv(task: Task, spec: TaskSpec, db: QueueDB) -> list[str] | None:
     # Benchmark tasks name a pack rather than a question file. harness_scored
     # packs carry their own dataset, so no `questions` default is set here.
     if task.type.startswith("bench_") and "pack" not in args:
-        args["pack"] = task.type.removeprefix("bench_")
+        args["pack"] = _default_bench_pack(task.type)
 
     # Set default calibration holdout paths if not specified.
     if task.type == "audit_calibration":

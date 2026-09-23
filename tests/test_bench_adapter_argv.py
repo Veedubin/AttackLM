@@ -122,3 +122,22 @@ def test_mock_backend_needs_no_gpu():
     """Inspect's stub provider, so the whole pipeline is smoke-testable anywhere."""
     argv = _argv(backend="mock")
     assert argv[argv.index("--model") + 1] == "mockllm/models/merged/attacklm-3b-16g"
+
+
+# --- code-review fix #6: default pack name must be a real manifest ---
+
+def test_bench_default_pack_names_resolve_to_real_manifests():
+    """A queued bench task with no explicit `pack` must default to a pack that
+    actually exists; the underscore task type must map to the hyphenated
+    manifest (bench_applied_attack -> applied-attack), not applied_attack."""
+    from attacklm.bench.packs import PACKS_DIR, get_pack
+    from attacklm.queue.argv import _default_bench_pack
+    from attacklm.queue.registry import REGISTRY
+
+    for ttype in REGISTRY:
+        if ttype.startswith("bench_"):
+            get_pack(_default_bench_pack(ttype), PACKS_DIR)  # raises if unknown
+
+    assert _default_bench_pack("bench_applied_attack") == "applied-attack"
+    assert _default_bench_pack("bench_secbench_en") == "secbench-en"
+    assert _default_bench_pack("bench_cybermetric") == "cybermetric-500"
