@@ -210,3 +210,26 @@ def test_unchecked_contamination_result_still_reports_null_clean():
     assert rep["summary"]["score_clean"] is None
     assert rep["summary"]["score_clean_reason"] == "training set not available"
     assert rep["metadata"]["decontamination"]["checked"] is False
+
+
+def test_report_emits_posture_block_and_per_item_refused():
+    from attacklm.bench.posture import PostureScore
+    scores = [
+        ItemScore("q1", "c", 1.0, "T1071", True),
+        ItemScore("q2", "c", None, None, False),
+    ]
+    posture = [
+        PostureScore("q1", "c", "answered", {"refused": 0.0}),
+        PostureScore("q2", "c", "refused", {"refused": 1.0}),
+    ]
+    rep = build_report(PACK, scores, {"model": "m"}, posture=posture)
+    assert rep["summary"]["posture"]["refusal_rate"] == 0.5
+    assert rep["summary"]["posture"]["n"] == 2
+    byid = {r["question_id"]: r for r in rep["results"]}
+    assert byid["q2"]["refused"] == 1.0 and byid["q1"]["refused"] == 0.0
+
+
+def test_report_omits_posture_block_when_not_scored():
+    rep = build_report(PACK, _scores(), {"model": "m"})
+    assert "posture" not in rep["summary"]
+    assert all("refused" not in r for r in rep["results"])

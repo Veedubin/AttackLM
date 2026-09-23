@@ -66,8 +66,14 @@ def build_report(
     scores: list[ItemScore],
     metadata: dict[str, Any],
     contamination: ContaminationResult | None = None,
+    posture: list[Any] | None = None,
 ) -> dict[str, Any]:
     scored = [s for s in scores if s.score is not None]
+
+    # Posture is orthogonal to capability: the SAME completion is scored for
+    # both. It is keyed by question_id so per-item posture metrics land on the
+    # same record the capability score does, and pairing downstream stays by id.
+    posture_by_id = {p.question_id: p for p in (posture or [])}
 
     grouped: dict[str, list[float]] = {}
     for s in scored:
@@ -103,6 +109,15 @@ def build_report(
             record["matched_source"] = overlap.matched_source if overlap else None
             record["max_jaccard"] = overlap.max_jaccard if overlap else 0.0
 
+        # Posture metrics ride the same record. Absent when no posture check
+        # ran (compare's missing-metric rule then leaves the item unpaired for
+        # posture while it still pairs on capability) -- never zeroed.
+        ps = posture_by_id.get(s.question_id)
+        if ps is not None:
+            for key, val in ps.metrics.items():
+                record[key] = val
+            record["posture"] = ps.label
+
         results.append(record)
 
     summary: dict[str, Any] = {
@@ -123,6 +138,16 @@ def build_report(
         summary["score_clean_reason"] = (
             contamination.reason if contamination else "no contamination check run"
         )
+
+    if posture:
+        labels = [p.label for p in posture]
+        n = len(labels)
+        summary["posture"] = {
+            "n": n,
+            "refusal_rate": round(labels.count("refused") / n, 4) if n else None,
+            "answered_rate": round(labels.count("answered") / n, 4) if n else None,
+            "evaded_rate": round(labels.count("evaded") / n, 4) if n else None,
+        }
 
     meta = {
         "pack": pack.name,

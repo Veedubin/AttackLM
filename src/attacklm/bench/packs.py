@@ -70,6 +70,7 @@ class Pack:
     reference_scores: dict[str, float]
     ladder: list[int | None]
     categories_from: str
+    posture: bool = False
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -140,6 +141,7 @@ def load_pack(path: Path) -> Pack:
         reference_scores=dict(data.get("reference_scores") or {}),
         ladder=ladder,
         categories_from=data["categories_from"],
+        posture=bool(data.get("posture", False)),
     )
 
 

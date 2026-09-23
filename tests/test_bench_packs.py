@@ -128,3 +128,19 @@ def test_non_redistributable_packs_have_no_committed_data():
             continue
         cache = PACKS_DIR.parent / "cache" / pack.name
         assert not cache.exists(), f"{pack.name} is fetch-only but has committed data at {cache}"
+
+
+def test_pack_posture_defaults_false_and_parses_true(tmp_path):
+    import yaml
+    from attacklm.bench.packs import load_pack
+    base = {
+        "name": "applied-attack", "harness_task": "jsonl_task", "mode": "local_scored",
+        "source": {"kind": "local"}, "license": "CC-BY-4.0", "redistributable": True,
+        "metric": "micro_f1", "chance_level": 0.0, "ladder": [10, None],
+        "categories_from": "field:category",
+    }
+    p = tmp_path / "applied.yaml"; p.write_text(yaml.safe_dump(base))
+    assert load_pack(p).posture is False
+    base["posture"] = True
+    p.write_text(yaml.safe_dump(base))
+    assert load_pack(p).posture is True
