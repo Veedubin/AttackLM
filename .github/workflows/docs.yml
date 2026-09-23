@@ -48,24 +48,14 @@ jobs:
         run: pip install mkdocs mkdocs-material
 
       - name: Generate docs-site content
-        run: |
-          # Mirror of docs-site/sync-docs.sh for the CI checkout layout
-          # (AttackLM at workspace root, dataset at _dataset/).
-          # Internal methodology docs (attacklm-dataset docs/) are
-          # local-only per project policy and are intentionally not copied.
-          d=docs-site/docs
-          cp README.md         "$d/attacklm-readme.md"
-          cp CHANGELOG.md      "$d/attacklm-changelog.md"
-          cp docs/RL_RECIPE.md "$d/attacklm-rl-recipe.md"
-          cp EVALUATION.md     "$d/attacklm-evaluation.md"
-          cp CONTRIBUTING.md   "$d/attacklm-contributing.md"
-          cp ATTRIBUTION.md    "$d/attacklm-attribution.md"
-          cp _dataset/README.md       "$d/attacklm-dataset-readme.md"
-          cp _dataset/CHANGELOG.md    "$d/attacklm-dataset-changelog.md"
-          cp _dataset/ATTRIBUTION.md  "$d/attacklm-dataset-attribution.md"
-          cp _dataset/PROVENANCE.md   "$d/attacklm-dataset-provenance.md"
-          cp _dataset/RIGHTS.md       "$d/attacklm-dataset-rights.md"
-          cp _dataset/SECURITY.md     "$d/attacklm-dataset-security.md"
+        # Call the single source of truth rather than re-implementing its
+        # copies inline (the inline mirror had drifted and, missing the
+        # mkdir -p, failed every run with "docs-site/docs: No such file or
+        # directory"). ATTACKLM_DATASET_DIR points the script at the sibling
+        # checkout laid out at _dataset/ in the CI workspace.
+        run: bash docs-site/sync-docs.sh
+        env:
+          ATTACKLM_DATASET_DIR: ${{ github.workspace }}/_dataset
 
       - name: Build site
         run: cd docs-site && mkdocs build
