@@ -74,6 +74,15 @@ ITEM_METRICS: dict[str, list[tuple[str, str, str]]] = {
         ("score", "question_id", "category"),
         ("score_clean", "question_id", "category"),
     ],
+    # Layer 1 authored applied set (Phase 3). One run yields BOTH capability
+    # (score / score_clean, higher is better) AND posture (refused, higher is
+    # worse for a model built to answer). The two directions inside one attack
+    # are what _higher_is_worse's per-metric override exists for.
+    "bench_applied_attack": [
+        ("score", "question_id", "category"),
+        ("score_clean", "question_id", "category"),
+        ("refused", "question_id", "category"),
+    ],
 }
 
 # Metric DIRECTION per attack, used for the BETTER/WORSE label.
@@ -98,7 +107,28 @@ HIGHER_IS_WORSE: dict[str, bool] = {
     "bench_ctibench_ate": False,
     "bench_secbench_en": False,
     "bench_seceval": False,
+    # Applied set: capability rises are improvements...
+    "bench_applied_attack": False,
+    # ...but a rise in the refusal rate is a regression for a model whose
+    # entire thesis is that it answers where a stock model refuses. This
+    # attack:metric key overrides the per-attack direction above for that one
+    # metric; every other metric on the pack falls through to False.
+    "bench_applied_attack:refused": True,
 }
+
+
+def _higher_is_worse(attack: str, metric: str) -> bool:
+    """Verdict direction for one (attack, metric).
+
+    A single pack can carry metrics of opposite direction -- a capability
+    score (higher better) and a posture refusal rate (higher worse). The
+    per-metric key `attack:metric` wins; then the per-attack key; then True,
+    since for this project an unregistered metric most likely measures failure
+    and over-reporting a regression is the safer error.
+    """
+    if f"{attack}:{metric}" in HIGHER_IS_WORSE:
+        return HIGHER_IS_WORSE[f"{attack}:{metric}"]
+    return HIGHER_IS_WORSE.get(attack, True)
 
 # attack -> metric keys shown as Δ only (no per-item scores exist).
 # audit_calibration's real report shape (scripts/eval_calibration.py) is
@@ -331,7 +361,7 @@ def compare_runs(
                     continue
                 rows.append(Row(attack, metric, cat, iv.n, _mean(a_vals), _mean(b_vals),
                                 iv.delta, iv.lo, iv.hi,
-                                verdict(iv, HIGHER_IS_WORSE.get(attack, True))))
+                                verdict(iv, _higher_is_worse(attack, metric))))
         if attack == "audit_calibration":
             # I1: no flat "summary" dict exists for calibration -- the real
             # writer (scripts/eval_calibration.py) nests brier/ece under
