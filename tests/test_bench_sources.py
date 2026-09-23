@@ -152,3 +152,33 @@ def test_no_fetched_data_is_tracked_by_git():
         cwd=REPO, capture_output=True, text=True, check=False,
     )
     assert tracked.stdout.strip() == "", f"fetched data is tracked: {tracked.stdout}"
+
+
+# --- code-review fix #5: single-choice prompt must not go plural ---
+
+MCQ_TSV_NO_PROMPT = (
+    "URL\tQuestion\tOption A\tOption B\tOption C\tOption D\tPrompt\tGT\n"
+    "https://attack.mitre.org/techniques/T1548/\tWhich mitigation?\t"
+    "Audit\tExecution Prevention\tOS Configuration\tUAC\t\tB\n"
+)
+
+
+def test_ctibench_mcq_fallback_prompt_is_single_choice(tmp_path):
+    """ctibench-mcq is single-choice; its fallback prompt must not ask for
+    'the letter(s) of every correct option' -- that plural phrasing changed a
+    single-choice pack's prompt and broke comparability with recorded runs."""
+    from attacklm.bench.sources import _MCQ_SYSTEM_SINGLE
+
+    items = load_ctibench_mcq(_tsv(tmp_path, "cti-mcq.tsv", MCQ_TSV_NO_PROMPT))
+    sys_msg = items[0]["messages"][0]["content"]
+    assert sys_msg == _MCQ_SYSTEM_SINGLE
+    assert "letter(s)" not in sys_msg
+    assert "single letter" in sys_msg
+
+
+def test_multi_select_packs_keep_the_plural_prompt():
+    """SecBench/SecEval are genuinely multi-select and must ask for every
+    correct option."""
+    from attacklm.bench.sources import _MCQ_SYSTEM
+
+    assert "letter(s) of every correct option" in _MCQ_SYSTEM

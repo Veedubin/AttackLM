@@ -25,6 +25,15 @@ from typing import Any, Callable
 # data/bench/cache/ — gitignored; see .gitignore
 CACHE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "bench" / "cache"
 
+# Single-choice packs (ctibench-mcq) vs genuinely multi-select ones
+# (secbench-en, seceval) need DIFFERENT instructions: asking a single-choice
+# model for "the letter(s) of every correct option" both changes a recorded
+# pack's prompt (breaking comparability) and invites a multi-letter reply that
+# the single-choice extractor then rejects.
+_MCQ_SYSTEM_SINGLE = (
+    "You are a cyber threat intelligence analyst. Answer the multiple-choice "
+    "question with the single letter of the correct option."
+)
 _MCQ_SYSTEM = (
     "You are a security expert answering a multiple-choice question. "
     "Reply with the letter(s) of every correct option."
@@ -59,7 +68,7 @@ def load_ctibench_mcq(path: Path) -> list[dict[str, Any]]:
                 "category": "cti_knowledge",
                 "tier": "mcq",
                 "messages": [
-                    {"role": "system", "content": row.get("Prompt") or _MCQ_SYSTEM},
+                    {"role": "system", "content": row.get("Prompt") or _MCQ_SYSTEM_SINGLE},
                     {"role": "user", "content": f"{row['Question']}\n\n{options}"},
                 ],
                 "ground_truth": {"type": "mcq_choice", "answer": row["GT"].strip()},
