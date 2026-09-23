@@ -118,7 +118,10 @@ def test_refusal_is_invalid_not_a_genuine_zero(tmp_path):
 
 def test_every_shipped_local_pack_has_a_loader():
     for pack in list_packs(PACKS_DIR):
-        if pack.mode == "local_scored":
+        # A fetch loader exists to pull EXTERNAL data. An authored pack
+        # (source.kind == local) ships its items in-repo and has nothing to
+        # fetch, so it is exempt by design.
+        if pack.mode == "local_scored" and pack.source.kind != "local":
             assert pack.name in SOURCE_LOADERS, f"{pack.name} has no source loader"
 
 

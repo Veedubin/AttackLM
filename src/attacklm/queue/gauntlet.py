@@ -48,6 +48,9 @@ GAUNTLET_PRESETS: dict[str, list[dict[str, Any]]] = {
         {"type": "bench_cybermetric", "args": {"pack": "cybermetric-500"}},
         {"type": "bench_secbench_en", "args": {"pack": "secbench-en"}},
         {"type": "bench_seceval", "args": {"pack": "seceval"}},
+        # Layer 1 (Phase 3): the authored set that can see the product thesis.
+        # In-repo, so it runs without a fetch, and it carries the posture axis.
+        {"type": "bench_applied_attack", "args": {"pack": "applied-attack"}},
     ],
 }
 

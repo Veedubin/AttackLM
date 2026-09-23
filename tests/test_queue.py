@@ -192,6 +192,7 @@ class TestRegistry:
             "bench_ctibench_ate",
             "bench_secbench_en",
             "bench_seceval",
+            "bench_applied_attack",
         }
 
     def test_train_spec(self):

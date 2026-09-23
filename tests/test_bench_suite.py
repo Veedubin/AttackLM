@@ -80,3 +80,21 @@ def test_packs_named_by_capability_preset_all_exist():
     for task in expand_gauntlet("capability"):
         pack = task["args"].get("pack")
         assert pack in shipped, f"{task['type']} names missing pack {pack!r}"
+
+
+def test_applied_attack_pack_is_registered_and_in_capability_suite():
+    """Layer 1 (Phase 3) joins the capability suite -- the layer that measures
+    the product thesis runs by default alongside the externals."""
+    from attacklm.queue.registry import REGISTRY
+
+    assert "bench_applied_attack" in REGISTRY
+    types = [t["type"] for t in expand_gauntlet("capability")]
+    assert "bench_applied_attack" in types
+
+
+def test_applied_attack_task_names_the_shipped_pack():
+    from attacklm.bench.packs import PACKS_DIR, list_packs
+
+    shipped = {p.name for p in list_packs(PACKS_DIR)}
+    task = next(t for t in expand_gauntlet("capability") if t["type"] == "bench_applied_attack")
+    assert task["args"].get("pack") in shipped
