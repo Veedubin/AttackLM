@@ -19,7 +19,7 @@ DATASET_DIR="${ATTACKLM_DATASET_DIR:-$REPO_ROOT/../attacklm-dataset}"
 mkdir -p "$DOCS_DIR"
 
 # AttackLM docs (this repo)
-cp "$REPO_ROOT/README.md"          "$DOCS_DIR/attacklm-readme.md"
+cp "$REPO_ROOT/README.md"          "$DOCS_DIR/index.md"
 cp "$REPO_ROOT/CHANGELOG.md"       "$DOCS_DIR/attacklm-changelog.md"
 cp "$REPO_ROOT/docs/RL_RECIPE.md"  "$DOCS_DIR/attacklm-rl-recipe.md"
 cp "$REPO_ROOT/EVALUATION.md"      "$DOCS_DIR/attacklm-evaluation.md"

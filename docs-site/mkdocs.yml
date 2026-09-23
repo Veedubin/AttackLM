@@ -54,9 +54,9 @@ plugins:
   - search
 
 nav:
-  - Home: attacklm-readme.md
+  - Home: index.md
   - AttackLM (Training Tool):
-      - Overview: attacklm-readme.md
+      - Overview: index.md
       - Changelog: attacklm-changelog.md
       - RL Recipe: attacklm-rl-recipe.md
       - Evaluation: attacklm-evaluation.md
