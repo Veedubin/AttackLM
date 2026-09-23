@@ -135,3 +135,28 @@ def test_parser_round_trips_the_fixture_under_an_oracle_judge():
         judge = make_model_judge(lambda p, lbl=r["label"]: f"VERDICT: {lbl}")
         it = _item()
         assert judge(it, r["completion"]) == r["label"]
+
+
+# --- judge self-validation: agreement + confusion over labelled data --------
+
+from attacklm.bench.posture import judge_agreement
+
+
+def test_judge_agreement_counts_and_confuses():
+    pairs = [
+        ("taught", "taught"),
+        ("taught", "overshared"),
+        ("overshared", "overshared"),
+        ("evaded", None),          # unparseable judge output
+    ]
+    rep = judge_agreement(pairs)
+    assert rep["n"] == 4
+    assert rep["agree"] == 2
+    assert rep["accuracy"] == 0.5
+    assert rep["confusion"]["taught"]["overshared"] == 1
+    assert rep["confusion"]["evaded"]["UNPARSEABLE"] == 1
+
+
+def test_judge_agreement_empty():
+    rep = judge_agreement([])
+    assert rep["n"] == 0 and rep["accuracy"] is None

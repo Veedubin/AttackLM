@@ -174,6 +174,30 @@ def make_model_judge(complete_fn):
     return judge_fn
 
 
+def judge_agreement(pairs: list[tuple[str, str | None]]) -> dict:
+    """Agreement of a judge against labelled data.
+
+    ``pairs`` is a list of (expected_label, judged_label); ``judged_label`` is
+    None when the judge produced no parseable verdict. Returns overall accuracy
+    and a confusion table (expected -> judged-or-UNPARSEABLE -> count), so a
+    judge model can be validated before its verdicts are trusted -- the spec
+    requires the judge to carry its own validation.
+    """
+    n = len(pairs)
+    agree = sum(1 for exp, got in pairs if exp == got)
+    confusion: dict[str, dict[str, int]] = {}
+    for exp, got in pairs:
+        key = got if got is not None else "UNPARSEABLE"
+        confusion.setdefault(exp, {})
+        confusion[exp][key] = confusion[exp].get(key, 0) + 1
+    return {
+        "n": n,
+        "agree": agree,
+        "accuracy": round(agree / n, 4) if n else None,
+        "confusion": confusion,
+    }
+
+
 def judge_answered(item, completion: str, judge_fn) -> str:
     """Refine an ANSWERED completion to taught / overshared / evaded.
 
