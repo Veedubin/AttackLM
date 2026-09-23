@@ -1,3 +1,51 @@
+## [0.21.0] — 2026-09-23
+
+The capability benchmark, and the first bigger model. Until now the suite only
+measured attack *resistance* — nothing measured whether the fine-tune is a
+*better security assistant* than its base, which is the product thesis. This
+release adds that, and uses it to qualify a Qwen3-14B candidate that beats the
+shipped 3B while preserving teach-don't-arm.
+
+**Added**:
+- **Capability benchmark** (`src/attacklm/bench/`): a MITRE ATT&CK-grounded
+  security-QA harness driven as a subprocess over Inspect AI. Packs: applied
+  ATT&CK (authored log-triage / code-review / technique-ID), CTI-Bench MCQ +
+  ATE, CyberMetric, SecBench, SecEval. `attacklm bench` / `scripts/bench_run.py`;
+  `queue gauntlet --suite capability` is now the default suite (audits behind
+  `--suite audits`).
+- **Dual scoring** ("SAE correction"): every report emits `score_raw` and
+  `score_clean` (contaminated items excluded via a MinHash pass over the
+  training set), plus a contamination sensitivity curve and by-source
+  stratification — no run is quotable on raw alone.
+- **Posture axis** (`bench/posture.py`): every completion scored
+  refused / answered / evaded (deterministic) and, with an injectable judge,
+  taught / overshared — refusal is a FAILURE, oversharing (emitting runnable
+  payload) is the other failure. Resilient: a judge that OOMs or can't parse
+  falls back without discarding the capability pass.
+- **Balanced training subset** (`attacklm-dataset/scripts/build_balanced.py`):
+  caps each bucket so a run isn't dominated by the two largest buckets (~58% of
+  `all`).
+
+**Models / results** (RTX 4080 SUPER 16 GB; direct transformers+bnb-4bit
+generation, project scorers — see `bench_results/2026-09-23_qwen3-14b_vs_3b/`):
+- Fine-tuned **Qwen3-14B** (QLoRA, balanced 6,502-pair set),
+  `models/merged/attacklm-14b-qwen3`, loads 4-bit in 10.1 GB.
+- Applied-attack (n=36): **14B micro-F1 0.435 vs 3B 0.278** (+57%); does
+  code-review the 3B can't (0.308 vs 0.000); 0 invalid vs 7.
+- Public CTI-Bench: **MCQ 0.675 vs 0.545** (14B reaches llama3-70b / gemini-1.5
+  tier, approaches GPT-4 0.710); ATE 0.183 vs 0.099.
+- Posture holds on both: refused 0%, taught 94–100%, overshared 0%, 0 arming
+  markers in a structural scan.
+
+**Fixed**:
+- 10 benchmark code-review findings (MCQ letter extraction bounded per item,
+  single-choice prompt kept off single-choice packs, applied pack shipped in
+  `queue compare`, judge pass hardened/isolated, default bench pack names).
+- `train_template.py --help` crashed on unescaped `%` in help strings.
+- 9 ruff errors in bench tests that were failing the CI lint gate.
+
+**Tests**: 1059 passed, 2 skipped. `ruff check src/ tests/ scripts/` clean.
+
 ## [0.20.0] — 2026-09-22
 
 Turns gauntlet output from "numbers" into "did this fine-tune get worse than the untuned base model, and where?" — baselines, `queue compare`, and `queue history`, with a paired-bootstrap confidence interval behind every verdict.
