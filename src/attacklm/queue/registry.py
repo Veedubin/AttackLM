@@ -208,6 +208,12 @@ REGISTRY: dict[str, TaskSpec] = {
             "backend": {"type": "string", "required": False},
             "max_tokens": {"type": "integer", "required": False},
             "invalid_policy": {"type": "string", "required": False},
+            # Posture judge knobs (optional). Omitted -> deterministic posture
+            # only (refused/answered/evaded). Set judge_model to grade
+            # taught/overshared via a second harness pass.
+            "judge_model": {"type": "string", "required": False},
+            "judge_backend": {"type": "string", "required": False},
+            "judge_max_tokens": {"type": "integer", "required": False},
         },
         default_timeout_s=3600,
         gauntlet_member=True,

@@ -94,3 +94,11 @@ def test_existing_gauntlet_presets_untouched():
         "audit_prompt_injection",
         "audit_system_prompt",
     ]
+
+
+def test_applied_attack_exposes_the_posture_judge_knobs():
+    """The applied pack is the posture pack; its queue task must be able to
+    pass the judge knobs so a gauntlet run can grade taught/overshared."""
+    schema = REGISTRY["bench_applied_attack"].arg_schema
+    for key in ("judge_model", "judge_backend", "judge_max_tokens"):
+        assert key in schema, f"{key} missing from bench_applied_attack arg_schema"
