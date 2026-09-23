@@ -50,7 +50,12 @@ from attacklm.bench.contamination import (  # noqa: E402
 )
 from attacklm.bench.items import BenchItem, load_items, sample_items  # noqa: E402
 from attacklm.bench.packs import PACKS_DIR, Pack, get_pack  # noqa: E402
-from attacklm.bench.posture import PostureConfig, score_posture  # noqa: E402
+from attacklm.bench.posture import (  # noqa: E402
+    PostureConfig,
+    build_judge_prompt,
+    parse_judge_verdict,
+    score_posture,
+)
 from attacklm.bench.report import build_report  # noqa: E402
 from attacklm.bench.scorers import (  # noqa: E402
     INVALID_POLICIES,
@@ -96,6 +101,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     sc = p.add_argument_group("scoring")
     sc.add_argument("--answer-regex", help="override answer extraction (local_scored)")
     sc.add_argument("--invalid-policy", default="count_wrong", choices=list(INVALID_POLICIES))
+
+    jd = p.add_argument_group("posture judge (taught vs overshared)")
+    jd.add_argument("--judge-model",
+                    help="model that grades ANSWERED completions taught/overshared/evaded "
+                         "via a second harness pass; omit to keep posture deterministic "
+                         "(refused/answered/evaded only)")
+    jd.add_argument("--judge-backend",
+                    help="backend for the judge model (default: same as --backend)")
+    jd.add_argument("--judge-max-tokens", type=int, default=256,
+                    help="generation cap for the judge's verdict")
 
     dc = p.add_argument_group("contamination (the \"SAE correction\")")
     dc.add_argument("--no-decontam", action="store_true",
@@ -156,6 +171,72 @@ def _score_posture_local(items, samples: list[ParsedSample], pcfg: PostureConfig
     """
     completions = {s.sample_id: s.completion for s in samples}
     return [score_posture(item, completions.get(item.question_id, ""), pcfg) for item in items]
+
+
+def _run_judge_pass(pack, items, samples, args, adapter, pcfg: PostureConfig):
+    """Refine ANSWERED posture labels to taught/overshared/evaded via a judge.
+
+    The judge runs through the SAME Inspect subprocess as a second pass over
+    judge-prompt items, so no vLLM enters this venv and any model (local or
+    openai-api) can judge. Only items the deterministic tier called 'answered'
+    are judged -- refusals and empty answers are already decided.
+    """
+    import dataclasses
+
+    completions = {s.sample_id: s.completion for s in samples}
+
+    # Which items actually reached the judge tier?
+    answered = [
+        item for item in items
+        if score_posture(item, completions.get(item.question_id, ""), pcfg).label == "answered"
+    ]
+    if not answered:
+        return _score_posture_local(items, samples, pcfg)
+
+    # One judge item per answered completion: its prompt IS the judge prompt.
+    judge_items = [
+        BenchItem(
+            question_id=item.question_id,
+            category=item.category,
+            tier="judge",
+            messages=[{"role": "user",
+                       "content": build_judge_prompt(item, completions.get(item.question_id, ""))}],
+            ground_truth={},
+            metadata={},
+        )
+        for item in answered
+    ]
+
+    with tempfile.TemporaryDirectory(prefix="attacklm-judge-") as tmp:
+        jlog = Path(tmp)
+        judge_cfg = dataclasses.replace(
+            RunConfig(model=args.judge_model),
+            model=args.judge_model,
+            backend=args.judge_backend or args.backend,
+            max_tokens=args.judge_max_tokens,
+            temperature=0.0, top_p=1.0, seed=args.seed,
+            base_url=args.base_url, model_args=list(args.model_args),
+            log_dir=jlog,
+            items_path=_write_items(judge_items, jlog),
+        )
+        judge_samples = _run_harness(pack, judge_cfg, adapter)
+        if args.keep_logs:
+            dest = Path(args.keep_logs)
+            dest.mkdir(parents=True, exist_ok=True)
+            for log in jlog.glob("*.json"):
+                dest.joinpath("judge_" + log.name).write_text(log.read_text())
+
+    verdict_text = {s.sample_id: s.completion for s in judge_samples}
+
+    def _judge_fn(item, _completion, _qid_lookup=verdict_text):
+        # parse_judge_verdict raises JudgeError on unparseable output, which
+        # score_posture catches -> the item stays 'answered', unlabelled.
+        return parse_judge_verdict(_qid_lookup.get(item.question_id, ""))
+
+    return [
+        score_posture(item, completions.get(item.question_id, ""), pcfg, judge_fn=_judge_fn)
+        for item in items
+    ]
 
 
 def _write_items(items: list[BenchItem], out_dir: Path) -> Path:
@@ -249,7 +330,10 @@ def main(argv: list[str] | None = None) -> int:
     posture_cfg = PostureConfig()
     posture_scores = None
     if pack.posture and pack.mode == "local_scored" and items:
-        posture_scores = _score_posture_local(items, samples, posture_cfg)
+        if args.judge_model:
+            posture_scores = _run_judge_pass(pack, items, samples, args, adapter, posture_cfg)
+        else:
+            posture_scores = _score_posture_local(items, samples, posture_cfg)
 
     # Contamination is post-processing over one MinHash pass, so both the raw
     # and corrected numbers come from this single run at no extra GPU cost.
@@ -291,6 +375,11 @@ def main(argv: list[str] | None = None) -> int:
                     "refusal_patterns": (
                         "builtin" if posture_cfg.refusal_patterns is None else "custom"
                     ),
+                    "judge_model": args.judge_model,
+                    "judge_backend": (
+                        (args.judge_backend or args.backend) if args.judge_model else None
+                    ),
+                    "judge_max_tokens": args.judge_max_tokens if args.judge_model else None,
                 }
                 if posture_scores is not None
                 else {"enabled": False}
@@ -315,11 +404,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{' ' * len(pack.name)}  clean=n/a ({reason})")
     posture_summary = report["summary"].get("posture")
     if posture_summary:
+        pad = " " * len(pack.name)
         print(
-            f"{' ' * len(pack.name)}  posture: refused={posture_summary['refusal_rate']:.1%} "
+            f"{pad}  posture: refused={posture_summary['refusal_rate']:.1%} "
             f"answered={posture_summary['answered_rate']:.1%} "
             f"evaded={posture_summary['evaded_rate']:.1%} (n={posture_summary['n']})"
         )
+        if "taught_rate" in posture_summary:
+            print(
+                f"{pad}  judged:  taught={posture_summary['taught_rate']:.1%} "
+                f"overshared={posture_summary['overshared_rate']:.1%}"
+            )
     print(f"Report: {out}")
     return 0
 

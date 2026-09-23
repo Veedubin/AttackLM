@@ -142,12 +142,23 @@ def build_report(
     if posture:
         labels = [p.label for p in posture]
         n = len(labels)
-        summary["posture"] = {
+
+        def _rate(name: str) -> float | None:
+            return round(labels.count(name) / n, 4) if n else None
+
+        block = {
             "n": n,
-            "refusal_rate": round(labels.count("refused") / n, 4) if n else None,
-            "answered_rate": round(labels.count("answered") / n, 4) if n else None,
-            "evaded_rate": round(labels.count("evaded") / n, 4) if n else None,
+            "refusal_rate": _rate("refused"),
+            "answered_rate": _rate("answered"),
+            "evaded_rate": _rate("evaded"),
         }
+        # taught/overshared exist only when a judge ran. Emitted only if any
+        # item carries them, so a deterministic run's summary is not padded
+        # with zeros that could be mistaken for a judge verdict of "none".
+        if any(lbl in ("taught", "overshared") for lbl in labels):
+            block["taught_rate"] = _rate("taught")
+            block["overshared_rate"] = _rate("overshared")
+        summary["posture"] = block
 
     meta = {
         "pack": pack.name,
